@@ -6,12 +6,11 @@
 
 *Transforming Open Source Development with AI-Powered Branch Intelligence*
 
-[![Educational License](https://img.shields.io/badge/License-Educational%20Use%20Only-orange.svg?style=for-the-badge)](LICENSE.md)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/RAWx18/Beetle/ci.yml?style=for-the-badge&logo=github)](https://github.com/RAWx18/Beetle/actions)
+[![OpenSource License](https://img.shields.io/badge/License-Non%20Commercial%20Use%20Only-orange.svg?style=for-the-badge)](LICENSE.md)
 [![Contributors](https://img.shields.io/github/contributors/RAWx18/Beetle.svg?style=for-the-badge&logo=git)](https://github.com/RAWx18/Beetle/graphs/contributors)
-[![Discord](https://img.shields.io/discord/1234567890?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/FkrWfGtZn3)
+[![Join Discord](https://img.shields.io/badge/Join%20us%20on-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/FkrWfGtZn3)
 
-[🚀 **Try Demo**]() • [📖 **Documentation**]() • [💬 **Join Community**](https://discord.gg/FkrWfGtZn3)
+[🚀 **Try Demo**](https://beetle-demo.vercel.app/) • [📖 **Documentation**](https://github.com/RAWx18/Beetle/README.md) • [💬 **Join Community**](https://discord.gg/FkrWfGtZn3)
 
 </div>
 
@@ -19,62 +18,77 @@
 
 ## 🌟 What is Beetle?
 
-<img src="beetle_frontend/public/mascott/mascott_4.png" width="130" height="130" align="right" alt="Beetle Mascot">
+<img src="beetle_frontend/public/mascott/mascott_4.png" width="200" height="200" align="right" alt="Beetle Mascot">
 
 **Beetle** revolutionizes Git-based collaboration by introducing **Branch-Level Intelligence** — a paradigm shift that transforms how teams plan, develop, and contribute to open-source projects. Unlike traditional project management tools, Beetle understands your codebase at the branch level, providing contextual AI assistance, intelligent contribution tracking, and seamless workflow orchestration.
 
 Our friendly mascot here represents the core philosophy of Beetle: small, efficient, but incredibly powerful when working together in a team!
 
+Cursor wrapped VS Code. Hugging Face wrapped Git. Now, GitHub Wrapper is here — ready to revolutionize the open source world like never before.
+
 ---
 
-## ⚡ Key Features
+# ⚡ Key Features
 
-<table>
-<tr>
-<td width="40%">
+<div align="center">
 
 ### 🧠 **AI-Powered Intelligence**
-- Contextual Code Assistant
-- Smart PR Summaries
-- Intelligent Issue Triage
-- Code Review Assistance
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ✨ Contextual Code Assistant                               │
+│  📝 Smart PR Summaries                                      │
+│  🎯 Intelligent Issue Triage                                │
+│  👀 Code Review Assistance                                  │
+│  💡 Suggestions on which issues to work                     │
+│  🎪 Which project best to contribute to and all             │
+└─────────────────────────────────────────────────────────────┘
+```
 
-</td>
-<td width="20%" align="center">
-</td>
-<td width="40%">
-
-### 🔄 **Advanced Workflow Management**
-- Branch-Specific Planning
-- Dynamic Kanban Boards
-- Automated Status Tracking
-- Custom Workflow Templates
-
-</td>
-</tr>
-<tr>
-<td width="40%">
+### 🔄 **Easy Workflow Management**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🌿 Branch-Specific Planning                                │
+│  🤝 Help opensource contributors know what's important      │
+│  🔄 Automated Status Tracking                               │
+│  📋 Custom Workflow Templates                               │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ### 📊 **Analytics & Insights**
-- Contribution Heatmaps
-- Velocity Tracking
-- Code Quality Metrics
-- Team Performance Dashboards
-
-</td>
-<td width="20%" align="center">
-</td>
-<td width="40%">
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🔥 Contribution Heatmaps                                   │
+│  ⚡ Velocity Tracking                                        │
+│  👥 See who's working on which issue/PR                     │
+│  📈 Team Performance Dashboards                             │
+│  🎯 Showcase skills & avoid conflicts                       │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ### 🌐 **Enterprise Integration**
-- Multi-Platform Support (GitHub, GitLab, Bitbucket)
-- SSO Authentication
-- API-First Architecture
-- Webhook Automation
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🔗 Multi-Platform Support (GitHub, GitLab, Bitbucket)      │
+│  🔐 SSO Authentication                                      │
+│  🤖 Multi Agent FAQ agent integrated                        │
+│  ⚡ Webhook Automation                                       │
+└─────────────────────────────────────────────────────────────┘
+```
 
-</td>
-</tr>
-</table>
+</div>
+
+---
+
+<div align="center">
+
+## 🚀 **Why Choose Our Platform?**
+
+| 🎯 **Smart** | 🚀 **Fast** | 🤝 **Collaborative** | 🔒 **Secure** |
+|:---:|:---:|:---:|:---:|
+| AI-driven insights | Lightning fast responses | Team-first approach | Enterprise-grade security |
+| Contextual recommendations | Real-time updates | Conflict-free workflows | SSO & compliance ready |
+
+</div>
 
 ---
 
@@ -84,30 +98,15 @@ Our friendly mascot here represents the core philosophy of Beetle: small, effici
 <img src="beetle_frontend/public/mascott/mascott_2.png" width="200" height="200" alt="Docker Beetle">
 </div>
 
-### Prerequisites
-- **Node.js** (v18.0.0 or higher)
-- **Git** (v2.30.0 or higher)
-- **npm** or **yarn** package manager
-
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/beetle-dev/beetle.git
+git clone https://github.com/RAWx18/beetle.git
 
 # Navigate to project directory
 cd beetle
-
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp .env.example .env.local
-
-# Start development server
-npm run dev
 ```
-
 
 ### Static Demo
 
@@ -177,20 +176,16 @@ npm run dev
 
 ## 🛣️ Roadmap
 
-<img src="beetle_frontend/public/mascott/mascott_1.png" width="120" height="120" align="right" alt="Roadmap Beetle">
+<img src="beetle_frontend/public/mascott/mascott_1.png" width="200" height="200" align="right" alt="Roadmap Beetle">
 
 ### 🚀 **Q3 2025 - Intelligence Enhancement**
-- ✅ ~~Advanced AI Code Assistant~~
-- ✅ ~~Smart PR Generation~~
-- 🔄 Natural Language Query Interface
-- ⏳ Predictive Issue Triage
+- ✅ ~~Structure Idea~~
+- ✅ ~~UI Designed~~
+- ✅ ~~Static Demo Implemented~~
+- 🔄 Backend with Github Integrated
+- ⏳ AI integration
 
-### 🎯 **Q4 2025 - Platform Expansion**
-- ⏳ GitLab Enterprise Integration
-- ⏳ Bitbucket Cloud Support
-- ⏳ Self-Hosted Enterprise Edition
-
-[📋 **View Full Roadmap**](https://roadmap.beetle.dev)
+[📋 **View Full Roadmap**](https://github.com/RAWx18/Beetle/wiki)
 
 ---
 
@@ -208,9 +203,10 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 Our mascot is excited to see what amazing contributions you'll bring to the Beetle community!
 
+### Our major contributors:
 <div align="center">
 
-[![Contributors](https://contrib.rocks/image?repo=beetle-dev/beetle)](https://github.com/RAWx18/beetle/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=RAWx18/beetle)](https://github.com/RAWx18/beetle/graphs/contributors)
 
 </div>
 
@@ -220,16 +216,16 @@ Our mascot is excited to see what amazing contributions you'll bring to the Beet
 
 <div align="center">
 
-[![Discord](https://img.shields.io/discord/1234567890?style=for-the-badge&logo=discord&logoColor=white&label=Join%20Discord)](https://discord.gg/beetle-dev)
-[![Twitter](https://img.shields.io/twitter/follow/beetle_dev?style=for-the-badge&logo=twitter)](https://twitter.com/beetle_dev)
+[![Join Discord](https://img.shields.io/badge/Join%20us%20on-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/FkrWfGtZn3)
 
 ### 📞 **Support Channels**
 
-| Channel | Response Time | Best For |
-|---------|---------------|----------|
-| 🎮 [Discord](https://discord.gg/beetle-dev) | Real-time | Quick questions, community chat |
-| 📧 [Email Support](mailto:rawx18.dev@gmail.com) | 24-48 hours | Technical issues, bug reports |
-| 🐛 [GitHub Issues](https://github.com/beetle-dev/beetle/issues) | 1-3 days | Bug reports, feature requests |
+| Channel                                                         | Typical Response Time | Best For                                             |
+| --------------------------------------------------------------- | --------------------- | ---------------------------------------------------- |
+| 🎮 [Discord](https://discord.gg/FkrWfGtZn3)                     | Real-time             | Quick questions, community discussions               |
+| 📧 [Email Support](mailto:rawx18.dev@gmail.com)                 | 24–48 hours           | Technical issues, detailed bug reports               |
+| 🐦 [Twitter / X](https://x.com/RAWx18_dev)                      | Online                | Tagging the project, general updates, public reports |
+| 🐛 [GitHub Issues](https://github.com/beetle-dev/beetle/issues) | 1–3 days              | Bug reports, feature requests, feedback              |
 
 </div>
 
@@ -241,10 +237,10 @@ Our mascot is excited to see what amazing contributions you'll bring to the Beet
 
 | Metric | Value |
 |--------|-------|
-| 📝 **Total Commits** | ![Commits](https://img.shields.io/github/commit-activity/t/beetle-dev/beetle) |
-| 🔀 **Pull Requests** | ![PRs](https://img.shields.io/github/issues-pr/beetle-dev/beetle) |
-| 🐛 **Issues Resolved** | ![Issues](https://img.shields.io/github/issues-closed/beetle-dev/beetle) |
-| 📦 **Latest Release** | ![Release](https://img.shields.io/github/v/release/beetle-dev/beetle) |
+| 📝 **Total Commits** | ![Commits](https://img.shields.io/github/commit-activity/t/RAWx18/beetle) |
+| 🔀 **Pull Requests** | ![PRs](https://img.shields.io/github/issues-pr/RAWx18/beetle) |
+| 🐛 **Issues Resolved** | ![Issues](https://img.shields.io/github/issues-closed/RAWx18/beetle) |
+| 📦 **Latest Release** | ![Release](https://img.shields.io/github/v/release/RAWx18/beetle) |
 
 </div>
 
@@ -252,7 +248,7 @@ Our mascot is excited to see what amazing contributions you'll bring to the Beet
 
 ## 📜 License
 
-This project is licensed under the Educational Use License - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the Non-Commercial Use License - see the [LICENSE.md](LICENSE.md) file for details.
 
 ---
 
@@ -263,6 +259,14 @@ This project is licensed under the Educational Use License - see the [LICENSE.md
 - Beta testers and early adopters
 
 ---
+
+## 🌟 Star Graph: Project Beetle
+
+<div align="center"> <img src="https://starchart.cc/RAWx18/beetle.svg" alt="Star Graph for Project Beetle" width="600"/> <br/> <sub>✨ GitHub star history of <strong><a href="https://github.com/RAWx18/beetle" target="_blank">RAWx18/beetle</a></strong></sub> </div>
+
+---
+
+<br></br>
 
 <div align="center">
 
