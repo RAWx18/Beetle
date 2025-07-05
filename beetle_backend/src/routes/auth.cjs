@@ -34,6 +34,7 @@ router.get('/github/url', (req, res) => {
     `client_id=${config.clientId}&` +
     `redirect_uri=${encodeURIComponent(config.callbackUrl)}&` +
     `scope=repo,user,read:org&` +
+    `prompt=select_account&` +
     `state=${state}`;
 
   res.json({
@@ -44,17 +45,27 @@ router.get('/github/url', (req, res) => {
 
 // GitHub OAuth callback
 router.get('/github/callback', asyncHandler(async (req, res) => {
+  console.log('🔵 OAuth callback started:', new Date().toISOString())
   const { code, state } = req.query;
 
   if (!code) {
+    console.log('❌ No authorization code received')
     return res.status(400).json({
       error: 'Authorization code required',
       message: 'GitHub authorization code is missing'
     });
   }
 
+  console.log('✅ Authorization code received, starting token exchange...')
   try {
     const config = getGitHubConfig();
+    
+    console.log('🔄 Exchanging code for access token...')
+    console.log('📤 Sending to GitHub:', {
+      client_id: config.clientId,
+      code: code ? `${code.substring(0, 10)}...` : 'undefined',
+      redirect_uri: config.callbackUrl
+    })
     
     // Exchange code for access token
     const tokenResponse = await axios.post('https://github.com/login/oauth/access_token', {
@@ -67,10 +78,19 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
         'Accept': 'application/json'
       }
     });
+    console.log('✅ Token exchange completed')
 
     const { access_token, error, error_description } = tokenResponse.data;
 
+    console.log('🔍 Token response data:', { 
+      hasAccessToken: !!access_token, 
+      error, 
+      error_description,
+      responseStatus: tokenResponse.status 
+    })
+
     if (error) {
+      console.error('❌ GitHub OAuth error:', { error, error_description })
       return res.status(400).json({
         error: 'GitHub OAuth Error',
         message: error_description || 'Failed to exchange code for access token'
@@ -84,13 +104,17 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
       });
     }
 
+    console.log('🔄 Getting user profile from GitHub...')
     // Get user profile from GitHub
     const userProfile = await getUserProfile(access_token);
+    console.log('✅ User profile received:', userProfile.login)
 
+    console.log('🔄 Checking user in database...')
     // Create or update user in database
     let user = await getUser(userProfile.id);
     
     if (!user) {
+      console.log('🔄 Creating new user in database...')
       user = await createUser(userProfile.id, {
         githubId: userProfile.id,
         login: userProfile.login,
@@ -109,6 +133,7 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
         updated_at: userProfile.updated_at
       });
     } else {
+      console.log('🔄 Updating existing user in database...')
       // Update existing user
       user = await updateUser(userProfile.id, {
         name: userProfile.name,
@@ -127,6 +152,7 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
       });
     }
 
+    console.log('🔄 Creating session...')
     // Create session
     const sessionId = uuidv4();
     const session = await createSession(sessionId, {
@@ -137,6 +163,7 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
       accessToken: access_token
     });
 
+    console.log('🔄 Generating JWT token...')
     // Generate JWT token
     const token = jwt.sign(
       { 
@@ -148,15 +175,18 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    // Redirect to frontend with token
+    console.log('🔄 Redirecting directly to homepage...')
+    // Redirect directly to the homepage with token in localStorage via URL params
     const frontendUrl = process.env.NODE_ENV === 'production'
       ? 'https://your-frontend-domain.com'
       : 'http://localhost:3000';
 
-    res.redirect(`${frontendUrl}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userProfile))}`);
+    const redirectUrl = `${frontendUrl}/?auth_token=${token}&auth_user=${encodeURIComponent(JSON.stringify(userProfile))}`;
+    console.log('✅ OAuth callback completed, redirecting directly to homepage:', redirectUrl)
+    res.redirect(redirectUrl);
 
   } catch (error) {
-    console.error('GitHub OAuth callback error:', error);
+    console.error('❌ GitHub OAuth callback error:', error);
     res.status(500).json({
       error: 'Authentication failed',
       message: 'Failed to complete GitHub authentication'

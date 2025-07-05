@@ -38,9 +38,12 @@ import Dashboard from "@/components/dashboard"
 import { GitHubWorkflowVisualization } from "@/components/github-workflow-visualization"
 import { BranchVisualization } from "@/components/branch-visualization"
 import { PRReviewDemo } from "@/components/pr-review-demo"
+import { useSearchParams, useRouter } from "next/navigation"
 
 export default function Home() {
-  const { isAuthenticated, user, login, logout, loading } = useAuth()
+  const { isAuthenticated, user, login, logout, loading, setUserFromCallback } = useAuth()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [trendingRepos, setTrendingRepos] = useState(mockTrendingRepos)
   const [mounted, setMounted] = useState(false)
@@ -101,6 +104,33 @@ export default function Home() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Handle authentication parameters from OAuth callback
+  useEffect(() => {
+    const handleAuth = async () => {
+      const authToken = searchParams.get('auth_token');
+      const authUser = searchParams.get('auth_user');
+
+      if (authToken && authUser && !isAuthenticated) {
+        try {
+          console.log('Processing authentication from URL params...');
+          const userData = JSON.parse(decodeURIComponent(authUser));
+          setUserFromCallback(userData, authToken);
+          
+          // Clean up URL parameters
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, newUrl);
+          
+          console.log('Authentication successful, user logged in');
+        } catch (error) {
+          console.error('Error processing authentication:', error);
+          // Stay on homepage if auth fails
+        }
+      }
+    };
+
+    handleAuth();
+  }, [searchParams, setUserFromCallback, isAuthenticated]);
 
   const handleGitHubLogin = () => {
     login()
