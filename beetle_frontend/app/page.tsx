@@ -33,13 +33,14 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useTheme } from "next-themes"
+import { useAuth } from "@/contexts/AuthContext"
 import Dashboard from "@/components/dashboard"
 import { GitHubWorkflowVisualization } from "@/components/github-workflow-visualization"
 import { BranchVisualization } from "@/components/branch-visualization"
 import { PRReviewDemo } from "@/components/pr-review-demo"
 
 export default function Home() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const { isAuthenticated, user, login, logout, loading } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [trendingRepos, setTrendingRepos] = useState(mockTrendingRepos)
   const [mounted, setMounted] = useState(false)
@@ -102,11 +103,11 @@ export default function Home() {
   }, [])
 
   const handleGitHubLogin = () => {
-    setIsLoggedIn(true)
+    login()
   }
 
   const handleSignOut = () => {
-    setIsLoggedIn(false)
+    logout()
   }
 
   const handleSearch = (query: string) => {
@@ -116,7 +117,7 @@ export default function Home() {
 
   if (!mounted) return null
 
-  if (isLoggedIn) {
+  if (isAuthenticated) {
     return <Dashboard onSignOut={handleSignOut} />
   }
 

@@ -16,17 +16,23 @@ const { asyncHandler } = require('../middleware/errorHandler.cjs');
 const router = express.Router();
 
 // GitHub OAuth configuration
-const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
-const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
-const GITHUB_CALLBACK_URL = process.env.GITHUB_CALLBACK_URL;
+// GitHub OAuth configuration - read from environment at runtime
+const getGitHubConfig = () => ({
+  clientId: process.env.GITHUB_CLIENT_ID,
+  clientSecret: process.env.GITHUB_CLIENT_SECRET,
+  callbackUrl: process.env.GITHUB_CALLBACK_URL
+});
 
 // Generate GitHub OAuth URL
 router.get('/github/url', (req, res) => {
   const state = uuidv4(); // Generate random state for security
+  const config = getGitHubConfig();
+  
+
   
   const githubAuthUrl = `https://github.com/login/oauth/authorize?` +
-    `client_id=${GITHUB_CLIENT_ID}&` +
-    `redirect_uri=${encodeURIComponent(GITHUB_CALLBACK_URL)}&` +
+    `client_id=${config.clientId}&` +
+    `redirect_uri=${encodeURIComponent(config.callbackUrl)}&` +
     `scope=repo,user,read:org&` +
     `state=${state}`;
 
@@ -48,12 +54,14 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
   }
 
   try {
+    const config = getGitHubConfig();
+    
     // Exchange code for access token
     const tokenResponse = await axios.post('https://github.com/login/oauth/access_token', {
-      client_id: GITHUB_CLIENT_ID,
-      client_secret: GITHUB_CLIENT_SECRET,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
       code: code,
-      redirect_uri: GITHUB_CALLBACK_URL
+      redirect_uri: config.callbackUrl
     }, {
       headers: {
         'Accept': 'application/json'

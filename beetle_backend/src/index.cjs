@@ -21,7 +21,7 @@ const { authMiddleware } = require('./middleware/auth.cjs');
 const { initDatabase } = require('./utils/database.cjs');
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 // __dirname is already available in CommonJS
 
