@@ -40,12 +40,16 @@ import {
   Check,
   Edit,
   Trash2,
+  HelpCircle,
+  Heart,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   DropdownMenu,
@@ -74,18 +78,24 @@ const mockNotifications = [
     title: "PR Review Request",
     message: "Gaurav requested your review on PR #247",
     time: "5 minutes ago",
+    read: false,
+    type: "pr"
   },
   {
     icon: Star,
     title: "Repository Starred",
     message: "Your repository 'awesome-ui' received 5 new stars",
     time: "1 hour ago",
+    read: false,
+    type: "star"
   },
   {
     icon: Shield,
     title: "Security Alert",
     message: "Vulnerability detected in lodash dependency",
     time: "2 hours ago",
+    read: false,
+    type: "security"
   },
 ]
 
@@ -102,7 +112,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   const [currentView, setCurrentView] = useState<"dashboard" | "repository" | "user" | "organization">("dashboard")
   const [selectedData, setSelectedData] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<"overview" | "projects" | "activity" | "insights">("overview")
-  const [notifications, setNotifications] = useState(mockNotifications)
+  const [notifications, setNotifications] = useState<any[]>([])
   
   // New states for editable features
   const [editableUsername, setEditableUsername] = useState("GitHub User")
@@ -110,6 +120,15 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
   const [selectedAction, setSelectedAction] = useState<string | null>(null)
   const [projectSearchQuery, setProjectSearchQuery] = useState("")
+  
+  // Project filtering and creation states
+  const [showProjectFilter, setShowProjectFilter] = useState(false)
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false)
+  const [projectFilter, setProjectFilter] = useState({
+    language: 'all',
+    sortBy: 'updated',
+    visibility: 'all'
+  })
   
   // Editable monthly goals
   const [monthlyGoals, setMonthlyGoals] = useState([
@@ -166,11 +185,20 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     repositories: false
   })
   
+  // Notification and profile management states
+  const [unreadNotifications, setUnreadNotifications] = useState(notifications.length)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+
+
+  
   // Use real GitHub data and auth
   const {
     loading: dataLoading,
     error: dataError,
     repositories,
+    starredRepositories,
+    trendingRepositories,
     recentCommits,
     openPRs,
     openIssues,
@@ -179,6 +207,17 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     quickStats,
     refreshData,
   } = useGitHubData()
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('Dashboard data:', {
+      repositories: repositories.length,
+      starredRepositories: starredRepositories.length,
+      trendingRepositories: trendingRepositories.length,
+      dataLoading,
+      dataError
+    });
+  }, [repositories, starredRepositories, trendingRepositories, dataLoading, dataError]);
   
   const { user, isAuthenticated, login, loginDemo, enableAutoDemo, disableAutoDemo } = useAuth()
 
@@ -250,6 +289,83 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     setSelectedAction('deploy')
     setShowProjectSelector(true)
   }
+
+  const handleProjectFilter = () => {
+    setShowProjectFilter(!showProjectFilter)
+  }
+
+  const handleNewProject = () => {
+    setShowNewProjectModal(true)
+  }
+
+  // Filter repositories based on selected filters
+  const getFilteredRepositories = (repos: any[]) => {
+    return repos.filter(repo => {
+      // Language filter
+      if (projectFilter.language !== 'all' && repo.language !== projectFilter.language) {
+        return false;
+      }
+      
+      // Visibility filter
+      if (projectFilter.visibility !== 'all') {
+        const isPublic = !repo.private;
+        if (projectFilter.visibility === 'public' && !isPublic) return false;
+        if (projectFilter.visibility === 'private' && isPublic) return false;
+      }
+      
+      return true;
+    }).sort((a, b) => {
+      // Sort by selected criteria
+      switch (projectFilter.sortBy) {
+        case 'stars':
+          return b.stargazers_count - a.stargazers_count;
+        case 'forks':
+          return b.forks_count - a.forks_count;
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'updated':
+        default:
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      }
+    });
+  };
+
+  // Generate real contribution data from user activity
+  const generateContributionData = () => {
+    const contributionMap = new Map<string, number>();
+    
+    // Initialize last 365 days with 0 contributions
+    for (let i = 0; i < 365; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateKey = date.toISOString().split('T')[0];
+      contributionMap.set(dateKey, 0);
+    }
+
+    // Count contributions from user activity
+    userActivity.forEach(activity => {
+      const activityDate = new Date(activity.created_at).toISOString().split('T')[0];
+      const currentCount = contributionMap.get(activityDate) || 0;
+      contributionMap.set(activityDate, currentCount + 1);
+    });
+
+    // Count contributions from commits
+    recentCommits.forEach(commit => {
+      const commitDate = new Date(commit.commit.author.date).toISOString().split('T')[0];
+      const currentCount = contributionMap.get(commitDate) || 0;
+      contributionMap.set(commitDate, currentCount + 1);
+    });
+
+    // Convert to array format expected by ContributionHeatmap
+    const sortedDates = Array.from(contributionMap.keys()).sort();
+    return sortedDates.map((dateKey, index) => ({
+      day: index,
+      contributions: contributionMap.get(dateKey) || 0,
+      date: new Date(dateKey)
+    }));
+  };
+
+
 
   // New handlers for editable features
   const handleUsernameEdit = () => {
@@ -362,10 +478,142 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     }
   }
 
+  // Notification management functions
+  const markNotificationAsRead = (index: number) => {
+    setNotifications(prev => prev.map((notif, i) => 
+      i === index ? { ...notif, read: true } : notif
+    ))
+    setUnreadNotifications(prev => Math.max(0, prev - 1))
+  }
+
+
+
+
+
+  // Profile and settings functions
+  const handleProfileClick = () => {
+    // Navigate to user profile or open profile modal
+    setCurrentView("user")
+    setSelectedData(user)
+    setShowProfileMenu(false)
+  }
+
+  const handleSettingsClick = () => {
+    setShowSettings(true)
+    setShowProfileMenu(false)
+  }
+
+  const handleThemeToggle = () => {
+    setTheme(theme === "dark" ? "light" : "dark")
+  }
+
+
+
+  // Generate dynamic notifications based on real GitHub data
+  const generateDynamicNotifications = useCallback(() => {
+    const dynamicNotifications = [];
+
+    // Add PR review requests if there are open PRs
+    if (openPRs.length > 0) {
+      const recentPR = openPRs[0];
+      dynamicNotifications.push({
+        icon: GitBranch,
+        title: "PR Review Request",
+        message: `${recentPR.user.login} opened PR #${recentPR.number}`,
+        time: getRelativeTime(recentPR.created_at),
+        read: false,
+        type: "pr"
+      });
+    }
+
+    // Add repository starred notifications
+    if (starredRepositories.length > 0) {
+      const recentStarred = starredRepositories[0];
+      dynamicNotifications.push({
+        icon: Star,
+        title: "Repository Starred",
+        message: `You starred ${recentStarred.full_name}`,
+        time: getRelativeTime(recentStarred.updated_at),
+        read: false,
+        type: "star"
+      });
+    }
+
+    // Add commit notifications
+    if (recentCommits.length > 0) {
+      const recentCommit = recentCommits[0];
+      dynamicNotifications.push({
+        icon: GitCommit,
+        title: "New Commit",
+        message: `Commit: ${recentCommit.commit.message.split('\n')[0].substring(0, 50)}...`,
+        time: getRelativeTime(recentCommit.commit.author.date),
+        read: false,
+        type: "commit"
+      });
+    }
+
+    // Add issue notifications
+    if (openIssues.length > 0) {
+      const recentIssue = openIssues[0];
+      dynamicNotifications.push({
+        icon: MessageSquare,
+        title: "New Issue",
+        message: `Issue #${recentIssue.number}: ${recentIssue.title.substring(0, 50)}...`,
+        time: getRelativeTime(recentIssue.created_at),
+        read: false,
+        type: "issue"
+      });
+    }
+
+    // Add activity notifications
+    if (userActivity.length > 0) {
+      const recentActivity = userActivity[0];
+      dynamicNotifications.push({
+        icon: Activity,
+        title: "Recent Activity",
+        message: `${recentActivity.type} in ${recentActivity.repo.name}`,
+        time: getRelativeTime(recentActivity.created_at),
+        read: false,
+        type: "activity"
+      });
+    }
+
+    // Fallback to mock notifications if no real data
+    if (dynamicNotifications.length === 0) {
+      return mockNotifications;
+    }
+
+    return dynamicNotifications.slice(0, 5); // Limit to 5 notifications
+  }, [openPRs, starredRepositories, recentCommits, openIssues, userActivity]);
+
+  // Initialize notifications with dynamic data
+  useEffect(() => {
+    if (!dataLoading && (repositories.length > 0 || recentCommits.length > 0 || openPRs.length > 0)) {
+      const initialNotifications = generateDynamicNotifications()
+      setNotifications(initialNotifications)
+      setUnreadNotifications(initialNotifications.length)
+    }
+  }, [dataLoading, repositories, recentCommits, openPRs, generateDynamicNotifications])
+
+  // Update notifications periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newNotifications = generateDynamicNotifications()
+      if (newNotifications.length > 0) {
+        setNotifications(prev => [...newNotifications, ...prev.slice(0, 3)])
+        setUnreadNotifications(prev => prev + newNotifications.length)
+      }
+    }, 60000) // Update every minute
+    
+    return () => clearInterval(interval)
+  }, [generateDynamicNotifications])
+
   const filteredRepositories = repositories.filter(repo =>
     repo.name.toLowerCase().includes(projectSearchQuery.toLowerCase()) ||
     repo.full_name.toLowerCase().includes(projectSearchQuery.toLowerCase())
   )
+
+
 
   // Smooth refresh function
   const smoothRefresh = useCallback(async () => {
@@ -794,39 +1042,60 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
             {/* Actions & User Menu */}
             <div className="flex items-center space-x-3">
+              {/* Settings Button */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleSettingsClick}
+                className="relative"
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+              
               {/* Notifications */}
-              <DropdownMenu>
+              <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="relative">
+                  <Button variant="ghost" size="sm" className="relative" data-notification-button>
                     <Bell className="w-4 h-4" />
-                    {notifications.length > 0 && (
-                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full" />
+                    {unreadNotifications > 0 && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-80" align="end">
+                <DropdownMenuContent className="w-72" align="end">
                   <div className="p-3 border-b">
                     <h4 className="font-semibold">Notifications</h4>
                   </div>
                   <div className="max-h-64 overflow-y-auto">
-                    {notifications.map((notification, index) => (
-                      <div key={index} className="p-3 border-b last:border-b-0 hover:bg-muted/50">
-                        <div className="flex items-start gap-3">
-                          <notification.icon className="w-4 h-4 mt-1 text-muted-foreground" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{notification.title}</p>
-                            <p className="text-xs text-muted-foreground">{notification.message}</p>
-                            <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
+                    {notifications.length > 0 ? (
+                      notifications.map((notification, index) => (
+                        <div
+                          key={index} 
+                          className={`p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors ${!notification.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}
+                          onClick={() => markNotificationAsRead(index)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <notification.icon className="w-4 h-4 mt-1 text-muted-foreground" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">{notification.title}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
+                            </div>
                           </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className="p-6 text-center text-muted-foreground">
+                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No notifications</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
 
               {/* User Menu */}
-              <DropdownMenu>
+              <DropdownMenu open={showProfileMenu} onOpenChange={setShowProfileMenu}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                     <Avatar className="h-9 w-9">
@@ -849,17 +1118,39 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                     </div>
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowSettings(true)}>
+                  <DropdownMenuItem onClick={handleProfileClick}>
+                    <User className="mr-2 h-4 w-4" />
+                    View Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSettingsClick}>
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.open('https://github.com/settings/profile', '_blank')}>
+                    <Github className="mr-2 h-4 w-4" />
+                    GitHub Settings
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+                  <DropdownMenuItem onClick={handleThemeToggle}>
                     {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
                     {theme === "dark" ? "Light Mode" : "Dark Mode"}
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.open('https://github.com/notifications', '_blank')}>
+                    <Bell className="mr-2 h-4 w-4" />
+                    GitHub Notifications
+                  </DropdownMenuItem>
+
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut}>
+                  <DropdownMenuItem onClick={() => window.open('https://github.com/support', '_blank')}>
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    Help & Support
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.open('https://github.com/Beetle', '_blank')}>
+                    <Heart className="mr-2 h-4 w-4" />
+                    About Beetle
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="text-red-600 hover:text-red-700">
                     <LogOut className="mr-2 h-4 w-4" />
                     Sign Out
                   </DropdownMenuItem>
@@ -1277,16 +1568,98 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold">Projects</h2>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleProjectFilter}
+                  >
                     <Filter className="w-4 h-4 mr-2" />
                     Filter
                   </Button>
-                  <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
+                  <Button 
+                    size="sm" 
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                    onClick={handleNewProject}
+                  >
                     <Plus className="w-4 h-4 mr-2" />
                     New Project
                   </Button>
                 </div>
               </div>
+
+              {/* Project Filter */}
+              {showProjectFilter && (
+                <Card className="p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="language">Language</Label>
+                      <Select 
+                        value={projectFilter.language} 
+                        onValueChange={(value) => setProjectFilter(prev => ({ ...prev, language: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All languages" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All languages</SelectItem>
+                          <SelectItem value="JavaScript">JavaScript</SelectItem>
+                          <SelectItem value="TypeScript">TypeScript</SelectItem>
+                          <SelectItem value="Python">Python</SelectItem>
+                          <SelectItem value="Java">Java</SelectItem>
+                          <SelectItem value="Go">Go</SelectItem>
+                          <SelectItem value="Rust">Rust</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="sortBy">Sort By</Label>
+                      <Select 
+                        value={projectFilter.sortBy} 
+                        onValueChange={(value) => setProjectFilter(prev => ({ ...prev, sortBy: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="updated">Last Updated</SelectItem>
+                          <SelectItem value="stars">Stars</SelectItem>
+                          <SelectItem value="forks">Forks</SelectItem>
+                          <SelectItem value="name">Name</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="visibility">Visibility</Label>
+                      <Select 
+                        value={projectFilter.visibility} 
+                        onValueChange={(value) => setProjectFilter(prev => ({ ...prev, visibility: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="public">Public</SelectItem>
+                          <SelectItem value="private">Private</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end mt-4">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setProjectFilter({
+                        language: 'all',
+                        sortBy: 'updated',
+                        visibility: 'all'
+                      })}
+                    >
+                      Reset Filters
+                    </Button>
+                  </div>
+                </Card>
+              )}
 
               {/* Trending Featured Projects */}
               <motion.section
@@ -1294,7 +1667,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
               >
-                <FeaturedProjectsCarousel />
+                <FeaturedProjectsCarousel trendingRepositories={trendingRepositories} />
               </motion.section>
 
               <Tabs defaultValue="my-projects" className="w-full">
@@ -1320,42 +1693,95 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                     </div>
                   ) : (
                     <>
-                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {repositories.slice(0, shownProjectsCount).map((repo) => (
-                          <ProjectCard 
-                            key={repo.id} 
-                            project={{
-                              name: repo.full_name,
-                              description: repo.description || 'No description available',
-                              languages: [repo.language].filter(Boolean),
-                              stars: repo.stargazers_count.toString(),
-                              forks: repo.forks_count.toString(),
-                              updated: new Date(repo.updated_at).toLocaleDateString(),
-                            }} 
-                            type="owned" 
-                          />
-                        ))}
-                      </div>
-                      {/* Show More Button for Projects */}
-                      {repositories.length > shownProjectsCount ? (
-                        <Button onClick={() => setShownProjectsCount(c => Math.min(c + PROJECTS_BATCH, repositories.length))}>
-                          Show More
-                        </Button>
-                      ) : repositories.length > PROJECTS_BATCH && shownProjectsCount > PROJECTS_BATCH ? (
-                        <Button onClick={() => setShownProjectsCount(PROJECTS_BATCH)}>
-                          Show Less
-                        </Button>
-                      ) : null}
+                      {(() => {
+                        const filteredRepos = getFilteredRepositories(repositories);
+                        return (
+                          <>
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {filteredRepos.slice(0, shownProjectsCount).map((repo) => (
+                                <ProjectCard 
+                                  key={repo.id} 
+                                  project={{
+                                    name: repo.full_name,
+                                    description: repo.description || 'No description available',
+                                    languages: [repo.language].filter(Boolean),
+                                    stars: repo.stargazers_count.toString(),
+                                    forks: repo.forks_count.toString(),
+                                    updated: new Date(repo.updated_at).toLocaleDateString(),
+                                  }} 
+                                  type="owned" 
+                                />
+                              ))}
+                            </div>
+                            {/* Show More Button for Projects */}
+                            {filteredRepos.length > shownProjectsCount ? (
+                              <Button onClick={() => setShownProjectsCount(c => Math.min(c + PROJECTS_BATCH, filteredRepos.length))}>
+                                Show More
+                              </Button>
+                            ) : filteredRepos.length > PROJECTS_BATCH && shownProjectsCount > PROJECTS_BATCH ? (
+                              <Button onClick={() => setShownProjectsCount(PROJECTS_BATCH)}>
+                                Show Less
+                              </Button>
+                            ) : null}
+                          </>
+                        );
+                      })()}
                     </>
                   )}
                 </TabsContent>
 
                 <TabsContent value="starred" className="mt-6">
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {starredProjects.map((project, index) => (
-                      <ProjectCard key={index} project={project} type="starred" />
-                    ))}
-                  </div>
+                  {dataLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                    </div>
+                  ) : dataError ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      Error loading starred repositories: {dataError}
+                    </div>
+                  ) : starredRepositories.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Star className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No starred repositories found</p>
+                      <p className="text-xs">Star some repositories on GitHub to see them here</p>
+                    </div>
+                  ) : (
+                    <>
+                      {(() => {
+                        const filteredStarredRepos = getFilteredRepositories(starredRepositories);
+                        return (
+                          <>
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {filteredStarredRepos.slice(0, shownProjectsCount).map((repo) => (
+                                <ProjectCard 
+                                  key={repo.id} 
+                                  project={{
+                                    name: repo.full_name,
+                                    description: repo.description || 'No description available',
+                                    languages: [repo.language].filter(Boolean),
+                                    stars: repo.stargazers_count.toString(),
+                                    forks: repo.forks_count.toString(),
+                                    updated: new Date(repo.updated_at).toLocaleDateString(),
+                                  }} 
+                                  type="starred" 
+                                />
+                              ))}
+                            </div>
+                            {/* Show More Button for Starred Projects */}
+                            {filteredStarredRepos.length > shownProjectsCount ? (
+                              <Button onClick={() => setShownProjectsCount(c => Math.min(c + PROJECTS_BATCH, filteredStarredRepos.length))}>
+                                Show More
+                              </Button>
+                            ) : filteredStarredRepos.length > PROJECTS_BATCH && shownProjectsCount > PROJECTS_BATCH ? (
+                              <Button onClick={() => setShownProjectsCount(PROJECTS_BATCH)}>
+                                Show Less
+                              </Button>
+                            ) : null}
+                          </>
+                        );
+                      })()}
+                    </>
+                  )}
                 </TabsContent>
               </Tabs>
             </motion.div>
@@ -1390,6 +1816,14 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                   )}
                   {isRefreshing ? 'Refreshing...' : 'Refresh'}
                 </Button>
+              </div>
+
+              {/* Contribution Heatmap */}
+              <div className="mb-8">
+                <ContributionHeatmap 
+                  contributionData={generateContributionData()}
+                  loading={dataLoading}
+                />
               </div>
 
               {/* Activity Tabs */}
@@ -1867,6 +2301,55 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
         </div>
       )}
 
+      {/* New Project Modal */}
+      <Dialog open={showNewProjectModal} onOpenChange={setShowNewProjectModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Repository</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="repoName">Repository Name</Label>
+              <Input id="repoName" placeholder="my-awesome-project" />
+            </div>
+            <div>
+              <Label htmlFor="repoDescription">Description (optional)</Label>
+              <Input id="repoDescription" placeholder="A brief description of your project" />
+            </div>
+            <div>
+              <Label htmlFor="repoVisibility">Visibility</Label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose visibility" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="private">Private</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button 
+                className="flex-1 bg-orange-500 hover:bg-orange-600"
+                onClick={() => {
+                  // Handle repository creation
+                  setShowNewProjectModal(false)
+                }}
+              >
+                Create Repository
+              </Button>
+              <Button 
+                variant="outline" 
+                className="flex-1"
+                onClick={() => setShowNewProjectModal(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Project Selector Modal */}
       <Dialog open={showProjectSelector} onOpenChange={setShowProjectSelector}>
         <DialogContent className="max-w-2xl">
@@ -1931,22 +2414,32 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   )
 }
 
-function FeaturedProjectsCarousel() {
+function FeaturedProjectsCarousel({ trendingRepositories }: { trendingRepositories: any[] }) {
   const [currentProject, setCurrentProject] = useState(0)
 
   useEffect(() => {
+    if (trendingRepositories.length === 0) return
     const interval = setInterval(() => {
-      setCurrentProject((prev) => (prev + 1) % featuredProjects.length)
+      setCurrentProject((prev) => (prev + 1) % trendingRepositories.length)
     }, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [trendingRepositories.length])
 
   const nextProject = () => {
-    setCurrentProject((prev) => (prev + 1) % featuredProjects.length)
+    setCurrentProject((prev) => (prev + 1) % trendingRepositories.length)
   }
 
   const prevProject = () => {
-    setCurrentProject((prev) => (prev - 1 + featuredProjects.length) % featuredProjects.length)
+    setCurrentProject((prev) => (prev - 1 + trendingRepositories.length) % trendingRepositories.length)
+  }
+
+  if (trendingRepositories.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No trending projects available</p>
+      </div>
+    )
   }
 
   return (
@@ -1971,7 +2464,7 @@ function FeaturedProjectsCarousel() {
           className="flex transition-transform duration-500 ease-in-out"
           style={{ transform: `translateX(-${currentProject * 100}%)` }}
         >
-          {featuredProjects.map((project, index) => (
+          {trendingRepositories.map((repo, index) => (
             <div key={index} className="w-full flex-shrink-0">
               <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
                 <CardContent className="p-0">
@@ -1979,54 +2472,40 @@ function FeaturedProjectsCarousel() {
                     <div className="flex-1 p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div>
-                          <h4 className="text-xl font-bold mb-2">{project.name}</h4>
-                          <p className="text-muted-foreground mb-4">{project.description}</p>
+                          <h4 className="text-xl font-bold mb-2">{repo.full_name}</h4>
+                          <p className="text-muted-foreground mb-4">{repo.description || 'No description available'}</p>
                         </div>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => window.open(repo.html_url, '_blank')}>
                           <ExternalLink className="w-4 h-4 mr-2" />
                           View on GitHub
                         </Button>
                       </div>
 
                       <div className="flex flex-wrap gap-2 mb-4">
-                        {project.languages.map((lang: string) => (
-                          <Badge key={lang} variant="secondary">
-                            {lang}
+                        {repo.language && (
+                          <Badge variant="secondary">
+                            {repo.language}
                           </Badge>
-                        ))}
+                        )}
                       </div>
 
                       <div className="flex items-center gap-6 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Star className="w-4 h-4" />
-                          {project.stars}
+                          {repo.stargazers_count}
                         </div>
                         <div className="flex items-center gap-1">
                           <GitBranch className="w-4 h-4" />
-                          {project.forks}
+                          {repo.forks_count}
                         </div>
                         <div className="flex items-center gap-1">
-                          <Users className="w-4 h-4" />
-                          {project.contributors}
+                          <Calendar className="w-4 h-4" />
+                          {new Date(repo.updated_at).toLocaleDateString()}
                         </div>
                       </div>
                     </div>
 
-                    <div className="w-full md:w-80 p-6 bg-muted/30">
-                      <h5 className="font-semibold mb-3">Recent Activity</h5>
-                      <div className="space-y-3">
-                        {project.recentActivity.map((activity: any, actIndex: number) => (
-                          <div key={actIndex} className="flex items-start gap-3">
-                            <div className="w-2 h-2 bg-orange-500 rounded-full mt-2 flex-shrink-0" />
-                            <div className="text-sm">
-                              <span className="font-medium">{activity.user}</span>
-                              <span className="text-muted-foreground"> {activity.action}</span>
-                              <div className="text-xs text-muted-foreground mt-1">{activity.time}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+
                   </div>
                 </CardContent>
               </Card>
@@ -2037,7 +2516,7 @@ function FeaturedProjectsCarousel() {
 
       {/* Dots indicator */}
       <div className="flex justify-center gap-2 mt-4">
-        {featuredProjects.map((_, index) => (
+        {trendingRepositories.map((_, index) => (
           <button
             key={index}
             className={`w-2 h-2 rounded-full transition-colors ${

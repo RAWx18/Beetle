@@ -31,6 +31,8 @@ export const useGitHubData = () => {
   
   // Data states
   const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [starredRepositories, setStarredRepositories] = useState<Repository[]>([]);
+  const [trendingRepositories, setTrendingRepositories] = useState<Repository[]>([]);
   const [recentCommits, setRecentCommits] = useState<Commit[]>([]);
   const [openPRs, setOpenPRs] = useState<PullRequest[]>([]);
   const [openIssues, setOpenIssues] = useState<Issue[]>([]);
@@ -218,6 +220,113 @@ export const useGitHubData = () => {
         }
       }
     ]);
+
+    // Mock starred repositories
+    const mockStarredRepos: Repository[] = [
+      {
+        id: 101,
+        name: "next.js",
+        full_name: "vercel/next.js",
+        description: "The React Framework for the Web. Used by some of the world's largest companies, Next.js enables you to create full-stack web applications.",
+        language: "TypeScript",
+        stargazers_count: 120000,
+        forks_count: 26000,
+        updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        private: false,
+        html_url: "https://github.com/vercel/next.js",
+        owner: {
+          login: "vercel",
+          avatar_url: "https://github.com/vercel.png"
+        }
+      },
+      {
+        id: 102,
+        name: "react",
+        full_name: "facebook/react",
+        description: "The library for web and native user interfaces. React lets you build user interfaces out of individual pieces called components.",
+        language: "JavaScript",
+        stargazers_count: 220000,
+        forks_count: 45000,
+        updated_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        private: false,
+        html_url: "https://github.com/facebook/react",
+        owner: {
+          login: "facebook",
+          avatar_url: "https://github.com/facebook.png"
+        }
+      },
+      {
+        id: 103,
+        name: "vscode",
+        full_name: "microsoft/vscode",
+        description: "Visual Studio Code. Code editing. Redefined. Free. Built on open source. Runs everywhere.",
+        language: "TypeScript",
+        stargazers_count: 155000,
+        forks_count: 27000,
+        updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        private: false,
+        html_url: "https://github.com/microsoft/vscode",
+        owner: {
+          login: "microsoft",
+          avatar_url: "https://github.com/microsoft.png"
+        }
+      }
+    ];
+
+    // Mock trending repositories
+    const mockTrendingRepos: Repository[] = [
+      {
+        id: 201,
+        name: "svelte",
+        full_name: "sveltejs/svelte",
+        description: "Cybernetically enhanced web apps. Svelte is a radical new approach to building user interfaces.",
+        language: "TypeScript",
+        stargazers_count: 85000,
+        forks_count: 12000,
+        updated_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+        private: false,
+        html_url: "https://github.com/sveltejs/svelte",
+        owner: {
+          login: "sveltejs",
+          avatar_url: "https://github.com/sveltejs.png"
+        }
+      },
+      {
+        id: 202,
+        name: "rust",
+        full_name: "rust-lang/rust",
+        description: "Empowering everyone to build reliable and efficient software.",
+        language: "Rust",
+        stargazers_count: 95000,
+        forks_count: 15000,
+        updated_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        private: false,
+        html_url: "https://github.com/rust-lang/rust",
+        owner: {
+          login: "rust-lang",
+          avatar_url: "https://github.com/rust-lang.png"
+        }
+      },
+      {
+        id: 203,
+        name: "go",
+        full_name: "golang/go",
+        description: "The Go programming language. Go is an open source programming language that makes it easy to build simple, reliable, and efficient software.",
+        language: "Go",
+        stargazers_count: 120000,
+        forks_count: 18000,
+        updated_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+        private: false,
+        html_url: "https://github.com/golang/go",
+        owner: {
+          login: "golang",
+          avatar_url: "https://github.com/golang.png"
+        }
+      }
+    ];
+
+    setStarredRepositories(mockStarredRepos);
+    setTrendingRepositories(mockTrendingRepos);
   }, []);
 
   // Helper functions to transform UserActivity to proper types
@@ -309,6 +418,26 @@ export const useGitHubData = () => {
       const repos = await apiRef.current.getUserRepositories();
       console.log('Repositories fetched:', repos.length);
       setRepositories(repos);
+
+      // Fetch starred repositories
+      try {
+        const starred = await apiRef.current.getUserStarredRepositories();
+        console.log('Starred repositories fetched:', starred.length);
+        setStarredRepositories(starred);
+      } catch (err) {
+        console.error('Error fetching starred repositories:', err);
+        setStarredRepositories([]);
+      }
+
+      // Fetch trending repositories
+      try {
+        const trending = await apiRef.current.getTrendingRepositories();
+        console.log('Trending repositories fetched:', trending.length);
+        setTrendingRepositories(trending);
+      } catch (err) {
+        console.error('Error fetching trending repositories:', err);
+        setTrendingRepositories([]);
+      }
 
       // Calculate basic stats from repositories
       const totalStars = repos.reduce((sum, repo) => sum + repo.stargazers_count, 0);
@@ -463,6 +592,8 @@ export const useGitHubData = () => {
     loading,
     error,
     repositories,
+    starredRepositories,
+    trendingRepositories,
     recentCommits,
     openPRs,
     openIssues,

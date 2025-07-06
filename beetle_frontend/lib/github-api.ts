@@ -207,6 +207,24 @@ class GitHubAPI {
     const response = await this.request(`/github/repositories/${owner}/${repo}/languages`);
     return response.languages;
   }
+
+  // Get user starred repositories
+  async getUserStarredRepositories(page = 1, per_page = 100): Promise<Repository[]> {
+    const response = await this.request(`/github/starred?page=${page}&per_page=${per_page}`);
+    return response.repositories;
+  }
+
+  // Get trending repositories
+  async getTrendingRepositories(since = 'daily', language?: string): Promise<Repository[]> {
+    const params = new URLSearchParams({
+      since: since,
+    });
+    if (language) {
+      params.append('language', language);
+    }
+    const response = await this.request(`/github/trending?${params}`);
+    return response.repositories;
+  }
 }
 
 export default GitHubAPI; 

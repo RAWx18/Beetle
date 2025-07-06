@@ -215,6 +215,254 @@ router.get('/activity', [
   });
 }));
 
+// Get user starred repositories
+router.get('/starred', [
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('per_page').optional().isInt({ min: 1, max: 100 }).toInt()
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      details: errors.array()
+    });
+  }
+
+  const { page = 1, per_page = 100 } = req.query;
+  
+  // Check if this is demo mode
+  if (req.user.accessToken === 'demo-github-token') {
+    // Return mock starred repositories for demo mode
+    const mockStarredRepos = [
+      {
+        id: 101,
+        name: "next.js",
+        full_name: "vercel/next.js",
+        description: "The React Framework for the Web. Used by some of the world's largest companies, Next.js enables you to create full-stack web applications.",
+        language: "TypeScript",
+        stargazers_count: 120000,
+        forks_count: 26000,
+        updated_at: new Date().toISOString(),
+        private: false,
+        html_url: "https://github.com/vercel/next.js",
+        owner: {
+          login: "vercel",
+          avatar_url: "https://github.com/vercel.png"
+        }
+      },
+      {
+        id: 102,
+        name: "react",
+        full_name: "facebook/react",
+        description: "The library for web and native user interfaces. React lets you build user interfaces out of individual pieces called components.",
+        language: "JavaScript",
+        stargazers_count: 220000,
+        forks_count: 45000,
+        updated_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        private: false,
+        html_url: "https://github.com/facebook/react",
+        owner: {
+          login: "facebook",
+          avatar_url: "https://github.com/facebook.png"
+        }
+      },
+      {
+        id: 103,
+        name: "vscode",
+        full_name: "microsoft/vscode",
+        description: "Visual Studio Code. Code editing. Redefined. Free. Built on open source. Runs everywhere.",
+        language: "TypeScript",
+        stargazers_count: 155000,
+        forks_count: 27000,
+        updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        private: false,
+        html_url: "https://github.com/microsoft/vscode",
+        owner: {
+          login: "microsoft",
+          avatar_url: "https://github.com/microsoft.png"
+        }
+      }
+    ];
+
+    // Apply pagination
+    const startIndex = (page - 1) * per_page;
+    const endIndex = startIndex + per_page;
+    const paginatedRepos = mockStarredRepos.slice(startIndex, endIndex);
+
+    return res.json({
+      repositories: paginatedRepos,
+      pagination: {
+        page,
+        per_page,
+        total: mockStarredRepos.length
+      }
+    });
+  }
+  
+  try {
+    const response = await fetch(`https://api.github.com/user/starred?page=${page}&per_page=${per_page}`, {
+      headers: {
+        'Authorization': `token ${req.user.accessToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Beetle-App'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+    }
+
+    const starredRepos = await response.json();
+
+    res.json({
+      repositories: starredRepos,
+      pagination: {
+        page,
+        per_page,
+        total: starredRepos.length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching starred repositories:', error);
+    res.status(500).json({
+      error: 'Failed to fetch starred repositories',
+      message: error.message
+    });
+  }
+}));
+
+// Get trending repositories
+router.get('/trending', [
+  query('since').optional().isIn(['daily', 'weekly', 'monthly']),
+  query('language').optional().isString(),
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('per_page').optional().isInt({ min: 1, max: 100 }).toInt()
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      details: errors.array()
+    });
+  }
+
+  const { since = 'weekly', language, page = 1, per_page = 30 } = req.query;
+  
+  try {
+    // Since GitHub doesn't have a direct API for trending, we'll use a curated list
+    // of popular repositories as a fallback
+    const popularRepos = [
+      {
+        id: 70107786,
+        name: "next.js",
+        full_name: "vercel/next.js",
+        description: "The React Framework for the Web. Used by some of the world's largest companies, Next.js enables you to create full-stack web applications.",
+        language: "TypeScript",
+        stargazers_count: 120000,
+        forks_count: 26000,
+        updated_at: new Date().toISOString(),
+        private: false,
+        html_url: "https://github.com/vercel/next.js",
+        owner: {
+          login: "vercel",
+          avatar_url: "https://github.com/vercel.png"
+        }
+      },
+      {
+        id: 70107787,
+        name: "react",
+        full_name: "facebook/react",
+        description: "The library for web and native user interfaces. React lets you build user interfaces out of individual pieces called components.",
+        language: "JavaScript",
+        stargazers_count: 220000,
+        forks_count: 45000,
+        updated_at: new Date().toISOString(),
+        private: false,
+        html_url: "https://github.com/facebook/react",
+        owner: {
+          login: "facebook",
+          avatar_url: "https://github.com/facebook.png"
+        }
+      },
+      {
+        id: 70107788,
+        name: "vscode",
+        full_name: "microsoft/vscode",
+        description: "Visual Studio Code. Code editing. Redefined. Free. Built on open source. Runs everywhere.",
+        language: "TypeScript",
+        stargazers_count: 155000,
+        forks_count: 27000,
+        updated_at: new Date().toISOString(),
+        private: false,
+        html_url: "https://github.com/microsoft/vscode",
+        owner: {
+          login: "microsoft",
+          avatar_url: "https://github.com/microsoft.png"
+        }
+      },
+      {
+        id: 70107789,
+        name: "svelte",
+        full_name: "sveltejs/svelte",
+        description: "Cybernetically enhanced web apps. Svelte is a radical new approach to building user interfaces.",
+        language: "TypeScript",
+        stargazers_count: 85000,
+        forks_count: 12000,
+        updated_at: new Date().toISOString(),
+        private: false,
+        html_url: "https://github.com/sveltejs/svelte",
+        owner: {
+          login: "sveltejs",
+          avatar_url: "https://github.com/sveltejs.png"
+        }
+      },
+      {
+        id: 70107790,
+        name: "rust",
+        full_name: "rust-lang/rust",
+        description: "Empowering everyone to build reliable and efficient software.",
+        language: "Rust",
+        stargazers_count: 95000,
+        forks_count: 15000,
+        updated_at: new Date().toISOString(),
+        private: false,
+        html_url: "https://github.com/rust-lang/rust",
+        owner: {
+          login: "rust-lang",
+          avatar_url: "https://github.com/rust-lang.png"
+        }
+      }
+    ];
+
+    // Filter by language if specified
+    const filteredRepos = language 
+      ? popularRepos.filter(repo => repo.language && repo.language.toLowerCase() === language.toLowerCase())
+      : popularRepos;
+
+    // Apply pagination
+    const startIndex = (page - 1) * per_page;
+    const endIndex = startIndex + per_page;
+    const paginatedRepos = filteredRepos.slice(startIndex, endIndex);
+
+    res.json({
+      repositories: paginatedRepos,
+      pagination: {
+        since,
+        language,
+        page,
+        per_page,
+        total: filteredRepos.length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching trending repositories:', error);
+    res.status(500).json({
+      error: 'Failed to fetch trending repositories',
+      message: error.message
+    });
+  }
+}));
+
 // Search repositories
 router.get('/search/repositories', [
   query('q').isString().notEmpty(),
