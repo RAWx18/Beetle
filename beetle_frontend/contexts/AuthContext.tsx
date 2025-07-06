@@ -35,6 +35,8 @@ interface AuthContextType {
   logout: () => void;
   validateToken: () => Promise<boolean>;
   setUserFromCallback: (userData: User, authToken: string) => void;
+  enableAutoDemo: () => void;
+  disableAutoDemo: () => void;
   loading: boolean;
 }
 
@@ -50,25 +52,48 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Initialize auth state from localStorage
   useEffect(() => {
+    console.log('AuthContext: Initializing auth state');
     const storedToken = localStorage.getItem('beetle_token');
+    console.log('Stored token:', storedToken ? 'Available' : 'Not available');
+    
     if (storedToken) {
+      console.log('Found stored token, validating...');
       setToken(storedToken);
       validateToken(storedToken);
     } else {
-      setLoading(false);
+      console.log('No stored token found');
+      
+      // Auto-login with demo mode in development
+      if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+        const autoDemo = localStorage.getItem('auto_demo_mode');
+        if (autoDemo === 'true') {
+          console.log('Auto-login with demo mode enabled');
+          loginDemo();
+        } else {
+          console.log('Setting loading to false');
+          setLoading(false);
+        }
+      } else {
+        console.log('Setting loading to false');
+        setLoading(false);
+      }
     }
   }, []);
 
   const validateToken = async (authToken?: string) => {
     try {
       const tokenToUse = authToken || token;
+      console.log('Validating token:', tokenToUse ? 'Available' : 'Not available');
+      
       if (!tokenToUse) {
+        console.log('No token to validate');
         setIsAuthenticated(false);
         setUser(null);
         setLoading(false);
         return false;
       }
 
+      console.log('Making validation request to:', `${API_BASE_URL}/auth/validate`);
       const response = await fetch(`${API_BASE_URL}/auth/validate`, {
         headers: {
           'Authorization': `Bearer ${tokenToUse}`,
@@ -76,8 +101,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       });
 
+      console.log('Validation response status:', response.status);
+      console.log('Validation response ok:', response.ok);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('Validation successful, user data:', data.user);
         setIsAuthenticated(true);
         setUser(data.user);
         setToken(tokenToUse);
@@ -85,6 +114,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(false);
         return true;
       } else {
+        console.log('Token validation failed');
+        const errorText = await response.text();
+        console.error('Validation error response:', errorText);
         // Token is invalid, clear everything
         setIsAuthenticated(false);
         setUser(null);
@@ -158,6 +190,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Demo mode login function
   const loginDemo = () => {
     console.log('Logging in with demo mode');
+    console.log('✅ Demo authentication successful');
     setIsAuthenticated(true);
     setUser({
       id: 1,
@@ -185,6 +218,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setToken('demo-token');
     localStorage.setItem('beetle_token', 'demo-token');
     localStorage.setItem('isAuthenticated', 'true');
+    localStorage.setItem('auto_demo_mode', 'true'); // Enable auto demo mode
   };
 
   const logout = async () => {
@@ -211,6 +245,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Enable auto demo mode for development
+  const enableAutoDemo = () => {
+    localStorage.setItem('auto_demo_mode', 'true');
+    console.log('Auto demo mode enabled');
+  };
+
+  // Disable auto demo mode
+  const disableAutoDemo = () => {
+    localStorage.removeItem('auto_demo_mode');
+    console.log('Auto demo mode disabled');
+  };
+
   // OAuth callback is now handled by the dedicated callback page
 
   return (
@@ -223,6 +269,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       logout, 
       validateToken,
       setUserFromCallback,
+      enableAutoDemo,
+      disableAutoDemo,
       loading 
     }}>
       {children}

@@ -10,6 +10,7 @@ export interface Repository {
   forks_count: number;
   updated_at: string;
   private: boolean;
+  html_url: string;
   owner: {
     login: string;
     avatar_url: string;
@@ -90,20 +91,35 @@ class GitHubAPI {
   }
 
   private async request(endpoint: string, options: RequestInit = {}) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${this.token}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
+    console.log(`Making request to: ${API_BASE_URL}${endpoint}`);
+    console.log('Token:', this.token ? 'Available' : 'Not available');
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.statusText}`);
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`GitHub API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('API Response data:', data);
+      return data;
+    } catch (error) {
+      console.error('Request failed:', error);
+      throw error;
     }
-
-    return response.json();
   }
 
   // Get user repositories

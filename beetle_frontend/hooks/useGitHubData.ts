@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import GitHubAPI, { Repository, Commit, PullRequest, Issue, UserActivity } from '@/lib/github-api';
 
@@ -50,376 +50,321 @@ export const useGitHubData = () => {
     collaborators: 0,
   });
 
+  // Refs to prevent infinite loops
+  const isInitialized = useRef(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const apiRef = useRef<GitHubAPI | null>(null);
+
   console.log('useGitHubData - Token:', token ? 'Available' : 'Not available');
   console.log('useGitHubData - User:', user);
-  
-  const api = token ? new GitHubAPI(token) : null;
 
-  // Check if we have valid authentication
+  // Initialize API instance
   useEffect(() => {
+    if (token && token !== 'demo-token') {
+      apiRef.current = new GitHubAPI(token);
+    } else {
+      apiRef.current = null;
+    }
+  }, [token]);
+
+  // Set mock data for demo mode
+  const setMockData = useCallback(() => {
+    console.log('Setting mock data for demo mode');
+    
+    const mockRepos: Repository[] = [
+      {
+        id: 1,
+        name: "beetle-app",
+        full_name: "demo-user/beetle-app",
+        description: "AI-powered GitHub contribution manager with structured planning and branch-aware workflows",
+        language: "TypeScript",
+        stargazers_count: 15,
+        forks_count: 3,
+        updated_at: new Date().toISOString(),
+        private: false,
+        html_url: "https://github.com/demo-user/beetle-app",
+        owner: {
+          login: "demo-user",
+          avatar_url: "https://github.com/github.png"
+        }
+      },
+      {
+        id: 2,
+        name: "react-components",
+        full_name: "demo-user/react-components",
+        description: "Reusable React components library with TypeScript",
+        language: "TypeScript",
+        stargazers_count: 8,
+        forks_count: 1,
+        updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        private: false,
+        html_url: "https://github.com/demo-user/react-components",
+        owner: {
+          login: "demo-user",
+          avatar_url: "https://github.com/github.png"
+        }
+      }
+    ];
+
+    setRepositories(mockRepos);
+    setDashboardStats({
+      totalRepos: 2,
+      totalCommits: 45,
+      totalPRs: 2,
+      totalIssues: 3,
+      totalStars: 23,
+      totalForks: 4,
+    });
+    setQuickStats({
+      commitsToday: 3,
+      activePRs: 2,
+      starsEarned: 23,
+      collaborators: 3,
+    });
+    setUserActivity([
+      {
+        id: "1",
+        type: "PushEvent",
+        actor: {
+          login: "demo-user",
+          avatar_url: "https://github.com/github.png"
+        },
+        repo: {
+          name: "demo-user/beetle-app"
+        },
+        created_at: new Date().toISOString(),
+        payload: {
+          commits: [{ message: "Add new dashboard features" }]
+        }
+      },
+      {
+        id: "2",
+        type: "PullRequestEvent",
+        actor: {
+          login: "demo-user",
+          avatar_url: "https://github.com/github.png"
+        },
+        repo: {
+          name: "demo-user/beetle-app"
+        },
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+        payload: {
+          action: "opened"
+        }
+      }
+    ]);
+    
+    setOpenPRs([
+      {
+        id: 1,
+        number: 15,
+        title: "Implement real-time updates",
+        state: "open",
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+        updated_at: new Date().toISOString(),
+        user: {
+          login: "demo-user",
+          avatar_url: "https://github.com/github.png"
+        },
+        head: { ref: "feature/realtime-updates" },
+        base: { ref: "main" }
+      },
+      {
+        id: 2,
+        number: 14,
+        title: "Fix authentication flow",
+        state: "open",
+        created_at: new Date(Date.now() - 7200000).toISOString(),
+        updated_at: new Date(Date.now() - 1800000).toISOString(),
+        user: {
+          login: "demo-user",
+          avatar_url: "https://github.com/github.png"
+        },
+        head: { ref: "fix/auth-flow" },
+        base: { ref: "main" }
+      }
+    ]);
+    
+    setOpenIssues([
+      {
+        id: 1,
+        number: 8,
+        title: "Add TypeScript support",
+        state: "open",
+        created_at: new Date(Date.now() - 7200000).toISOString(),
+        updated_at: new Date(Date.now() - 3600000).toISOString(),
+        user: {
+          login: "demo-user",
+          avatar_url: "https://github.com/github.png"
+        },
+        labels: [{ name: "enhancement", color: "a2eeef" }]
+      }
+    ]);
+
+    setRecentCommits([
+      {
+        sha: "abc123",
+        commit: {
+          message: "Add new dashboard features",
+          author: {
+            name: "Demo User",
+            email: "demo@example.com",
+            date: new Date().toISOString()
+          }
+        },
+        author: {
+          login: "demo-user",
+          avatar_url: "https://github.com/github.png"
+        }
+      }
+    ]);
+  }, []);
+
+  // Fetch real GitHub data
+  const fetchRealData = useCallback(async () => {
+    if (!apiRef.current) {
+      console.log('No API instance available');
+      setError('No API instance available');
+      return;
+    }
+
+    console.log('Fetching real GitHub data...');
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Fetch repositories first
+      const repos = await apiRef.current.getUserRepositories();
+      console.log('Repositories fetched:', repos.length);
+      setRepositories(repos);
+
+      // Calculate basic stats
+      const totalStars = repos.reduce((sum, repo) => sum + repo.stargazers_count, 0);
+      const totalForks = repos.reduce((sum, repo) => sum + repo.forks_count, 0);
+      
+      setDashboardStats(prev => ({
+        ...prev,
+        totalRepos: repos.length,
+        totalStars,
+        totalForks,
+      }));
+
+      // Fetch additional data only if we have repositories
+      if (repos.length > 0) {
+        const [commits, prs, issues, activity] = await Promise.allSettled([
+          apiRef.current.getRepositoryCommits(repos[0].full_name.split('/')[0], repos[0].full_name.split('/')[1], 'main', 1, 10),
+          apiRef.current.getRepositoryPullRequests(repos[0].full_name.split('/')[0], repos[0].full_name.split('/')[1], 'open', 1, 10),
+          apiRef.current.getRepositoryIssues(repos[0].full_name.split('/')[0], repos[0].full_name.split('/')[1], 'open', 1, 10),
+          apiRef.current.getUserActivity(),
+        ]);
+
+        if (commits.status === 'fulfilled') {
+          setRecentCommits(commits.value);
+          setDashboardStats(prev => ({ ...prev, totalCommits: commits.value.length }));
+        }
+
+        if (prs.status === 'fulfilled') {
+          setOpenPRs(prs.value);
+          setDashboardStats(prev => ({ ...prev, totalPRs: prs.value.length }));
+          setQuickStats(prev => ({ ...prev, activePRs: prs.value.length }));
+        }
+
+        if (issues.status === 'fulfilled') {
+          setOpenIssues(issues.value);
+          setDashboardStats(prev => ({ ...prev, totalIssues: issues.value.length }));
+        }
+
+        if (activity.status === 'fulfilled') {
+          setUserActivity(activity.value);
+        }
+      }
+
+      setQuickStats(prev => ({ ...prev, starsEarned: totalStars }));
+      
+    } catch (err) {
+      console.error('Error fetching GitHub data:', err);
+      setError('Failed to fetch GitHub data: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initialize data on mount
+  useEffect(() => {
+    if (isInitialized.current) return;
+    
     if (!token) {
       setError('Authentication required. Please log in with GitHub or try demo mode.');
       setLoading(false);
       return;
     }
-    
+
     if (!user) {
       setError('User data not available. Please log in again.');
       setLoading(false);
       return;
     }
-    
-    // Clear any previous errors when we have valid auth
-    setError(null);
-  }, [token, user]);
 
-  // Fetch user repositories
-  const fetchRepositories = useCallback(async () => {
-    if (!api) {
-      console.error('No API instance available');
-      setError('No API instance available');
-      return null;
-    }
-    
-    try {
-      console.log('Fetching repositories...');
-      const repos = await api.getUserRepositories();
-      console.log('Repositories fetched:', repos.length, repos);
-      setRepositories(repos);
-      
-      // Calculate dashboard stats
-      const totalStars = repos.reduce((sum, repo) => sum + repo.stargazers_count, 0);
-      const stats: DashboardStats = {
-        totalRepos: repos.length,
-        totalCommits: 0, // Will be calculated from commits
-        totalPRs: 0, // Will be calculated from PRs
-        totalIssues: 0, // Will be calculated from issues
-        totalStars,
-        totalForks: repos.reduce((sum, repo) => sum + repo.forks_count, 0),
-      };
-      console.log('Dashboard stats calculated:', stats);
-      setDashboardStats(stats);
-      
-      // Calculate quick stats
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const quickStats: QuickStats = {
-        commitsToday: 0, // Will be calculated from commits
-        activePRs: 0, // Will be calculated from PRs
-        starsEarned: totalStars,
-        collaborators: 0, // Will be calculated from contributors
-      };
-      console.log('Quick stats calculated:', quickStats);
-      setQuickStats(quickStats);
-      
-      return repos;
-    } catch (err) {
-      console.error('Error fetching repositories:', err);
-      setError('Failed to fetch repositories: ' + (err instanceof Error ? err.message : String(err)));
-      return null;
-    }
-  }, [api]);
+    console.log('Initializing data...');
+    isInitialized.current = true;
 
-  // Fetch recent commits from all repositories
-  const fetchRecentCommits = useCallback(async (repos: Repository[]) => {
-    if (!api || repos.length === 0) return;
-    
-    try {
-      const allCommits: Commit[] = [];
-      let totalCommits = 0;
-      
-      // Fetch commits from first 5 repositories (to avoid rate limits)
-      const reposToFetch = repos.slice(0, 5);
-      
-      for (const repo of reposToFetch) {
-        try {
-          const [owner, repoName] = repo.full_name.split('/');
-          const commits = await api.getRepositoryCommits(owner, repoName, 'main', 1, 10);
-          allCommits.push(...commits);
-          totalCommits += commits.length;
-        } catch (err) {
-          console.error(`Error fetching commits for ${repo.full_name}:`, err);
-        }
-      }
-      
-      // Sort by date and take recent ones
-      const sortedCommits = allCommits.sort((a, b) => 
-        new Date(b.commit.author.date).getTime() - new Date(a.commit.author.date).getTime()
-      );
-      
-      setRecentCommits(sortedCommits.slice(0, 20));
-      
-      // Update stats
-      setDashboardStats(prev => ({ ...prev, totalCommits }));
-      
-      // Calculate commits today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const commitsToday = sortedCommits.filter(commit => 
-        new Date(commit.commit.author.date) >= today
-      ).length;
-      
-      setQuickStats(prev => ({ ...prev, commitsToday }));
-      
-    } catch (err) {
-      console.error('Error fetching commits:', err);
-      setError('Failed to fetch commits: ' + (err instanceof Error ? err.message : String(err)));
-    }
-  }, [api]);
-
-  // Fetch open pull requests from all repositories
-  const fetchOpenPRs = useCallback(async (repos: Repository[]) => {
-    if (!api || repos.length === 0) return;
-    try {
-      const allPRs: PullRequest[] = [];
-      let totalPRs = 0;
-      // Fetch PRs from up to 20 repositories
-      const reposToFetch = repos.slice(0, 20);
-      for (const repo of reposToFetch) {
-        try {
-          const [owner, repoName] = repo.full_name.split('/');
-          const prs = await api.getRepositoryPullRequests(owner, repoName, 'open', 1, 50);
-          allPRs.push(...prs);
-          totalPRs += prs.length;
-        } catch (err) {
-          console.error(`Error fetching PRs for ${repo.full_name}:`, err);
-        }
-      }
-      // Sort by updated date
-      const sortedPRs = allPRs.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-      setOpenPRs(sortedPRs.slice(0, 20));
-      setDashboardStats(prev => ({ ...prev, totalPRs }));
-      setQuickStats(prev => ({ ...prev, activePRs: totalPRs }));
-    } catch (err) {
-      console.error('Error fetching pull requests:', err);
-      setError('Failed to fetch pull requests: ' + (err instanceof Error ? err.message : String(err)));
-    }
-  }, [api]);
-
-  // Fetch open issues
-  const fetchOpenIssues = useCallback(async (repos: Repository[]) => {
-    if (!api || repos.length === 0) return;
-    
-    try {
-      const allIssues: Issue[] = [];
-      
-      // Fetch issues from first 5 repositories
-      const reposToFetch = repos.slice(0, 5);
-      
-      for (const repo of reposToFetch) {
-        try {
-          const [owner, repoName] = repo.full_name.split('/');
-          const issues = await api.getRepositoryIssues(owner, repoName, 'open', 1, 10);
-          allIssues.push(...issues);
-        } catch (err) {
-          console.error(`Error fetching issues for ${repo.full_name}:`, err);
-        }
-      }
-      
-      // Sort by updated date
-      const sortedIssues = allIssues.sort((a, b) => 
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      );
-      
-      setOpenIssues(sortedIssues.slice(0, 10));
-      setDashboardStats(prev => ({ ...prev, totalIssues: allIssues.length }));
-      
-    } catch (err) {
-      console.error('Error fetching issues:', err);
-      setError('Failed to fetch issues: ' + (err instanceof Error ? err.message : String(err)));
-    }
-  }, [api]);
-
-  // Fetch user activity (more events)
-  const fetchUserActivity = useCallback(async () => {
-    if (!api || !user?.login) return;
-    try {
-      const activity = await api.getUserActivity(user.login, 1, 50);
-      setUserActivity(activity);
-    } catch (err) {
-      console.error('Error fetching user activity:', err);
-      setError('Failed to fetch user activity: ' + (err instanceof Error ? err.message : String(err)));
-    }
-  }, [api, user?.login]);
-
-  // Fetch collaborators count from all repositories
-  const fetchCollaborators = useCallback(async (repos: Repository[]) => {
-    if (!api || repos.length === 0) return;
-    try {
-      const allCollaborators = new Set<string>();
-      // Fetch collaborators from up to 20 repositories
-      const reposToFetch = repos.slice(0, 20);
-      for (const repo of reposToFetch) {
-        try {
-          const [owner, repoName] = repo.full_name.split('/');
-          const contributors = await api.getRepositoryContributors(owner, repoName);
-          contributors.forEach((contributor: Contributor) => {
-            allCollaborators.add(contributor.login);
-          });
-        } catch (err) {
-          console.error(`Error fetching contributors for ${repo.full_name}:`, err);
-        }
-      }
-      setQuickStats(prev => ({ ...prev, collaborators: allCollaborators.size }));
-    } catch (err) {
-      console.error('Error fetching collaborators:', err);
-      setError('Failed to fetch collaborators: ' + (err instanceof Error ? err.message : String(err)));
-    }
-  }, [api]);
-
-  // Main data fetching function
-  const fetchAllData = useCallback(async () => {
-    if (!api) {
-      console.log('No API instance available for fetchAllData');
-      return;
-    }
-    
-    console.log('Starting to fetch all data...');
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const repos = await fetchRepositories();
-      console.log('Repositories result:', repos);
-      if (repos && repos.length > 0) {
-        console.log('Fetching additional data for', repos.length, 'repositories');
-        await Promise.all([
-          fetchRecentCommits(repos),
-          fetchOpenPRs(repos),
-          fetchOpenIssues(repos),
-          fetchUserActivity(),
-          fetchCollaborators(repos),
-        ]);
-      } else {
-        console.log('No repositories found or error occurred');
-      }
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      setError('Failed to fetch data');
-    } finally {
+    if (token === 'demo-token') {
+      setMockData();
       setLoading(false);
-      console.log('Data fetching completed');
-    }
-  }, [api, fetchRepositories, fetchRecentCommits, fetchOpenPRs, fetchOpenIssues, fetchUserActivity, fetchCollaborators]);
-
-  // Fetch data on mount and when token changes
-  useEffect(() => {
-    if (token) {
-      console.log('Token available, fetching data...');
-      if (token === 'demo-token') {
-        console.log('Using demo token, setting mock data');
-        setLoading(false);
-        setRepositories([
-          {
-            id: 1,
-            name: "demo-repo",
-            full_name: "demo-user/demo-repo",
-            description: "Demo repository for testing",
-            language: "TypeScript",
-            stargazers_count: 5,
-            forks_count: 2,
-            updated_at: new Date().toISOString(),
-            private: false,
-            owner: {
-              login: "demo-user",
-              avatar_url: "https://github.com/github.png"
-            }
-          }
-        ]);
-        setDashboardStats({
-          totalRepos: 1,
-          totalCommits: 15,
-          totalPRs: 3,
-          totalIssues: 8,
-          totalStars: 5,
-          totalForks: 2,
-        });
-        setQuickStats({
-          commitsToday: 3,
-          activePRs: 2,
-          starsEarned: 5,
-          collaborators: 4,
-        });
-        setUserActivity([
-          {
-            id: "1",
-            type: "PushEvent",
-            actor: {
-              login: "demo-user",
-              avatar_url: "https://github.com/github.png"
-            },
-            repo: {
-              name: "demo-user/demo-repo"
-            },
-            created_at: new Date().toISOString(),
-            payload: {
-              commits: [{ message: "Update README" }]
-            }
-          },
-          {
-            id: "2",
-            type: "PullRequestEvent",
-            actor: {
-              login: "demo-user",
-              avatar_url: "https://github.com/github.png"
-            },
-            repo: {
-              name: "demo-user/demo-repo"
-            },
-            created_at: new Date(Date.now() - 3600000).toISOString(),
-            payload: {
-              action: "opened"
-            }
-          }
-        ]);
-        
-        // Set mock PRs and issues
-        setOpenPRs([
-          {
-            id: 1,
-            number: 1,
-            title: "Add new feature",
-            state: "open",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            user: {
-              login: "demo-user",
-              avatar_url: "https://github.com/github.png"
-            },
-            head: { ref: "feature-branch" },
-            base: { ref: "main" }
-          }
-        ]);
-        
-        setOpenIssues([
-          {
-            id: 1,
-            number: 1,
-            title: "Bug fix needed",
-            state: "open",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            user: {
-              login: "demo-user",
-              avatar_url: "https://github.com/github.png"
-            },
-            labels: [{ name: "bug", color: "d73a4a" }]
-          }
-        ]);
-      } else {
-        fetchAllData();
-      }
+      setError(null);
     } else {
-      console.log('No token available, not fetching data');
-      setLoading(false);
+      fetchRealData();
     }
-  }, [token, fetchAllData]);
+  }, [token, user, setMockData, fetchRealData]);
 
-  // Refresh data function
+  // Smart refresh function
   const refreshData = useCallback(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+    console.log('Manual refresh triggered');
+    if (token === 'demo-token') {
+      // For demo mode, just update timestamps
+      setUserActivity(prev => prev.map(activity => ({
+        ...activity,
+        created_at: new Date().toISOString()
+      })));
+    } else {
+      fetchRealData();
+    }
+  }, [token, fetchRealData]);
+
+  // Smart auto-refresh with longer intervals
+  useEffect(() => {
+    if (!token || !user) return;
+
+    // Clear any existing interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    // Set up new interval with longer duration (30 seconds instead of 5)
+    intervalRef.current = setInterval(() => {
+      console.log('Auto-refreshing data...');
+      if (token === 'demo-token') {
+        // For demo mode, just update timestamps
+        setUserActivity(prev => prev.map(activity => ({
+          ...activity,
+          created_at: new Date().toISOString()
+        })));
+      } else {
+        // For real data, fetch with error handling
+        fetchRealData().catch(err => {
+          console.error('Auto-refresh failed:', err);
+        });
+      }
+    }, 30000); // 30 seconds interval
+
+    // Cleanup on unmount
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [token, user, fetchRealData]);
 
   return {
     loading,

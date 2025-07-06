@@ -72,7 +72,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [currentView, setCurrentView] = useState<"dashboard" | "repository" | "user" | "organization">("dashboard")
   const [selectedData, setSelectedData] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "projects" | "activity" | "insights">("overview")
   const [notifications, setNotifications] = useState(mockNotifications)
   
   // Use real GitHub data and auth
@@ -89,7 +89,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     refreshData,
   } = useGitHubData()
   
-  const { user, isAuthenticated, login, loginDemo } = useAuth()
+  const { user, isAuthenticated, login, loginDemo, enableAutoDemo, disableAutoDemo } = useAuth()
 
   // Get time-based greeting
   const getGreeting = () => {
@@ -148,6 +148,34 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)}mo ago`;
     return `${Math.floor(diffInSeconds / 31536000)}y ago`;
   }
+
+  // Navigation items for the four main sections
+  const navigationItems = [
+    {
+      id: "overview",
+      name: "Overview",
+      icon: BarChart3,
+      description: "Dashboard overview and key metrics"
+    },
+    {
+      id: "projects",
+      name: "Projects",
+      icon: Folder,
+      description: "Your repositories and projects"
+    },
+    {
+      id: "activity",
+      name: "Activity",
+      icon: Activity,
+      description: "Recent activity and contributions"
+    },
+    {
+      id: "insights",
+      name: "Insights",
+      icon: TrendingUp,
+      description: "Analytics and performance insights"
+    }
+  ];
 
   // Quick actions configuration
   const quickActions = [
@@ -273,11 +301,42 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
               <Code className="w-5 h-5 mr-2" />
               Try Demo Mode
             </Button>
+            
+            {/* Development Mode Toggle */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <h4 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-2">🔧 Development Mode</h4>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
+                  Enable auto-login with demo mode for development and testing.
+                </p>
+                <div className="space-y-2">
+                  <Button 
+                    onClick={enableAutoDemo} 
+                    size="sm" 
+                    variant="outline"
+                    className="w-full text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700"
+                  >
+                    Enable Auto Demo Mode
+                  </Button>
+                  <Button 
+                    onClick={disableAutoDemo} 
+                    size="sm" 
+                    variant="outline"
+                    className="w-full text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700"
+                  >
+                    Disable Auto Demo Mode
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="text-xs text-muted-foreground space-y-2">
             <p>💡 <strong>GitHub OAuth:</strong> You'll be redirected to GitHub to authorize access to your repositories and activity.</p>
             <p>🎯 <strong>Demo Mode:</strong> Explore the app with realistic sample data for testing and demonstration.</p>
+            {process.env.NODE_ENV === 'development' && (
+              <p>🔧 <strong>Development:</strong> Use the buttons above to enable auto demo mode for testing.</p>
+            )}
           </div>
         </div>
       </div>
@@ -368,7 +427,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                     key={item.id}
                     variant={activeTab === item.id ? "secondary" : "ghost"}
                     size="sm"
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => setActiveTab(item.id as "overview" | "projects" | "activity" | "insights")}
                     className="flex items-center gap-2"
                   >
                     <item.icon className="w-4 h-4" />
@@ -484,6 +543,10 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                   <p className="text-muted-foreground mt-1">Here's what's happening with your projects today.</p>
                 </div>
                 <div className="flex items-center gap-3">
+                  <Button variant="outline" size="sm" onClick={refreshData}>
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Refresh Data
+                  </Button>
                   <Badge variant="outline" className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                     All systems operational
@@ -839,6 +902,334 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
             </motion.div>
           )}
 
+          {activeTab === "projects" && (
+            <motion.div
+              key="projects"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              {/* Projects Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold">Your Projects</h1>
+                  <p className="text-muted-foreground mt-1">
+                    {repositories.length} repositories • {repositories.filter(r => !r.private).length} public, {repositories.filter(r => r.private).length} private
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button variant="outline" size="sm" onClick={refreshData}>
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
+                  <Button onClick={handleCreateRepository} className="flex items-center space-x-2">
+                    <Plus className="h-4 w-4" />
+                    <span>New Repository</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Repository Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {repositories.map((repo, index) => (
+                  <motion.div
+                    key={repo.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <Card className="h-full hover:shadow-lg transition-shadow">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-lg truncate">
+                              <a
+                                href={repo.html_url || `https://github.com/${repo.full_name}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-primary transition-colors"
+                              >
+                                {repo.name}
+                              </a>
+                            </CardTitle>
+                            <CardDescription className="truncate">
+                              {repo.full_name}
+                            </CardDescription>
+                          </div>
+                          <div className="flex items-center space-x-1 ml-2">
+                            {repo.private && (
+                              <Badge variant="secondary" className="text-xs">
+                                Private
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Description */}
+                        {repo.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {repo.description}
+                          </p>
+                        )}
+
+                        {/* Language */}
+                        {repo.language && (
+                          <div className="flex items-center space-x-2">
+                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                            <span className="text-sm text-muted-foreground">{repo.language}</span>
+                          </div>
+                        )}
+
+                        {/* Stats */}
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-1">
+                              <Star className="h-4 w-4 text-yellow-500" />
+                              <span>{repo.stargazers_count}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <GitBranch className="h-4 w-4 text-blue-500" />
+                              <span>{repo.forks_count}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-1 text-muted-foreground">
+                            <Calendar className="h-4 w-4" />
+                            <span>{getRelativeTime(repo.updated_at)}</span>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center space-x-2 pt-2">
+                          <Button variant="outline" size="sm" className="flex-1" asChild>
+                            <a href={repo.html_url || `https://github.com/${repo.full_name}`} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              View
+                            </a>
+                          </Button>
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={`${repo.html_url || `https://github.com/${repo.full_name}`}/issues`} target="_blank" rel="noopener noreferrer">
+                              <MessageSquare className="h-4 w-4" />
+                            </a>
+                          </Button>
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={`${repo.html_url || `https://github.com/${repo.full_name}`}/pulls`} target="_blank" rel="noopener noreferrer">
+                              <GitBranch className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Empty State */}
+              {repositories.length === 0 && (
+                <Card className="text-center py-12">
+                  <CardContent>
+                    <div className="flex flex-col items-center space-y-4">
+                      <Code className="h-12 w-12 text-muted-foreground" />
+                      <div>
+                        <h3 className="text-lg font-semibold">No repositories found</h3>
+                        <p className="text-muted-foreground">
+                          Get started by creating your first repository
+                        </p>
+                      </div>
+                      <Button onClick={handleCreateRepository}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Repository
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === "activity" && (
+            <motion.div
+              key="activity"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              {/* Activity Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold">Activity</h1>
+                  <p className="text-muted-foreground mt-1">
+                    Recent activity across your repositories
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={refreshData}>
+                  <Activity className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
+
+              {/* Activity Tabs */}
+              <Tabs defaultValue="commits" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="commits">Commits</TabsTrigger>
+                  <TabsTrigger value="prs">Pull Requests</TabsTrigger>
+                  <TabsTrigger value="issues">Issues</TabsTrigger>
+                  <TabsTrigger value="activity">User Activity</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="commits" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <GitCommit className="h-5 w-5" />
+                        <span>Recent Commits</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {recentCommits.slice(0, 10).map((commit) => (
+                        <div key={commit.sha} className="flex items-center space-x-3 p-3 rounded-lg border">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={commit.author?.avatar_url} alt={commit.author?.login} />
+                            <AvatarFallback>{commit.author?.login?.[0] || 'U'}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {commit.commit.message.split('\n')[0]}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {commit.author?.login} • {getRelativeTime(commit.commit.author.date)}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {commit.sha.substring(0, 7)}
+                          </Badge>
+                        </div>
+                      ))}
+                      {recentCommits.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No recent commits found
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="prs" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <GitBranch className="h-5 w-5" />
+                        <span>Pull Requests</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {openPRs.slice(0, 10).map((pr) => (
+                        <div key={pr.id} className="flex items-center space-x-3 p-3 rounded-lg border">
+                          <div className="flex items-center space-x-2">
+                            <GitBranch className="h-4 w-4 text-blue-500" />
+                            <span className="text-sm font-medium">#{pr.number}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{pr.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {pr.user.login} • {getRelativeTime(pr.created_at)}
+                            </p>
+                          </div>
+                          <Badge variant={pr.state === 'open' ? 'default' : 'secondary'}>
+                            {pr.state}
+                          </Badge>
+                        </div>
+                      ))}
+                      {openPRs.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No pull requests found
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="issues" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <MessageSquare className="h-5 w-5" />
+                        <span>Issues</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {openIssues.slice(0, 10).map((issue) => (
+                        <div key={issue.id} className="flex items-center space-x-3 p-3 rounded-lg border">
+                          <div className="flex items-center space-x-2">
+                            <MessageSquare className="h-4 w-4 text-green-500" />
+                            <span className="text-sm font-medium">#{issue.number}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{issue.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {issue.user.login} • {getRelativeTime(issue.created_at)}
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {issue.labels.slice(0, 2).map((label) => (
+                              <Badge key={label.name} variant="outline" className="text-xs">
+                                {label.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {openIssues.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No issues found
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="activity" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Activity className="h-5 w-5" />
+                        <span>User Activity</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {userActivity.slice(0, 10).map((activity) => (
+                        <div key={activity.id} className="flex items-center space-x-3 p-3 rounded-lg border">
+                          <div className="flex items-center space-x-2">
+                            <Activity className="h-4 w-4 text-gray-500" />
+                          </div>
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={activity.actor?.avatar_url} alt={activity.actor?.login} />
+                            <AvatarFallback>{activity.actor?.login?.[0] || 'U'}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {activity.type}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {activity.repo?.name} • {getRelativeTime(activity.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                      {userActivity.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No user activity found
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </motion.div>
+          )}
+
           {activeTab === "insights" && (
             <motion.div
               key="insights"
@@ -847,8 +1238,239 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
-              <h2 className="text-2xl font-bold">Insights</h2>
-              <DashboardStats />
+              {/* Insights Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold">Insights & Analytics</h1>
+                  <p className="text-muted-foreground mt-1">
+                    Performance metrics and recommendations
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={refreshData}>
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Refresh Data
+                </Button>
+              </div>
+
+              {/* Key Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Repositories</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardStats.totalRepos}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {repositories.filter(r => !r.private).length} public, {repositories.filter(r => r.private).length} private
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Stars</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardStats.totalStars}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Across all repositories
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Forks</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardStats.totalForks}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Repository forks
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Active PRs</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{openPRs.length}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Open pull requests
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Language Distribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Code className="h-5 w-5" />
+                    <span>Language Distribution</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {(() => {
+                      const languages = repositories
+                        .filter(r => r.language)
+                        .reduce((acc, repo) => {
+                          acc[repo.language] = (acc[repo.language] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>);
+                      
+                      const sortedLanguages = Object.entries(languages)
+                        .sort(([,a], [,b]) => b - a)
+                        .slice(0, 8);
+                      
+                      return sortedLanguages.map(([lang, count]) => (
+                        <div key={lang} className="flex items-center justify-between p-3 rounded-lg border">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                            <span className="text-sm font-medium">{lang}</span>
+                          </div>
+                          <Badge variant="outline">{count}</Badge>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                  {repositories.filter(r => r.language).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No language data available
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recent Activity Summary */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <GitCommit className="h-5 w-5" />
+                      <span>Recent Commits</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {recentCommits.slice(0, 5).map((commit) => (
+                        <div key={commit.sha} className="flex items-center space-x-3">
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage src={commit.author?.avatar_url} alt={commit.author?.login} />
+                            <AvatarFallback className="text-xs">{commit.author?.login?.[0] || 'U'}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate">
+                              {commit.commit.message.split('\n')[0]}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {getRelativeTime(commit.commit.author.date)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                      {recentCommits.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No recent commits
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <MessageSquare className="h-5 w-5" />
+                      <span>Open Issues</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {openIssues.slice(0, 5).map((issue) => (
+                        <div key={issue.id} className="flex items-center space-x-3">
+                          <div className="flex items-center space-x-2">
+                            <MessageSquare className="h-4 w-4 text-green-500" />
+                            <span className="text-sm font-medium">#{issue.number}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate">{issue.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {getRelativeTime(issue.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                      {openIssues.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No open issues
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* AI Recommendations */}
+              <Card className="border-orange-500/20 bg-gradient-to-r from-orange-500/5 to-orange-600/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Sparkles className="h-5 w-5 text-orange-500" />
+                    <span>AI Recommendations</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Personalized suggestions based on your GitHub activity
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {[
+                      {
+                        icon: GitBranch,
+                        title: "Review Open PRs",
+                        description: `You have ${openPRs.length} open pull requests that need attention`,
+                        action: "Review Now",
+                        color: "text-blue-500"
+                      },
+                      {
+                        icon: MessageSquare,
+                        title: "Address Issues",
+                        description: `There are ${openIssues.length} open issues across your repositories`,
+                        action: "View Issues",
+                        color: "text-green-500"
+                      },
+                      {
+                        icon: Star,
+                        title: "Popular Repositories",
+                        description: "Your repositories have gained significant attention",
+                        action: "View Analytics",
+                        color: "text-yellow-500"
+                      },
+                      {
+                        icon: Activity,
+                        title: "Activity Streak",
+                        description: "Maintain your development momentum",
+                        action: "Track Progress",
+                        color: "text-purple-500"
+                      }
+                    ].map((recommendation, index) => (
+                      <div key={index} className="flex items-start space-x-3 p-3 bg-background/50 rounded-lg">
+                        <recommendation.icon className={`h-5 w-5 mt-0.5 ${recommendation.color}`} />
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm">{recommendation.title}</h4>
+                          <p className="text-xs text-muted-foreground mt-1">{recommendation.description}</p>
+                          <Button size="sm" variant="ghost" className="mt-2 h-7 px-2 text-xs">
+                            {recommendation.action}
+                            <ArrowUpRight className="h-3 w-3 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             </motion.div>
           )}
         </AnimatePresence>

@@ -33,7 +33,7 @@ router.get('/github/url', (req, res) => {
   const githubAuthUrl = `https://github.com/login/oauth/authorize?` +
     `client_id=${config.clientId}&` +
     `redirect_uri=${encodeURIComponent(config.callbackUrl)}&` +
-    `scope=repo,user,read:org&` +
+    `scope=repo,user,read:org,repo:status,repo_deployment&` +
     `prompt=select_account&` +
     `state=${state}`;
 
@@ -233,16 +233,39 @@ router.get('/status', asyncHandler(async (req, res) => {
       });
     }
 
-    return res.json({
-      authenticated: true,
-      user: {
-        id: session.githubId,
-        login: session.login,
-        name: session.name,
-        avatar_url: session.avatar_url
-      },
-      mode: 'github'
-    });
+    // Test GitHub API access with the token
+    try {
+      const { getUserProfile } = require('../utils/github.cjs');
+      const userProfile = await getUserProfile(session.accessToken);
+      console.log('✅ GitHub API test successful for user:', userProfile.login);
+      
+      return res.json({
+        authenticated: true,
+        user: {
+          id: session.githubId,
+          login: session.login,
+          name: session.name,
+          avatar_url: session.avatar_url
+        },
+        mode: 'github',
+        githubApiTest: 'success',
+        githubUser: userProfile.login
+      });
+    } catch (githubError) {
+      console.error('❌ GitHub API test failed:', githubError.message);
+      return res.json({
+        authenticated: true,
+        user: {
+          id: session.githubId,
+          login: session.login,
+          name: session.name,
+          avatar_url: session.avatar_url
+        },
+        mode: 'github',
+        githubApiTest: 'failed',
+        githubError: githubError.message
+      });
+    }
   } catch (error) {
     return res.status(401).json({
       authenticated: false,
@@ -263,6 +286,30 @@ router.get('/validate', asyncHandler(async (req, res) => {
   }
 
   const token = authHeader.substring(7);
+  
+  // Handle demo token
+  if (token === 'demo-token') {
+    return res.json({
+      valid: true,
+      user: {
+        id: 1,
+        login: 'demo-user',
+        name: 'Demo User',
+        email: 'demo@example.com',
+        avatar_url: 'https://github.com/github.png',
+        bio: 'Demo user for development',
+        location: 'Demo City',
+        company: 'Demo Corp',
+        blog: 'https://demo.com',
+        twitter_username: 'demo',
+        public_repos: 2,
+        followers: 50,
+        following: 25,
+        created_at: '2023-01-01T00:00:00Z',
+        lastLogin: new Date().toISOString()
+      }
+    });
+  }
   
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);

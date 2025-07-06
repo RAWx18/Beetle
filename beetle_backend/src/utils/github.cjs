@@ -60,7 +60,15 @@ const getUserProfile = async (accessToken) => {
     return userData;
   } catch (error) {
     console.error('Error fetching user profile:', error.message);
-    throw new Error('Failed to fetch user profile');
+    if (error.response) {
+      console.error('GitHub API Error Details:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+    }
+    throw new Error(`Failed to fetch user profile: ${error.message}`);
   }
 };
 
@@ -180,7 +188,15 @@ const getUserRepositories = async (accessToken, page = 1, perPage = 100) => {
     return repositories;
   } catch (error) {
     console.error('Error fetching user repositories:', error.message);
-    throw new Error('Failed to fetch user repositories');
+    if (error.response) {
+      console.error('GitHub API Error Details:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+    }
+    throw new Error(`Failed to fetch user repositories: ${error.message}`);
   }
 };
 
