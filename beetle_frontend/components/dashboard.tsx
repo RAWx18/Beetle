@@ -99,6 +99,21 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "projects" | "activity" | "insights">("overview")
   const [notifications, setNotifications] = useState(mockNotifications)
   
+  // Replace showMore states with counts
+  const PROJECTS_BATCH = 6;
+  const ACTIVITY_BATCH = 8;
+  const COMMITS_BATCH = 8;
+  const PRS_BATCH = 8;
+  const ISSUES_BATCH = 8;
+  const USER_ACTIVITY_BATCH = 8;
+
+  const [shownProjectsCount, setShownProjectsCount] = useState(PROJECTS_BATCH);
+  const [shownActivityCount, setShownActivityCount] = useState(ACTIVITY_BATCH);
+  const [shownCommitsCount, setShownCommitsCount] = useState(COMMITS_BATCH);
+  const [shownPRsCount, setShownPRsCount] = useState(PRS_BATCH);
+  const [shownIssuesCount, setShownIssuesCount] = useState(ISSUES_BATCH);
+  const [shownUserActivityCount, setShownUserActivityCount] = useState(USER_ACTIVITY_BATCH);
+  
   // Use real GitHub data and auth
   const {
     loading: dataLoading,
@@ -184,6 +199,11 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)}mo ago`;
     return `${Math.floor(diffInSeconds / 31536000)}y ago`;
   }
+
+  // Helper functions for show more functionality
+  const getDisplayLimit = (showMore: boolean, defaultLimit: number = 5) => {
+    return showMore ? 50 : defaultLimit;
+  };
 
   // Navigation items for the four main sections
   const navigationItems = [
@@ -718,7 +738,8 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
                         </div>
                       ) : userActivity.length > 0 ? (
-                        userActivity.slice(0, 20).map((activity, index) => {
+                        <>
+                          {userActivity.slice(0, shownActivityCount).map((activity, index) => {
                           const getActivityIcon = (type: string) => {
                             switch (type) {
                               case 'PushEvent': return GitCommit;
@@ -806,7 +827,27 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                               <IconComponent className="w-4 h-4 text-muted-foreground" />
                             </div>
                           );
-                        })
+                        })}
+                        
+                        {/* Show More Button */}
+                        {userActivity.length > shownActivityCount ? (
+                          <Button
+                            variant="ghost"
+                            className="w-full mt-4"
+                            onClick={() => setShownActivityCount(c => Math.min(c + ACTIVITY_BATCH, userActivity.length))}
+                          >
+                            Show More
+                          </Button>
+                        ) : userActivity.length > ACTIVITY_BATCH && shownActivityCount > ACTIVITY_BATCH ? (
+                          <Button
+                            variant="ghost"
+                            className="w-full mt-4"
+                            onClick={() => setShownActivityCount(ACTIVITY_BATCH)}
+                          >
+                            Show Less
+                          </Button>
+                        ) : null}
+                      </>
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">
                           No recent activity
@@ -945,22 +986,34 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       Error loading repositories: {dataError}
                     </div>
                   ) : (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {repositories.map((repo) => (
-                        <ProjectCard 
-                          key={repo.id} 
-                          project={{
-                            name: repo.full_name,
-                            description: repo.description || 'No description available',
-                            languages: [repo.language].filter(Boolean),
-                            stars: repo.stargazers_count.toString(),
-                            forks: repo.forks_count.toString(),
-                            updated: new Date(repo.updated_at).toLocaleDateString(),
-                          }} 
-                          type="owned" 
-                        />
-                      ))}
-                    </div>
+                    <>
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {repositories.slice(0, shownProjectsCount).map((repo) => (
+                          <ProjectCard 
+                            key={repo.id} 
+                            project={{
+                              name: repo.full_name,
+                              description: repo.description || 'No description available',
+                              languages: [repo.language].filter(Boolean),
+                              stars: repo.stargazers_count.toString(),
+                              forks: repo.forks_count.toString(),
+                              updated: new Date(repo.updated_at).toLocaleDateString(),
+                            }} 
+                            type="owned" 
+                          />
+                        ))}
+                      </div>
+                      {/* Show More Button for Projects */}
+                      {repositories.length > shownProjectsCount ? (
+                        <Button onClick={() => setShownProjectsCount(c => Math.min(c + PROJECTS_BATCH, repositories.length))}>
+                          Show More
+                        </Button>
+                      ) : repositories.length > PROJECTS_BATCH && shownProjectsCount > PROJECTS_BATCH ? (
+                        <Button onClick={() => setShownProjectsCount(PROJECTS_BATCH)}>
+                          Show Less
+                        </Button>
+                      ) : null}
+                    </>
                   )}
                 </TabsContent>
 
@@ -972,154 +1025,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                   </div>
                 </TabsContent>
               </Tabs>
-            </motion.div>
-          )}
-
-
-
-                      {debouncedActiveTab === "projects" && (
-              <motion.div
-                key={`projects-${dataLoading ? 'loading' : 'loaded'}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-6"
-              >
-              {/* Projects Header */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-bold">Your Projects</h1>
-                  <p className="text-muted-foreground mt-1">
-                    {repositories.length} repositories • {repositories.filter(r => !r.private).length} public, {repositories.filter(r => r.private).length} private
-                  </p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="outline" size="sm" onClick={refreshData}>
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Refresh
-                  </Button>
-                  <Button onClick={handleCreateRepository} className="flex items-center space-x-2">
-                    <Plus className="h-4 w-4" />
-                    <span>New Repository</span>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Repository Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {repositories.map((repo, index) => (
-                  <motion.div
-                    key={repo.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <Card className="h-full hover:shadow-lg transition-shadow">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <CardTitle className="text-lg truncate">
-                              <a
-                                href={repo.html_url || `https://github.com/${repo.full_name}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:text-primary transition-colors"
-                              >
-                                {repo.name}
-                              </a>
-                            </CardTitle>
-                            <CardDescription className="truncate">
-                              {repo.full_name}
-                            </CardDescription>
-                          </div>
-                          <div className="flex items-center space-x-1 ml-2">
-                            {repo.private && (
-                              <Badge variant="secondary" className="text-xs">
-                                Private
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {/* Description */}
-                        {repo.description && (
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {repo.description}
-                          </p>
-                        )}
-
-                        {/* Language */}
-                        {repo.language && (
-                          <div className="flex items-center space-x-2">
-                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                            <span className="text-sm text-muted-foreground">{repo.language}</span>
-                          </div>
-                        )}
-
-                        {/* Stats */}
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-1">
-                              <Star className="h-4 w-4 text-yellow-500" />
-                              <span>{repo.stargazers_count}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <GitBranch className="h-4 w-4 text-blue-500" />
-                              <span>{repo.forks_count}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-1 text-muted-foreground">
-                            <Calendar className="h-4 w-4" />
-                            <span>{getRelativeTime(repo.updated_at)}</span>
-                          </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center space-x-2 pt-2">
-                          <Button variant="outline" size="sm" className="flex-1" asChild>
-                            <a href={repo.html_url || `https://github.com/${repo.full_name}`} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4 mr-1" />
-                              View
-                            </a>
-                          </Button>
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={`${repo.html_url || `https://github.com/${repo.full_name}`}/issues`} target="_blank" rel="noopener noreferrer">
-                              <MessageSquare className="h-4 w-4" />
-                            </a>
-                          </Button>
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={`${repo.html_url || `https://github.com/${repo.full_name}`}/pulls`} target="_blank" rel="noopener noreferrer">
-                              <GitBranch className="h-4 w-4" />
-                            </a>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-              </div>
-
-              {/* Empty State */}
-              {repositories.length === 0 && (
-                <Card className="text-center py-12">
-                  <CardContent>
-                    <div className="flex flex-col items-center space-y-4">
-                      <Code className="h-12 w-12 text-muted-foreground" />
-                      <div>
-                        <h3 className="text-lg font-semibold">No repositories found</h3>
-                        <p className="text-muted-foreground">
-                          Get started by creating your first repository
-                        </p>
-                      </div>
-                      <Button onClick={handleCreateRepository}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Repository
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </motion.div>
           )}
 
@@ -1163,7 +1068,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {recentCommits.slice(0, 10).map((commit) => (
+                      {recentCommits.slice(0, shownCommitsCount).map((commit) => (
                         <div key={commit.sha} className="flex items-center space-x-3 p-3 rounded-lg border">
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={commit.author?.avatar_url} alt={commit.author?.login} />
@@ -1182,6 +1087,26 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                           </Badge>
                         </div>
                       ))}
+                      
+                      {/* Show More Button for Commits */}
+                      {recentCommits.length > shownCommitsCount ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownCommitsCount(c => Math.min(c + COMMITS_BATCH, recentCommits.length))}
+                        >
+                          Show More
+                        </Button>
+                      ) : recentCommits.length > COMMITS_BATCH && shownCommitsCount > COMMITS_BATCH ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownCommitsCount(COMMITS_BATCH)}
+                        >
+                          Show Less
+                        </Button>
+                      ) : null}
+                      
                       {recentCommits.length === 0 && (
                         <p className="text-sm text-muted-foreground text-center py-4">
                           No recent commits found
@@ -1200,7 +1125,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {openPRs.slice(0, 10).map((pr) => (
+                      {openPRs.slice(0, shownPRsCount).map((pr) => (
                         <div key={pr.id} className="flex items-center space-x-3 p-3 rounded-lg border">
                           <div className="flex items-center space-x-2">
                             <GitBranch className="h-4 w-4 text-blue-500" />
@@ -1217,6 +1142,24 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                           </Badge>
                         </div>
                       ))}
+                      {/* Show More Button for PRs */}
+                      {openPRs.length > shownPRsCount ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownPRsCount(c => Math.min(c + PRS_BATCH, openPRs.length))}
+                        >
+                          Show More
+                        </Button>
+                      ) : openPRs.length > PRS_BATCH && shownPRsCount > PRS_BATCH ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownPRsCount(PRS_BATCH)}
+                        >
+                          Show Less
+                        </Button>
+                      ) : null}
                       {openPRs.length === 0 && (
                         <p className="text-sm text-muted-foreground text-center py-4">
                           No pull requests found
@@ -1235,7 +1178,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {openIssues.slice(0, 10).map((issue) => (
+                      {openIssues.slice(0, shownIssuesCount).map((issue) => (
                         <div key={issue.id} className="flex items-center space-x-3 p-3 rounded-lg border">
                           <div className="flex items-center space-x-2">
                             <MessageSquare className="h-4 w-4 text-green-500" />
@@ -1256,6 +1199,24 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                           </div>
                         </div>
                       ))}
+                      {/* Show More Button for Issues */}
+                      {openIssues.length > shownIssuesCount ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownIssuesCount(c => Math.min(c + ISSUES_BATCH, openIssues.length))}
+                        >
+                          Show More
+                        </Button>
+                      ) : openIssues.length > ISSUES_BATCH && shownIssuesCount > ISSUES_BATCH ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownIssuesCount(ISSUES_BATCH)}
+                        >
+                          Show Less
+                        </Button>
+                      ) : null}
                       {openIssues.length === 0 && (
                         <p className="text-sm text-muted-foreground text-center py-4">
                           No issues found
@@ -1274,7 +1235,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {userActivity.slice(0, 10).map((activity) => (
+                      {userActivity.slice(0, shownUserActivityCount).map((activity) => (
                         <div key={activity.id} className="flex items-center space-x-3 p-3 rounded-lg border">
                           <div className="flex items-center space-x-2">
                             <Activity className="h-4 w-4 text-gray-500" />
