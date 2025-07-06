@@ -6,6 +6,7 @@ import { useAnimateIn } from '@/lib/animations';
 import { BranchWhat } from '@/components/branch-content/BranchWhat';
 import AnimatedTransition from '@/components/AnimatedTransition';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 export default function ContributionPage() {
   const [loading, setLoading] = useState(false);
@@ -20,6 +21,27 @@ export default function ContributionPage() {
     const handleAuth = async () => {
       const authToken = searchParams.get('auth_token');
       const authUser = searchParams.get('auth_user');
+      const authError = searchParams.get('auth_error');
+      const authMessage = searchParams.get('auth_message');
+
+      // Handle OAuth errors
+      if (authError && authMessage) {
+        console.error('OAuth error received:', authError, authMessage);
+        
+        // Clean up URL parameters
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+        
+        // Show error toast
+        toast.error(decodeURIComponent(authMessage), {
+          description: "Redirecting to homepage",
+          duration: 5000,
+        });
+        
+        // Redirect to landing page on OAuth error
+        router.push('/');
+        return;
+      }
 
       if (authToken && authUser && !authProcessed) {
         try {

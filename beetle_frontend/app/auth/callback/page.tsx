@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function AuthCallback() {
   const router = useRouter()
@@ -26,9 +27,29 @@ export default function AuthCallback() {
         console.log('Starting auth callback processing...')
         const token = searchParams.get('token')
         const user = searchParams.get('user')
+        const authError = searchParams.get('auth_error')
+        const authMessage = searchParams.get('auth_message')
 
         console.log('Token received:', token ? 'Yes' : 'No')
         console.log('User received:', user ? 'Yes' : 'No')
+        console.log('Auth error received:', authError ? 'Yes' : 'No')
+
+        // Handle OAuth errors
+        if (authError && authMessage) {
+          console.error('OAuth error received:', authError, authMessage)
+          clearTimeout(timeoutId)
+          setStatus('error')
+          setMessage(decodeURIComponent(authMessage))
+          
+          // Show error toast
+          toast.error(decodeURIComponent(authMessage), {
+            description: "Redirecting to homepage",
+            duration: 5000,
+          });
+          
+          setTimeout(() => router.push('/'), 3000)
+          return
+        }
 
         if (!token || !user) {
           console.error('Missing token or user data')

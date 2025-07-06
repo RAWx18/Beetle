@@ -39,6 +39,8 @@ import { GitHubWorkflowVisualization } from "@/components/github-workflow-visual
 import { BranchVisualization } from "@/components/branch-visualization"
 import { PRReviewDemo } from "@/components/pr-review-demo"
 import { useSearchParams, useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { Toaster } from "@/components/ui/sonner"
 
 export default function Home() {
   const { isAuthenticated, user, login, logout, loading, setUserFromCallback } = useAuth()
@@ -110,6 +112,36 @@ export default function Home() {
     const handleAuth = async () => {
       const authToken = searchParams.get('auth_token');
       const authUser = searchParams.get('auth_user');
+      const authError = searchParams.get('auth_error');
+      const authMessage = searchParams.get('auth_message');
+
+      // Handle OAuth errors
+      if (authError && authMessage) {
+        console.error('OAuth error received:', authError, authMessage);
+        
+        // Clean up URL parameters
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+        
+        const decodedMessage = decodeURIComponent(authMessage);
+        
+        // Show error toast with retry option for OAuth errors
+        toast.error(decodedMessage, {
+          description: "Click to try again",
+          duration: 8000,
+          action: {
+            label: "Retry Login",
+            onClick: () => {
+              // Clear any existing tokens
+              localStorage.removeItem('beetle_token');
+              localStorage.removeItem('isAuthenticated');
+              // Trigger login again
+              login();
+            }
+          }
+        });
+        return;
+      }
 
       if (authToken && authUser && !isAuthenticated) {
         try {
@@ -153,6 +185,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Toaster />
       {/* Clean Minimalistic Hero Section */}
       <section className="min-h-screen flex items-center">
         <div className="container mx-auto px-4">

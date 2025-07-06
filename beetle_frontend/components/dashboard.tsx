@@ -35,6 +35,8 @@ import {
   Shield,
   ChevronLeft,
   ExternalLink,
+  RefreshCw,
+  Play,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -381,9 +383,28 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       <li>• Or use "Try Demo Mode" to explore with sample data</li>
                       <li>• Make sure you're logged into GitHub in your browser</li>
                     </ul>
+                    <div className="mt-3 flex gap-2">
+                      <Button 
+                        size="sm" 
+                        onClick={login}
+                        className="text-xs"
+                      >
+                        <Github className="w-3 h-3 mr-1" />
+                        Connect with GitHub
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={loginDemo}
+                        className="text-xs"
+                      >
+                        <Play className="w-3 h-3 mr-1" />
+                        Try Demo Mode
+                      </Button>
+                    </div>
                   </div>
                 )}
-                {dataError.includes('Failed to fetch') && (
+                {(dataError.includes('Failed to fetch') || dataError.includes('Backend server is not accessible')) && (
                   <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 rounded-md">
                     <p className="font-medium mb-2">Possible solutions:</p>
                     <ul className="text-xs space-y-1">
@@ -391,6 +412,29 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       <li>• Try refreshing the page</li>
                       <li>• Use demo mode if the issue persists</li>
                     </ul>
+                    <div className="mt-3 flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={refreshData}
+                        className="text-xs"
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        Retry
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={() => {
+                          localStorage.setItem('beetle_token', 'demo-token');
+                          localStorage.setItem('isAuthenticated', 'true');
+                          window.location.reload();
+                        }}
+                        className="text-xs"
+                      >
+                        <Play className="w-3 h-3 mr-1" />
+                        Switch to Demo Mode
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>

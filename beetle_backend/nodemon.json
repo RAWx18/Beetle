@@ -1,0 +1,14 @@
+{
+  "watch": ["src"],
+  "ext": "js,cjs,json",
+  "ignore": [
+    "src/data/*",
+    "*.log",
+    "node_modules/**/node_modules"
+  ],
+  "delay": "1000",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "legacyWatch": true
+} 
