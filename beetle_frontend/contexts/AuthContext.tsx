@@ -31,6 +31,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: () => void;
+  loginDemo: () => void;
   logout: () => void;
   validateToken: () => Promise<boolean>;
   setUserFromCallback: (userData: User, authToken: string) => void;
@@ -123,6 +124,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error('Login error:', error);
       // Fallback to mock login for development
+      console.log('Using mock login for development');
       setIsAuthenticated(true);
       setUser({
         id: 1,
@@ -148,8 +150,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       });
       setToken('demo-token');
+      localStorage.setItem('beetle_token', 'demo-token');
       localStorage.setItem('isAuthenticated', 'true');
     }
+  };
+
+  // Demo mode login function
+  const loginDemo = () => {
+    console.log('Logging in with demo mode');
+    setIsAuthenticated(true);
+    setUser({
+      id: 1,
+      login: 'demo-user',
+      name: 'Demo User',
+      email: 'demo@example.com',
+      avatar_url: 'https://github.com/github.png',
+      bio: 'Demo user for development',
+      location: 'Demo City',
+      company: 'Demo Corp',
+      blog: 'https://demo.com',
+      twitter_username: 'demo',
+      public_repos: 2,
+      followers: 50,
+      following: 25,
+      created_at: '2023-01-01T00:00:00Z',
+      lastLogin: new Date().toISOString(),
+      analytics: {
+        totalCommits: 45,
+        totalPRs: 2,
+        totalIssues: 3,
+        activeRepositories: 2
+      }
+    });
+    setToken('demo-token');
+    localStorage.setItem('beetle_token', 'demo-token');
+    localStorage.setItem('isAuthenticated', 'true');
   };
 
   const logout = async () => {
@@ -184,6 +219,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       user, 
       token, 
       login, 
+      loginDemo,
       logout, 
       validateToken,
       setUserFromCallback,

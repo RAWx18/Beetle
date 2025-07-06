@@ -194,6 +194,63 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
   }
 }));
 
+// Test endpoint to check authentication status
+router.get('/status', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      authenticated: false,
+      message: 'No Bearer token provided'
+    });
+  }
+
+  const token = authHeader.substring(7);
+  
+  try {
+    // Check if it's demo token
+    if (token === 'demo-token') {
+      return res.json({
+        authenticated: true,
+        user: {
+          id: 1,
+          login: 'demo-user',
+          name: 'Demo User',
+          avatar_url: 'https://github.com/github.png'
+        },
+        mode: 'demo'
+      });
+    }
+    
+    // Verify JWT token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const session = await getSession(decoded.sessionId);
+    
+    if (!session) {
+      return res.status(401).json({
+        authenticated: false,
+        message: 'Invalid session'
+      });
+    }
+
+    return res.json({
+      authenticated: true,
+      user: {
+        id: session.githubId,
+        login: session.login,
+        name: session.name,
+        avatar_url: session.avatar_url
+      },
+      mode: 'github'
+    });
+  } catch (error) {
+    return res.status(401).json({
+      authenticated: false,
+      message: 'Invalid token'
+    });
+  }
+}));
+
 // Validate token
 router.get('/validate', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;

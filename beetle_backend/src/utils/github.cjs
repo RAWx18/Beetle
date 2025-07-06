@@ -67,6 +67,70 @@ const getUserProfile = async (accessToken) => {
 // Get user repositories
 const getUserRepositories = async (accessToken, page = 1, perPage = 100) => {
   try {
+    // Demo mode support
+    if (accessToken === 'demo-github-token') {
+      return [
+        {
+          id: 1,
+          name: "beetle-app",
+          full_name: "demo-user/beetle-app",
+          description: "AI-powered GitHub contribution manager with structured planning and branch-aware workflows",
+          private: false,
+          fork: false,
+          language: "TypeScript",
+          stargazers_count: 15,
+          forks_count: 3,
+          open_issues_count: 2,
+          default_branch: "main",
+          updated_at: new Date().toISOString(),
+          created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+          pushed_at: new Date().toISOString(),
+          owner: {
+            login: "demo-user",
+            avatar_url: "https://github.com/github.png",
+            type: "User"
+          },
+          topics: ["ai", "github", "productivity"],
+          license: { name: "MIT" },
+          archived: false,
+          disabled: false,
+          homepage: "https://beetle.app",
+          html_url: "https://github.com/demo-user/beetle-app",
+          clone_url: "https://github.com/demo-user/beetle-app.git",
+          ssh_url: "git@github.com:demo-user/beetle-app.git"
+        },
+        {
+          id: 2,
+          name: "react-components",
+          full_name: "demo-user/react-components",
+          description: "Reusable React components library with TypeScript",
+          private: false,
+          fork: false,
+          language: "TypeScript",
+          stargazers_count: 8,
+          forks_count: 1,
+          open_issues_count: 1,
+          default_branch: "main",
+          updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+          pushed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          owner: {
+            login: "demo-user",
+            avatar_url: "https://github.com/github.png",
+            type: "User"
+          },
+          topics: ["react", "typescript", "components"],
+          license: { name: "MIT" },
+          archived: false,
+          disabled: false,
+          homepage: null,
+          html_url: "https://github.com/demo-user/react-components",
+          clone_url: "https://github.com/demo-user/react-components.git",
+          ssh_url: "git@github.com:demo-user/react-components.git"
+        }
+      ];
+    }
+
     const cacheKey = `user_repos_${accessToken.substring(0, 10)}_${page}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
@@ -258,6 +322,106 @@ const getRepositoryIssues = async (accessToken, owner, repo, state = 'open', pag
 // Get repository pull requests
 const getRepositoryPullRequests = async (accessToken, owner, repo, state = 'open', page = 1, perPage = 100) => {
   try {
+    // Demo mode support
+    if (accessToken === 'demo-github-token') {
+      return [
+        {
+          id: 1,
+          number: 15,
+          title: "Implement real-time updates",
+          body: "Add real-time updates to the dashboard for better user experience",
+          state: "open",
+          locked: false,
+          draft: false,
+          merged: false,
+          mergeable: true,
+          mergeable_state: "clean",
+          merged_at: null,
+          closed_at: null,
+          user: {
+            login: "demo-user",
+            avatar_url: "https://github.com/github.png"
+          },
+          assignees: [],
+          requested_reviewers: [],
+          labels: [
+            { name: "enhancement", color: "a2eeef" },
+            { name: "frontend", color: "0e8a16" }
+          ],
+          head: {
+            label: "demo-user:feature/realtime-updates",
+            ref: "feature/realtime-updates",
+            sha: "abc123",
+            user: { login: "demo-user" },
+            repo: { name: "beetle-app" }
+          },
+          base: {
+            label: "demo-user:main",
+            ref: "main",
+            sha: "def456",
+            user: { login: "demo-user" },
+            repo: { name: "beetle-app" }
+          },
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+          updated_at: new Date().toISOString(),
+          html_url: "https://github.com/demo-user/beetle-app/pull/15",
+          comments: 2,
+          review_comments: 1,
+          commits: 3,
+          additions: 45,
+          deletions: 12,
+          changed_files: 5
+        },
+        {
+          id: 2,
+          number: 14,
+          title: "Fix authentication flow",
+          body: "Resolve issues with GitHub OAuth authentication",
+          state: "open",
+          locked: false,
+          draft: false,
+          merged: false,
+          mergeable: true,
+          mergeable_state: "clean",
+          merged_at: null,
+          closed_at: null,
+          user: {
+            login: "demo-user",
+            avatar_url: "https://github.com/github.png"
+          },
+          assignees: [],
+          requested_reviewers: [],
+          labels: [
+            { name: "bug", color: "d73a4a" },
+            { name: "auth", color: "fef2c0" }
+          ],
+          head: {
+            label: "demo-user:fix/auth-flow",
+            ref: "fix/auth-flow",
+            sha: "ghi789",
+            user: { login: "demo-user" },
+            repo: { name: "beetle-app" }
+          },
+          base: {
+            label: "demo-user:main",
+            ref: "main",
+            sha: "def456",
+            user: { login: "demo-user" },
+            repo: { name: "beetle-app" }
+          },
+          created_at: new Date(Date.now() - 7200000).toISOString(),
+          updated_at: new Date(Date.now() - 1800000).toISOString(),
+          html_url: "https://github.com/demo-user/beetle-app/pull/14",
+          comments: 1,
+          review_comments: 0,
+          commits: 2,
+          additions: 23,
+          deletions: 8,
+          changed_files: 3
+        }
+      ];
+    }
+
     const cacheKey = `repo_prs_${owner}_${repo}_${state}_${page}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
@@ -373,6 +537,111 @@ const getRepositoryCommits = async (accessToken, owner, repo, branch = 'main', p
 // Get user activity (recent events)
 const getUserActivity = async (accessToken, username, page = 1, perPage = 100) => {
   try {
+    // Demo mode support
+    if (accessToken === 'demo-github-token') {
+      return [
+        {
+          id: "1",
+          type: "PushEvent",
+          actor: {
+            id: 1,
+            login: "demo-user",
+            avatar_url: "https://github.com/github.png"
+          },
+          repo: {
+            name: "demo-user/beetle-app"
+          },
+          payload: {
+            commits: [
+              { message: "Add new dashboard features" },
+              { message: "Fix authentication flow" }
+            ]
+          },
+          public: true,
+          created_at: new Date().toISOString(),
+          org: null
+        },
+        {
+          id: "2",
+          type: "PullRequestEvent",
+          actor: {
+            id: 1,
+            login: "demo-user",
+            avatar_url: "https://github.com/github.png"
+          },
+          repo: {
+            name: "demo-user/beetle-app"
+          },
+          payload: {
+            action: "opened",
+            pull_request: {
+              number: 15,
+              title: "Implement real-time updates"
+            }
+          },
+          public: true,
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+          org: null
+        },
+        {
+          id: "3",
+          type: "IssuesEvent",
+          actor: {
+            id: 1,
+            login: "demo-user",
+            avatar_url: "https://github.com/github.png"
+          },
+          repo: {
+            name: "demo-user/react-components"
+          },
+          payload: {
+            action: "opened",
+            issue: {
+              number: 8,
+              title: "Add TypeScript support"
+            }
+          },
+          public: true,
+          created_at: new Date(Date.now() - 7200000).toISOString(),
+          org: null
+        },
+        {
+          id: "4",
+          type: "CreateEvent",
+          actor: {
+            id: 1,
+            login: "demo-user",
+            avatar_url: "https://github.com/github.png"
+          },
+          repo: {
+            name: "demo-user/react-components"
+          },
+          payload: {
+            ref_type: "repository"
+          },
+          public: true,
+          created_at: new Date(Date.now() - 86400000).toISOString(),
+          org: null
+        },
+        {
+          id: "5",
+          type: "WatchEvent",
+          actor: {
+            id: 1,
+            login: "demo-user",
+            avatar_url: "https://github.com/github.png"
+          },
+          repo: {
+            name: "facebook/react"
+          },
+          payload: {},
+          public: true,
+          created_at: new Date(Date.now() - 172800000).toISOString(),
+          org: null
+        }
+      ];
+    }
+
     const cacheKey = `user_activity_${username}_${page}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
@@ -411,6 +680,36 @@ const getUserActivity = async (accessToken, username, page = 1, perPage = 100) =
 // Get repository contributors
 const getRepositoryContributors = async (accessToken, owner, repo) => {
   try {
+    // Demo mode support
+    if (accessToken === 'demo-github-token') {
+      return [
+        {
+          login: "demo-user",
+          id: 1,
+          avatar_url: "https://github.com/github.png",
+          contributions: 45,
+          type: "User",
+          site_admin: false
+        },
+        {
+          login: "john-doe",
+          id: 2,
+          avatar_url: "https://github.com/github.png",
+          contributions: 23,
+          type: "User",
+          site_admin: false
+        },
+        {
+          login: "jane-smith",
+          id: 3,
+          avatar_url: "https://github.com/github.png",
+          contributions: 12,
+          type: "User",
+          site_admin: false
+        }
+      ];
+    }
+
     const cacheKey = `repo_contributors_${owner}_${repo}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;

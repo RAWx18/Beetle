@@ -57,6 +57,8 @@ import { RepositoryDetailPage } from "@/components/repository-detail-page"
 import { UserProfilePage } from "@/components/user-profile-page"
 import { OrganizationProfilePage } from "@/components/organization-profile-page"
 import { Progress } from "@/components/ui/progress"
+import { useGitHubData } from "@/hooks/useGitHubData"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface DashboardProps {
   onSignOut: () => void
@@ -72,6 +74,108 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   const [selectedData, setSelectedData] = useState<any>(null)
   const [activeTab, setActiveTab] = useState("overview")
   const [notifications, setNotifications] = useState(mockNotifications)
+  
+  // Use real GitHub data and auth
+  const {
+    loading: dataLoading,
+    error: dataError,
+    repositories,
+    recentCommits,
+    openPRs,
+    openIssues,
+    userActivity,
+    dashboardStats,
+    quickStats,
+    refreshData,
+  } = useGitHubData()
+  
+  const { user, isAuthenticated, login, loginDemo } = useAuth()
+
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return "Good morning"
+    if (hour < 17) return "Good afternoon"
+    return "Good evening"
+  }
+
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (!user) return "Developer"
+    return user.name || user.login || "Developer"
+  }
+
+  // Quick action handlers
+  const handleCreateRepository = () => {
+    window.open('https://github.com/new', '_blank')
+  }
+
+  const handleNewPullRequest = () => {
+    if (repositories.length > 0) {
+      const repo = repositories[0]
+      window.open(`https://github.com/${repo.full_name}/compare`, '_blank')
+    } else {
+      window.open('https://github.com', '_blank')
+    }
+  }
+
+  const handleCreateIssue = () => {
+    if (repositories.length > 0) {
+      const repo = repositories[0]
+      window.open(`https://github.com/${repo.full_name}/issues/new`, '_blank')
+    } else {
+      window.open('https://github.com', '_blank')
+    }
+  }
+
+  const handleDeployProject = () => {
+    // This would typically open a deployment modal or redirect to deployment service
+    console.log('Deploy project - would open deployment options')
+    // For now, just show an alert
+    alert('Deploy functionality would open deployment options for your projects')
+  }
+
+  // Helper function to get relative time
+  const getRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)}mo ago`;
+    return `${Math.floor(diffInSeconds / 31536000)}y ago`;
+  }
+
+  // Quick actions configuration
+  const quickActions = [
+    {
+      icon: Plus,
+      title: "Create Repository",
+      description: "Start a new project",
+      onClick: handleCreateRepository,
+    },
+    {
+      icon: GitBranch,
+      title: "New Pull Request",
+      description: "Propose changes",
+      onClick: handleNewPullRequest,
+    },
+    {
+      icon: FileText,
+      title: "Create Issue",
+      description: "Report a bug or request",
+      onClick: handleCreateIssue,
+    },
+    {
+      icon: Globe,
+      title: "Deploy Project",
+      description: "Ship to production",
+      onClick: handleDeployProject,
+    },
+  ]
 
   useEffect(() => {
     setMounted(true)
@@ -114,6 +218,72 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
   if (!mounted) return null
 
+  // Show login prompt if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center space-y-6 max-w-md w-full">
+          <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center mx-auto">
+            <Code className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Welcome to Beetle</h1>
+            <p className="text-muted-foreground mb-6">Connect your GitHub account to get started</p>
+          </div>
+          
+          {/* GitHub OAuth Instructions */}
+          <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">🔗 Real GitHub Integration</h3>
+            <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+              Connect your GitHub account to see your real repositories, commits, pull requests, and activity.
+            </p>
+            <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+              <p>✅ View your actual repositories and stats</p>
+              <p>✅ See real-time activity and contributions</p>
+              <p>✅ Access your pull requests and issues</p>
+              <p>✅ Track your GitHub analytics</p>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <Button 
+              onClick={login} 
+              size="lg" 
+              className="bg-orange-500 hover:bg-orange-600 text-white w-full"
+            >
+              <Github className="w-5 h-5 mr-2" />
+              Connect with GitHub
+            </Button>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or</span>
+              </div>
+            </div>
+            
+            <Button 
+              onClick={loginDemo} 
+              size="lg" 
+              variant="outline"
+              className="w-full"
+            >
+              <Code className="w-5 h-5 mr-2" />
+              Try Demo Mode
+            </Button>
+          </div>
+          
+          <div className="text-xs text-muted-foreground space-y-2">
+            <p>💡 <strong>GitHub OAuth:</strong> You'll be redirected to GitHub to authorize access to your repositories and activity.</p>
+            <p>🎯 <strong>Demo Mode:</strong> Explore the app with realistic sample data for testing and demonstration.</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Render different views based on current state
   if (currentView === "repository" && selectedData) {
     return <RepositoryDetailPage repository={selectedData} onBack={handleBackToDashboard} />
@@ -129,6 +299,46 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Error Banner */}
+      {dataError && (
+        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-6 py-4 rounded-lg relative mb-6 max-w-4xl mx-auto mt-4">
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                Unable to fetch GitHub data
+              </h3>
+              <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                <p>{dataError}</p>
+                {dataError.includes('Authentication required') && (
+                  <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 rounded-md">
+                    <p className="font-medium mb-2">To fix this:</p>
+                    <ul className="text-xs space-y-1">
+                      <li>• Click "Connect with GitHub" to authorize access to your repositories</li>
+                      <li>• Or use "Try Demo Mode" to explore with sample data</li>
+                      <li>• Make sure you're logged into GitHub in your browser</li>
+                    </ul>
+                  </div>
+                )}
+                {dataError.includes('Failed to fetch') && (
+                  <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 rounded-md">
+                    <p className="font-medium mb-2">Possible solutions:</p>
+                    <ul className="text-xs space-y-1">
+                      <li>• Check your internet connection</li>
+                      <li>• Try refreshing the page</li>
+                      <li>• Use demo mode if the issue persists</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Enhanced Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b">
         <div className="container mx-auto px-4 py-3">
@@ -216,8 +426,8 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src="/placeholder.jpeg?height=36&width=36" alt="User" />
-                      <AvatarFallback>JD</AvatarFallback>
+                      <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=36&width=36"} alt="User" />
+                      <AvatarFallback>{user?.login?.[0]?.toUpperCase() || "U"}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
@@ -225,12 +435,12 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                   <div className="p-2">
                     <div className="flex items-center gap-2 mb-2">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src="/placeholder.jpeg?height=32&width=32" />
-                        <AvatarFallback>JD</AvatarFallback>
+                        <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=32&width=32"} />
+                        <AvatarFallback>{user?.login?.[0]?.toUpperCase() || "U"}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="text-sm font-medium">Ryan</p>
-                        <p className="text-xs text-muted-foreground">rawx18.dev@gmail.com</p>
+                        <p className="text-sm font-medium">{getUserDisplayName()}</p>
+                        <p className="text-xs text-muted-foreground">{user?.email || user?.login || "user@example.com"}</p>
                       </div>
                     </div>
                   </div>
@@ -270,7 +480,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
               {/* Welcome Section */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold">Good morning, Ryan 👋</h1>
+                  <h1 className="text-3xl font-bold">{getGreeting()}, {getUserDisplayName()} 👋</h1>
                   <p className="text-muted-foreground mt-1">Here's what's happening with your projects today.</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -283,7 +493,12 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
               {/* Quick Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {quickStats.map((stat, index) => (
+                {[
+                  { icon: GitCommit, label: "Commits Today", value: quickStats.commitsToday.toString(), color: "text-green-500" },
+                  { icon: GitBranch, label: "Active PRs", value: quickStats.activePRs.toString(), color: "text-blue-500" },
+                  { icon: Star, label: "Stars Earned", value: quickStats.starsEarned.toString(), color: "text-yellow-500" },
+                  { icon: Users, label: "Collaborators", value: quickStats.collaborators.toString(), color: "text-purple-500" },
+                ].map((stat, index) => (
                   <motion.div
                     key={stat.label}
                     initial={{ opacity: 0, y: 20 }}
@@ -294,10 +509,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
                           <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                          <Badge variant={stat.trend > 0 ? "default" : "secondary"} className="text-xs">
-                            {stat.trend > 0 ? "+" : ""}
-                            {stat.trend}%
-                          </Badge>
                         </div>
                         <div className="text-2xl font-bold mb-1">{stat.value}</div>
                         <div className="text-xs text-muted-foreground">{stat.label}</div>
@@ -353,31 +564,105 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      {recentActivity.map((activity, index) => (
-                        <div
-                          key={index}
-                          className="flex items-start gap-3 p-3 hover:bg-muted/50 rounded-lg transition-colors"
-                        >
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={activity.avatar || "/placeholder.jpeg"} />
-                            <AvatarFallback>{activity.user[0]}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm">
-                              <span className="font-medium">{activity.user}</span>{" "}
-                              <span className="text-muted-foreground">{activity.action}</span>{" "}
-                              <span className="font-medium">{activity.target}</span>
-                            </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-xs">
-                                {activity.repo}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">{activity.time}</span>
-                            </div>
-                          </div>
-                          <activity.icon className="w-4 h-4 text-muted-foreground" />
+                      {dataLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
                         </div>
-                      ))}
+                      ) : userActivity.length > 0 ? (
+                        userActivity.slice(0, 20).map((activity, index) => {
+                          const getActivityIcon = (type: string) => {
+                            switch (type) {
+                              case 'PushEvent': return GitCommit;
+                              case 'PullRequestEvent': return GitBranch;
+                              case 'IssuesEvent': return FileText;
+                              case 'CreateEvent': return Plus;
+                              case 'ForkEvent': return GitBranch;
+                              case 'WatchEvent': return Star;
+                              case 'DeleteEvent': return X;
+                              case 'GollumEvent': return FileText;
+                              case 'CommitCommentEvent': return MessageSquare;
+                              case 'IssueCommentEvent': return MessageSquare;
+                              case 'PullRequestReviewEvent': return GitBranch;
+                              default: return Activity;
+                            }
+                          };
+                          
+                          const getActivityDescription = (type: string, payload: any) => {
+                            switch (type) {
+                              case 'PushEvent':
+                                const commitCount = payload.commits?.length || 0;
+                                return `pushed ${commitCount} commit${commitCount !== 1 ? 's' : ''}`;
+                              case 'PullRequestEvent':
+                                if (payload.action === 'opened') return 'opened pull request';
+                                if (payload.action === 'closed') return payload.pull_request?.merged ? 'merged pull request' : 'closed pull request';
+                                if (payload.action === 'reopened') return 'reopened pull request';
+                                return 'updated pull request';
+                              case 'IssuesEvent':
+                                if (payload.action === 'opened') return 'opened issue';
+                                if (payload.action === 'closed') return 'closed issue';
+                                if (payload.action === 'reopened') return 'reopened issue';
+                                return 'updated issue';
+                              case 'CreateEvent':
+                                if (payload.ref_type === 'repository') return 'created repository';
+                                if (payload.ref_type === 'branch') return 'created branch';
+                                if (payload.ref_type === 'tag') return 'created tag';
+                                return `created ${payload.ref_type}`;
+                              case 'ForkEvent':
+                                return 'forked repository';
+                              case 'WatchEvent':
+                                return 'starred repository';
+                              case 'DeleteEvent':
+                                return `deleted ${payload.ref_type}`;
+                              case 'GollumEvent':
+                                return 'updated wiki';
+                              case 'CommitCommentEvent':
+                                return 'commented on commit';
+                              case 'IssueCommentEvent':
+                                return 'commented on issue';
+                              case 'PullRequestReviewEvent':
+                                return 'reviewed pull request';
+                              default:
+                                return type.replace('Event', '').toLowerCase();
+                            }
+                          };
+
+                          const IconComponent = getActivityIcon(activity.type);
+                          
+                          return (
+                            <div
+                              key={activity.id}
+                              className="flex items-start gap-3 p-3 hover:bg-muted/50 rounded-lg transition-colors"
+                            >
+                              <Avatar className="w-8 h-8">
+                                <AvatarImage src={activity.actor.avatar_url} />
+                                <AvatarFallback>{activity.actor.login[0]}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm">
+                                  <span className="font-medium">{activity.actor.login}</span>{" "}
+                                  <span className="text-muted-foreground">
+                                    {getActivityDescription(activity.type, activity.payload)}
+                                  </span>{" "}
+                                  <span className="font-medium">{activity.repo.name}</span>
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Badge variant="outline" className="text-xs">
+                                    {activity.repo.name}
+                                  </Badge>
+                                                                  <span className="text-xs text-muted-foreground">
+                                  {getRelativeTime(activity.created_at)}
+                                </span>
+                                </div>
+                              </div>
+                              <IconComponent className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No recent activity
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -418,10 +703,32 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {monthlyGoals.map((goal, index) => (
+                      {[
+                        { 
+                          title: "Repositories", 
+                          current: dashboardStats.totalRepos, 
+                          target: Math.max(dashboardStats.totalRepos + 5, 10),
+                          description: "Your repositories"
+                        },
+                        { 
+                          title: "Commits", 
+                          current: dashboardStats.totalCommits, 
+                          target: Math.max(dashboardStats.totalCommits + 10, 20),
+                          description: "Commits across all projects"
+                        },
+                        { 
+                          title: "Pull Requests", 
+                          current: dashboardStats.totalPRs, 
+                          target: Math.max(dashboardStats.totalPRs + 3, 5),
+                          description: "PRs created or merged"
+                        },
+                      ].map((goal, index) => (
                         <div key={index} className="space-y-2">
                           <div className="flex items-center justify-between text-sm">
-                            <span>{goal.title}</span>
+                            <div>
+                              <span className="font-medium">{goal.title}</span>
+                              <p className="text-xs text-muted-foreground">{goal.description}</p>
+                            </div>
                             <span className="font-medium">
                               {goal.current}/{goal.target}
                             </span>
@@ -467,30 +774,51 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                 <FeaturedProjectsCarousel />
               </motion.section>
 
-              <Tabs defaultValue="starred" className="w-full">
+              <Tabs defaultValue="my-projects" className="w-full">
                 <TabsList className="grid w-fit grid-cols-2">
+                  <TabsTrigger value="my-projects" className="flex items-center gap-2">
+                    <Code className="w-4 h-4" />
+                    My Repositories
+                  </TabsTrigger>
                   <TabsTrigger value="starred" className="flex items-center gap-2">
                     <Star className="w-4 h-4" />
                     Starred Projects
                   </TabsTrigger>
-                  <TabsTrigger value="my-projects" className="flex items-center gap-2">
-                    <Code className="w-4 h-4" />
-                    My Projects
-                  </TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="my-projects" className="mt-6">
+                  {dataLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                    </div>
+                  ) : dataError ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      Error loading repositories: {dataError}
+                    </div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {repositories.map((repo) => (
+                        <ProjectCard 
+                          key={repo.id} 
+                          project={{
+                            name: repo.full_name,
+                            description: repo.description || 'No description available',
+                            languages: [repo.language].filter(Boolean),
+                            stars: repo.stargazers_count.toString(),
+                            forks: repo.forks_count.toString(),
+                            updated: new Date(repo.updated_at).toLocaleDateString(),
+                          }} 
+                          type="owned" 
+                        />
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
 
                 <TabsContent value="starred" className="mt-6">
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {starredProjects.map((project, index) => (
                       <ProjectCard key={index} project={project} type="starred" />
-                    ))}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="my-projects" className="mt-6">
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {myProjects.map((project, index) => (
-                      <ProjectCard key={index} project={project} type="owned" />
                     ))}
                   </div>
                 </TabsContent>
@@ -869,32 +1197,7 @@ const recentActivity = [
   },
 ]
 
-const quickActions = [
-  {
-    icon: Plus,
-    title: "Create Repository",
-    description: "Start a new project",
-    onClick: () => console.log("Create repo"),
-  },
-  {
-    icon: GitBranch,
-    title: "New Pull Request",
-    description: "Propose changes",
-    onClick: () => console.log("New PR"),
-  },
-  {
-    icon: FileText,
-    title: "Create Issue",
-    description: "Report a bug or request",
-    onClick: () => console.log("New issue"),
-  },
-  {
-    icon: Globe,
-    title: "Deploy Project",
-    description: "Ship to production",
-    onClick: () => console.log("Deploy"),
-  },
-]
+
 
 const monthlyGoals = [
   { title: "Commits", current: 47, target: 60 },

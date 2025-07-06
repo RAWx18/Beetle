@@ -15,6 +15,19 @@ const authMiddleware = async (req, res, next) => {
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
     
+    // Development mode: Allow demo token
+    if (process.env.NODE_ENV === 'development' && token === 'demo-token') {
+      req.user = {
+        id: 1,
+        login: 'demo-user',
+        name: 'Demo User',
+        avatar_url: 'https://github.com/github.png',
+        accessToken: 'demo-github-token',
+        sessionId: 'demo-session'
+      };
+      return next();
+    }
+    
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
