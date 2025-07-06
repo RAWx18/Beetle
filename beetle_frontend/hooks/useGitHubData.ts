@@ -220,6 +220,70 @@ export const useGitHubData = () => {
     ]);
   }, []);
 
+  // Helper functions to transform UserActivity to proper types
+  const transformActivityToCommits = (activities: UserActivity[]): Commit[] => {
+    return activities
+      .filter(event => event.type === 'PushEvent' && event.payload?.commits)
+      .flatMap(event => 
+        event.payload.commits.map((commit: any, index: number) => ({
+          sha: commit.sha || `temp-${event.id}-${index}`,
+          commit: {
+            message: commit.message,
+            author: {
+              name: event.actor.login,
+              email: `${event.actor.login}@users.noreply.github.com`,
+              date: event.created_at
+            }
+          },
+          author: {
+            login: event.actor.login,
+            avatar_url: event.actor.avatar_url
+          }
+        }))
+      );
+  };
+
+  const transformActivityToPRs = (activities: UserActivity[]): PullRequest[] => {
+    return activities
+      .filter(event => event.type === 'PullRequestEvent' && event.payload?.pull_request)
+      .map(event => ({
+        id: event.payload.pull_request.id || parseInt(event.id),
+        number: event.payload.pull_request.number,
+        title: event.payload.pull_request.title,
+        state: event.payload.pull_request.state,
+        created_at: event.payload.pull_request.created_at || event.created_at,
+        updated_at: event.payload.pull_request.updated_at || event.created_at,
+        user: {
+          login: event.actor.login,
+          avatar_url: event.actor.avatar_url
+        },
+        head: {
+          ref: event.payload.pull_request.head?.ref || 'unknown'
+        },
+        base: {
+          ref: event.payload.pull_request.base?.ref || 'main'
+        }
+      }));
+  };
+
+  const transformActivityToIssues = (activities: UserActivity[]): Issue[] => {
+    return activities
+      .filter(event => event.type === 'IssuesEvent' && event.payload?.issue)
+      .map(event => ({
+        id: event.payload.issue.id || parseInt(event.id),
+        number: event.payload.issue.number,
+        title: event.payload.issue.title,
+        state: event.payload.issue.state,
+        created_at: event.payload.issue.created_at || event.created_at,
+        updated_at: event.payload.issue.updated_at || event.created_at,
+        user: {
+          login: event.actor.login,
+          avatar_url: event.actor.avatar_url
+        },
+        labels: event.payload.issue.labels || []
+      }));
+  };
+
   // Fetch real GitHub data
   const fetchRealData = useCallback(async () => {
     if (!apiRef.current) {
@@ -246,49 +310,49 @@ export const useGitHubData = () => {
       console.log('Repositories fetched:', repos.length);
       setRepositories(repos);
 
-      // Calculate basic stats
+      // Calculate basic stats from repositories
       const totalStars = repos.reduce((sum, repo) => sum + repo.stargazers_count, 0);
       const totalForks = repos.reduce((sum, repo) => sum + repo.forks_count, 0);
+      const totalIssues = repos.reduce((sum, repo) => sum + (repo as any).open_issues_count || 0, 0);
       
       setDashboardStats(prev => ({
         ...prev,
         totalRepos: repos.length,
         totalStars,
         totalForks,
+        totalIssues,
       }));
 
-      // Fetch additional data only if we have repositories
-      if (repos.length > 0) {
-        const [commits, prs, issues, activity] = await Promise.allSettled([
-          apiRef.current.getRepositoryCommits(repos[0].full_name.split('/')[0], repos[0].full_name.split('/')[1], 'main', 1, 10),
-          apiRef.current.getRepositoryPullRequests(repos[0].full_name.split('/')[0], repos[0].full_name.split('/')[1], 'open', 1, 10),
-          apiRef.current.getRepositoryIssues(repos[0].full_name.split('/')[0], repos[0].full_name.split('/')[1], 'open', 1, 10),
-          apiRef.current.getUserActivity(),
-        ]);
+      // Fetch user-wide data (not repository-specific)
+      const [activity] = await Promise.allSettled([
+        apiRef.current.getUserActivity(),
+      ]);
 
-        if (commits.status === 'fulfilled') {
-          setRecentCommits(commits.value);
-          setDashboardStats(prev => ({ ...prev, totalCommits: commits.value.length }));
-        }
-
-        if (prs.status === 'fulfilled') {
-          setOpenPRs(prs.value);
-          setDashboardStats(prev => ({ ...prev, totalPRs: prs.value.length }));
-          setQuickStats(prev => ({ ...prev, activePRs: prs.value.length }));
-        }
-
-        if (issues.status === 'fulfilled') {
-          setOpenIssues(issues.value);
-          setDashboardStats(prev => ({ ...prev, totalIssues: issues.value.length }));
-        }
-
-        if (activity.status === 'fulfilled') {
-          setUserActivity(activity.value);
-        }
+      if (activity.status === 'fulfilled') {
+        setUserActivity(activity.value);
+        
+        // Transform activity data to proper types
+        const commits = transformActivityToCommits(activity.value);
+        const prs = transformActivityToPRs(activity.value);
+        const issues = transformActivityToIssues(activity.value);
+        
+        setRecentCommits(commits.slice(0, 20));
+        setOpenPRs(prs.slice(0, 20));
+        setOpenIssues(issues.slice(0, 20));
+        
+        setDashboardStats(prev => ({ 
+          ...prev, 
+          totalCommits: commits.length,
+          totalPRs: prs.length,
+        }));
+        
+        setQuickStats(prev => ({ 
+          ...prev, 
+          activePRs: prs.filter(pr => pr.state === 'open').length,
+          starsEarned: totalStars 
+        }));
       }
 
-      setQuickStats(prev => ({ ...prev, starsEarned: totalStars }));
-      
     } catch (err) {
       console.error('Error fetching GitHub data:', err);
       

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Star,
@@ -37,11 +37,16 @@ import {
   ExternalLink,
   RefreshCw,
   Play,
+  Check,
+  Edit,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,6 +104,43 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "projects" | "activity" | "insights">("overview")
   const [notifications, setNotifications] = useState(mockNotifications)
   
+  // New states for editable features
+  const [editableUsername, setEditableUsername] = useState("GitHub User")
+  const [isEditingUsername, setIsEditingUsername] = useState(false)
+  const [showProjectSelector, setShowProjectSelector] = useState(false)
+  const [selectedAction, setSelectedAction] = useState<string | null>(null)
+  const [projectSearchQuery, setProjectSearchQuery] = useState("")
+  
+  // Editable monthly goals
+  const [monthlyGoals, setMonthlyGoals] = useState([
+    { 
+      id: 1,
+      title: "Repositories", 
+      current: 0, 
+      target: 10,
+      description: "Your repositories",
+      type: "repositories"
+    },
+    { 
+      id: 2,
+      title: "Commits", 
+      current: 0, 
+      target: 20,
+      description: "Commits across all projects",
+      type: "commits"
+    },
+    { 
+      id: 3,
+      title: "Pull Requests", 
+      current: 0, 
+      target: 5,
+      description: "PRs created or merged",
+      type: "prs"
+    },
+  ])
+  const [isEditingGoals, setIsEditingGoals] = useState(false)
+  const [newGoal, setNewGoal] = useState({ title: "", target: 0, description: "", type: "custom" })
+  
   // Replace showMore states with counts
   const PROJECTS_BATCH = 6;
   const ACTIVITY_BATCH = 8;
@@ -113,6 +155,16 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   const [shownPRsCount, setShownPRsCount] = useState(PRS_BATCH);
   const [shownIssuesCount, setShownIssuesCount] = useState(ISSUES_BATCH);
   const [shownUserActivityCount, setShownUserActivityCount] = useState(USER_ACTIVITY_BATCH);
+  
+  // Smooth refresh states
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [refreshingStats, setRefreshingStats] = useState({
+    commits: false,
+    prs: false,
+    issues: false,
+    activity: false,
+    repositories: false
+  })
   
   // Use real GitHub data and auth
   const {
@@ -129,6 +181,29 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   } = useGitHubData()
   
   const { user, isAuthenticated, login, loginDemo, enableAutoDemo, disableAutoDemo } = useAuth()
+
+  // Initialize editable username when user data is available
+  useEffect(() => {
+    if (user?.login) {
+      setEditableUsername(user.login)
+    }
+  }, [user])
+
+  // Update monthly goals with real data
+  useEffect(() => {
+    setMonthlyGoals(prev => prev.map(goal => {
+      switch (goal.type) {
+        case "repositories":
+          return { ...goal, current: dashboardStats.totalRepos }
+        case "commits":
+          return { ...goal, current: dashboardStats.totalCommits }
+        case "prs":
+          return { ...goal, current: dashboardStats.totalPRs }
+        default:
+          return goal
+      }
+    }))
+  }, [dashboardStats])
 
   // Handle tab switching with better state management
   const [debouncedActiveTab, setDebouncedActiveTab] = useState(activeTab);
@@ -162,29 +237,193 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   }
 
   const handleNewPullRequest = () => {
-    if (repositories.length > 0) {
-      const repo = repositories[0]
-      window.open(`https://github.com/${repo.full_name}/compare`, '_blank')
-    } else {
-      window.open('https://github.com', '_blank')
-    }
+    setSelectedAction('pull-request')
+    setShowProjectSelector(true)
   }
 
   const handleCreateIssue = () => {
-    if (repositories.length > 0) {
-      const repo = repositories[0]
-      window.open(`https://github.com/${repo.full_name}/issues/new`, '_blank')
-    } else {
-      window.open('https://github.com', '_blank')
-    }
+    setSelectedAction('issue')
+    setShowProjectSelector(true)
   }
 
   const handleDeployProject = () => {
-    // This would typically open a deployment modal or redirect to deployment service
-    console.log('Deploy project - would open deployment options')
-    // For now, just show an alert
-    alert('Deploy functionality would open deployment options for your projects')
+    setSelectedAction('deploy')
+    setShowProjectSelector(true)
   }
+
+  // New handlers for editable features
+  const handleUsernameEdit = () => {
+    setIsEditingUsername(true)
+  }
+
+  const handleUsernameSave = () => {
+    setIsEditingUsername(false)
+    // Here you could save to backend/localStorage
+    localStorage.setItem('customUsername', editableUsername)
+  }
+
+  const handleUsernameCancel = () => {
+    setEditableUsername(user?.login || "GitHub User")
+    setIsEditingUsername(false)
+  }
+
+  const handleGoalEdit = () => {
+    setIsEditingGoals(true)
+  }
+
+  const handleGoalSave = () => {
+    setIsEditingGoals(false)
+    // Save goals to localStorage
+    localStorage.setItem('monthlyGoals', JSON.stringify(monthlyGoals))
+  }
+
+  const handleGoalCancel = () => {
+    setIsEditingGoals(false)
+    // Reset to original values
+    setMonthlyGoals(prev => prev.map(goal => {
+      switch (goal.type) {
+        case "repositories":
+          return { ...goal, current: dashboardStats.totalRepos }
+        case "commits":
+          return { ...goal, current: dashboardStats.totalCommits }
+        case "prs":
+          return { ...goal, current: dashboardStats.totalPRs }
+        default:
+          return goal
+      }
+    }))
+  }
+
+  const addNewGoal = () => {
+    if (newGoal.title && newGoal.target > 0) {
+      setMonthlyGoals(prev => [...prev, {
+        id: Date.now(),
+        title: newGoal.title,
+        current: 0,
+        target: newGoal.target,
+        description: newGoal.description,
+        type: "custom"
+      }])
+      setNewGoal({ title: "", target: 0, description: "", type: "custom" })
+    }
+  }
+
+  const removeGoal = (id: number) => {
+    setMonthlyGoals(prev => prev.filter(goal => goal.id !== id))
+  }
+
+  const updateGoalTarget = (id: number, newTarget: number) => {
+    setMonthlyGoals(prev => prev.map(goal => 
+      goal.id === id ? { ...goal, target: newTarget } : goal
+    ))
+  }
+
+  const handleProjectSelect = (repo: any) => {
+    setSelectedProject(repo.full_name)
+    setShowProjectSelector(false)
+    
+    // Execute the selected action
+    switch (selectedAction) {
+      case 'pull-request':
+        window.open(`https://github.com/${repo.full_name}/compare`, '_blank')
+        break
+      case 'issue':
+        window.open(`https://github.com/${repo.full_name}/issues/new`, '_blank')
+        break
+      case 'deploy':
+        handleVercelDeploy(repo)
+        break
+    }
+    
+    setSelectedAction(null)
+  }
+
+  const handleVercelDeploy = async (repo: any) => {
+    try {
+      // Check if it's user's own repo or forked
+      const isOwnRepo = repo.owner.login === user?.login
+      
+      if (isOwnRepo) {
+        // Deploy original repo
+        window.open(`https://vercel.com/new/git/external?repository-url=https://github.com/${repo.full_name}`, '_blank')
+      } else {
+        // Fork and deploy
+        const forkUrl = `https://github.com/${repo.full_name}/fork`
+        window.open(forkUrl, '_blank')
+        
+        // Show instructions for forked deployment
+        setTimeout(() => {
+          alert(`Repository forked! Now you can deploy your fork at: https://vercel.com/new/git/external?repository-url=https://github.com/${user?.login}/${repo.name}`)
+        }, 2000)
+      }
+    } catch (error) {
+      console.error('Deployment error:', error)
+      alert('Failed to initiate deployment. Please try manually.')
+    }
+  }
+
+  const filteredRepositories = repositories.filter(repo =>
+    repo.name.toLowerCase().includes(projectSearchQuery.toLowerCase()) ||
+    repo.full_name.toLowerCase().includes(projectSearchQuery.toLowerCase())
+  )
+
+  // Smooth refresh function
+  const smoothRefresh = useCallback(async () => {
+    if (isRefreshing) return // Prevent multiple simultaneous refreshes
+    
+    setIsRefreshing(true)
+    setRefreshingStats({
+      commits: true,
+      prs: true,
+      issues: true,
+      activity: true,
+      repositories: true
+    })
+
+    try {
+      // Use the existing refreshData from useGitHubData hook
+      await refreshData()
+      
+      // Stagger the refresh indicators for smooth visual feedback
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, activity: false })), 200)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, commits: false })), 400)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, prs: false })), 600)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, issues: false })), 800)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, repositories: false })), 1000)
+      
+    } catch (error) {
+      console.error('Smooth refresh failed:', error)
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 1200)
+    }
+  }, [isRefreshing, refreshData])
+
+  // Enhanced refresh function that uses smooth refresh
+  const handleSmoothRefresh = () => {
+    smoothRefresh()
+  }
+
+  // Trigger smooth refresh indicators when data is being fetched
+  useEffect(() => {
+    if (dataLoading) {
+      setIsRefreshing(true)
+      setRefreshingStats({
+        commits: true,
+        prs: true,
+        issues: true,
+        activity: true,
+        repositories: true
+      })
+    } else {
+      // Stagger the refresh indicators for smooth visual feedback
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, activity: false })), 200)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, commits: false })), 400)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, prs: false })), 600)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, issues: false })), 800)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, repositories: false })), 1000)
+      setTimeout(() => setIsRefreshing(false), 1200)
+    }
+  }, [dataLoading])
 
   // Helper function to get relative time
   const getRelativeTime = (dateString: string) => {
@@ -478,7 +717,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        onClick={refreshData}
+                        onClick={handleSmoothRefresh}
                         className="text-xs"
                       >
                         <RefreshCw className="w-3 h-3 mr-1" />
@@ -645,17 +884,56 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
               {/* Welcome Section */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold">{getGreeting()}, {getUserDisplayName()} 👋</h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-3xl font-bold">{getGreeting()}, </h1>
+                    {isEditingUsername ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editableUsername}
+                          onChange={(e) => setEditableUsername(e.target.value)}
+                          className="text-3xl font-bold w-48"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleUsernameSave()
+                            if (e.key === 'Escape') handleUsernameCancel()
+                          }}
+                          autoFocus
+                        />
+                        <Button size="sm" onClick={handleUsernameSave}>
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={handleUsernameCancel}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-3xl font-bold">{editableUsername} 👋</h1>
+                        <Button size="sm" variant="ghost" onClick={handleUsernameEdit}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   <p className="text-muted-foreground mt-1">Here's what's happening with your projects today.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Button variant="outline" size="sm" onClick={refreshData}>
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Refresh Data
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={refreshData}
+                    disabled={isRefreshing}
+                    className="relative"
+                  >
+                    {isRefreshing ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                    )}
+                    {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
                   </Button>
                   <Badge variant="outline" className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    All systems operational
+                    <div className={`w-2 h-2 rounded-full ${isRefreshing ? 'bg-orange-500 animate-pulse' : 'bg-green-500'}`} />
+                    {isRefreshing ? 'Updating...' : 'All systems operational'}
                   </Badge>
                 </div>
               </div>
@@ -663,27 +941,38 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
               {/* Quick Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { icon: GitCommit, label: "Commits Today", value: quickStats.commitsToday.toString(), color: "text-green-500" },
-                  { icon: GitBranch, label: "Active PRs", value: quickStats.activePRs.toString(), color: "text-blue-500" },
-                  { icon: Star, label: "Stars Earned", value: quickStats.starsEarned.toString(), color: "text-yellow-500" },
-                  { icon: Users, label: "Collaborators", value: quickStats.collaborators.toString(), color: "text-purple-500" },
+                  { icon: GitCommit, label: "Commits Today", value: quickStats.commitsToday.toString(), color: "text-green-500", refreshing: refreshingStats.commits },
+                  { icon: GitBranch, label: "Active PRs", value: quickStats.activePRs.toString(), color: "text-blue-500", refreshing: refreshingStats.prs },
+                  { icon: Star, label: "Stars Earned", value: quickStats.starsEarned.toString(), color: "text-yellow-500", refreshing: refreshingStats.repositories },
+                  { icon: Users, label: "Collaborators", value: quickStats.collaborators.toString(), color: "text-purple-500", refreshing: false },
                 ].map((stat, index) => (
-                  <motion.div
-                    key={stat.label}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                        </div>
-                        <div className="text-2xl font-bold mb-1">{stat.value}</div>
-                        <div className="text-xs text-muted-foreground">{stat.label}</div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                                      <motion.div
+                      key={stat.label}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <Card className={`hover:shadow-md transition-all duration-300 cursor-pointer ${stat.refreshing ? 'ring-2 ring-orange-500/50 bg-orange-50/50' : ''}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <stat.icon className={`w-5 h-5 ${stat.color} ${stat.refreshing ? 'animate-pulse' : ''}`} />
+                            {stat.refreshing && (
+                              <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                            )}
+                          </div>
+                          <motion.div 
+                            key={stat.value}
+                            initial={{ scale: 1 }}
+                            animate={{ scale: stat.refreshing ? 1.05 : 1 }}
+                            transition={{ duration: 0.2 }}
+                            className="text-2xl font-bold mb-1"
+                          >
+                            {stat.value}
+                          </motion.div>
+                          <div className="text-xs text-muted-foreground">{stat.label}</div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
                 ))}
               </div>
 
@@ -887,36 +1176,56 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                   {/* Goals Progress */}
                   <Card className="mt-6">
                     <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2">
-                        <Target className="w-5 h-5" />
-                        Monthly Goals
-                      </CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                          <Target className="w-5 h-5" />
+                          Monthly Goals
+                        </CardTitle>
+                        {isEditingGoals ? (
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={handleGoalSave}>
+                              <Check className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={handleGoalCancel}>
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="ghost" onClick={handleGoalEdit}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {[
-                        { 
-                          title: "Repositories", 
-                          current: dashboardStats.totalRepos, 
-                          target: Math.max(dashboardStats.totalRepos + 5, 10),
-                          description: "Your repositories"
-                        },
-                        { 
-                          title: "Commits", 
-                          current: dashboardStats.totalCommits, 
-                          target: Math.max(dashboardStats.totalCommits + 10, 20),
-                          description: "Commits across all projects"
-                        },
-                        { 
-                          title: "Pull Requests", 
-                          current: dashboardStats.totalPRs, 
-                          target: Math.max(dashboardStats.totalPRs + 3, 5),
-                          description: "PRs created or merged"
-                        },
-                      ].map((goal, index) => (
-                        <div key={index} className="space-y-2">
+                      {monthlyGoals.map((goal) => (
+                        <div key={goal.id} className="space-y-2">
                           <div className="flex items-center justify-between text-sm">
-                            <div>
-                              <span className="font-medium">{goal.title}</span>
+                            <div className="flex-1">
+                              {isEditingGoals ? (
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    value={goal.title}
+                                    onChange={(e) => {
+                                      setMonthlyGoals(prev => prev.map(g => 
+                                        g.id === goal.id ? { ...g, title: e.target.value } : g
+                                      ))
+                                    }}
+                                    className="w-32 text-sm"
+                                  />
+                                  <Input
+                                    type="number"
+                                    value={goal.target}
+                                    onChange={(e) => updateGoalTarget(goal.id, parseInt(e.target.value) || 0)}
+                                    className="w-16 text-sm"
+                                  />
+                                  <Button size="sm" variant="ghost" onClick={() => removeGoal(goal.id)}>
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="font-medium">{goal.title}</span>
+                              )}
                               <p className="text-xs text-muted-foreground">{goal.description}</p>
                             </div>
                             <span className="font-medium">
@@ -926,6 +1235,30 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                           <Progress value={(goal.current / goal.target) * 100} className="h-2" />
                         </div>
                       ))}
+                      
+                      {/* Add new goal */}
+                      {isEditingGoals && (
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              placeholder="Goal title"
+                              value={newGoal.title}
+                              onChange={(e) => setNewGoal(prev => ({ ...prev, title: e.target.value }))}
+                              className="flex-1"
+                            />
+                            <Input
+                              type="number"
+                              placeholder="Target"
+                              value={newGoal.target || ""}
+                              onChange={(e) => setNewGoal(prev => ({ ...prev, target: parseInt(e.target.value) || 0 }))}
+                              className="w-20"
+                            />
+                            <Button size="sm" onClick={addNewGoal}>
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -1044,9 +1377,18 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                     Recent activity across your repositories
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={refreshData}>
-                  <Activity className="h-4 w-4 mr-2" />
-                  Refresh
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={refreshData}
+                  disabled={isRefreshing}
+                >
+                  {isRefreshing ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Activity className="h-4 w-4 mr-2" />
+                  )}
+                  {isRefreshing ? 'Refreshing...' : 'Refresh'}
                 </Button>
               </div>
 
@@ -1282,7 +1624,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                     Performance metrics and recommendations
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={refreshData}>
+                <Button variant="outline" size="sm" onClick={handleSmoothRefresh}>
                   <TrendingUp className="h-4 w-4 mr-2" />
                   Refresh Data
                 </Button>
@@ -1524,6 +1866,67 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
           <SettingsPage />
         </div>
       )}
+
+      {/* Project Selector Modal */}
+      <Dialog open={showProjectSelector} onOpenChange={setShowProjectSelector}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedAction === 'pull-request' && 'Select Repository for Pull Request'}
+              {selectedAction === 'issue' && 'Select Repository for Issue'}
+              {selectedAction === 'deploy' && 'Select Repository to Deploy'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <Input
+                placeholder="Search repositories..."
+                value={projectSearchQuery}
+                onChange={(e) => setProjectSearchQuery(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {dataLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                </div>
+              ) : filteredRepositories.length > 0 ? (
+                filteredRepositories.map((repo) => (
+                  <div
+                    key={repo.id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                    onClick={() => handleProjectSelect(repo)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+                        <Code className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">{repo.name}</h4>
+                        <p className="text-sm text-muted-foreground">{repo.full_name}</p>
+                        {repo.description && (
+                          <p className="text-xs text-muted-foreground mt-1">{repo.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Star className="w-4 h-4" />
+                      {repo.stargazers_count}
+                      <GitBranch className="w-4 h-4" />
+                      {repo.forks_count}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  {projectSearchQuery ? 'No repositories found matching your search.' : 'No repositories available.'}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
