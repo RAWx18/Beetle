@@ -232,6 +232,14 @@ export const useGitHubData = () => {
     setLoading(true);
     setError(null);
 
+    // Check if backend is accessible
+    const isBackendHealthy = await apiRef.current.checkBackendHealth();
+    if (!isBackendHealthy) {
+      setError('Backend server is not accessible. Please check if the server is running and try again. You can use demo mode to explore the application.');
+      setLoading(false);
+      return;
+    }
+
     try {
       // Fetch repositories first
       const repos = await apiRef.current.getUserRepositories();
@@ -283,7 +291,28 @@ export const useGitHubData = () => {
       
     } catch (err) {
       console.error('Error fetching GitHub data:', err);
-      setError('Failed to fetch GitHub data: ' + (err instanceof Error ? err.message : String(err)));
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to fetch GitHub data';
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error: Unable to connect to the server. Please check your connection and try again. You can use demo mode to explore the application.';
+        } else if (err.message.includes('401')) {
+          errorMessage = 'Authentication failed: Please log in again.';
+        } else if (err.message.includes('403')) {
+          errorMessage = 'Access denied: You do not have permission to access this data.';
+        } else if (err.message.includes('404')) {
+          errorMessage = 'Data not found: The requested information is not available.';
+        } else if (err.message.includes('500')) {
+          errorMessage = 'Server error: Please try again later.';
+        } else {
+          errorMessage = `Failed to fetch GitHub data: ${err.message}`;
+        }
+      } else {
+        errorMessage = `Failed to fetch GitHub data: ${String(err)}`;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

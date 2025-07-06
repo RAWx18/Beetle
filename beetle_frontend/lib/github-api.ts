@@ -90,6 +90,17 @@ class GitHubAPI {
     this.token = token;
   }
 
+  // Check if the backend is accessible
+  async checkBackendHealth(): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE_URL.replace('/api', '')}/health`);
+      return response.ok;
+    } catch (error) {
+      console.error('Backend health check failed:', error);
+      return false;
+    }
+  }
+
   private async request(endpoint: string, options: RequestInit = {}) {
     console.log(`Making request to: ${API_BASE_URL}${endpoint}`);
     console.log('Token:', this.token ? 'Available' : 'Not available');
@@ -118,7 +129,15 @@ class GitHubAPI {
       return data;
     } catch (error) {
       console.error('Request failed:', error);
-      throw error;
+      
+      // Provide more specific error information
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to the server. Please check your connection and try again.');
+      } else if (error instanceof Error) {
+        throw error;
+      } else {
+        throw new Error(`Request failed: ${String(error)}`);
+      }
     }
   }
 

@@ -23,12 +23,27 @@ const getGitHubConfig = () => ({
   callbackUrl: process.env.GITHUB_CALLBACK_URL
 });
 
+// Store OAuth states in memory (in production, use Redis or database)
+const oauthStates = new Map();
+
 // Generate GitHub OAuth URL
 router.get('/github/url', (req, res) => {
   const state = uuidv4(); // Generate random state for security
   const config = getGitHubConfig();
   
-
+  // Store state with timestamp for cleanup
+  oauthStates.set(state, {
+    timestamp: Date.now(),
+    used: false
+  });
+  
+  // Clean up old states (older than 10 minutes)
+  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+  for (const [key, value] of oauthStates.entries()) {
+    if (value.timestamp < tenMinutesAgo) {
+      oauthStates.delete(key);
+    }
+  }
   
   const githubAuthUrl = `https://github.com/login/oauth/authorize?` +
     `client_id=${config.clientId}&` +
@@ -48,12 +63,40 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
   console.log('🔵 OAuth callback started:', new Date().toISOString())
   const { code, state } = req.query;
 
+  // Validate state parameter
+  if (state && oauthStates.has(state)) {
+    const stateData = oauthStates.get(state);
+    if (stateData.used) {
+      console.log('❌ OAuth state already used:', state);
+      const frontendUrl = process.env.NODE_ENV === 'production'
+        ? 'https://your-frontend-domain.com'
+        : 'http://localhost:3000';
+      const redirectUrl = `${frontendUrl}/?auth_error=${encodeURIComponent('OAuth State Error')}&auth_message=${encodeURIComponent('OAuth state already used. Please try again.')}`;
+      return res.redirect(redirectUrl);
+    }
+    // Mark state as used
+    oauthStates.set(state, { ...stateData, used: true });
+  } else if (state) {
+    console.log('❌ Invalid OAuth state:', state);
+    const frontendUrl = process.env.NODE_ENV === 'production'
+      ? 'https://your-frontend-domain.com'
+      : 'http://localhost:3000';
+    const redirectUrl = `${frontendUrl}/?auth_error=${encodeURIComponent('OAuth State Error')}&auth_message=${encodeURIComponent('Invalid OAuth state. Please try again.')}`;
+    return res.redirect(redirectUrl);
+  }
+
   if (!code) {
     console.log('❌ No authorization code received')
-    return res.status(400).json({
-      error: 'Authorization code required',
-      message: 'GitHub authorization code is missing'
-    });
+    
+    // Redirect to frontend with error parameters
+    const frontendUrl = process.env.NODE_ENV === 'production'
+      ? 'https://your-frontend-domain.com'
+      : 'http://localhost:3000';
+    
+    const redirectUrl = `${frontendUrl}/?auth_error=${encodeURIComponent('Authorization code required')}&auth_message=${encodeURIComponent('GitHub authorization code is missing')}`;
+    
+    console.log('❌ Redirecting to frontend with missing code error:', redirectUrl);
+    return res.redirect(redirectUrl);
   }
 
   console.log('✅ Authorization code received, starting token exchange...')
@@ -91,17 +134,41 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
 
     if (error) {
       console.error('❌ GitHub OAuth error:', { error, error_description })
-      return res.status(400).json({
-        error: 'GitHub OAuth Error',
-        message: error_description || 'Failed to exchange code for access token'
-      });
+      
+      // Redirect to frontend with error parameters for OAuth errors
+      const frontendUrl = process.env.NODE_ENV === 'production'
+        ? 'https://your-frontend-domain.com'
+        : 'http://localhost:3000';
+      
+      let errorMessage = error_description || 'Failed to exchange code for access token';
+      
+      // Provide more specific error messages for common OAuth errors
+      if (error === 'bad_verification_code') {
+        errorMessage = 'The OAuth code has expired or was already used. This often happens when the server restarts during authentication. Please try logging in again.';
+      } else if (error === 'invalid_client') {
+        errorMessage = 'OAuth client configuration error. Please contact support.';
+      } else if (error === 'redirect_uri_mismatch') {
+        errorMessage = 'OAuth redirect URI mismatch. Please contact support.';
+      }
+      
+      const redirectUrl = `${frontendUrl}/?auth_error=${encodeURIComponent('GitHub OAuth Error')}&auth_message=${encodeURIComponent(errorMessage)}`;
+      
+      console.log('❌ Redirecting to frontend with OAuth error:', redirectUrl);
+      return res.redirect(redirectUrl);
     }
 
     if (!access_token) {
-      return res.status(400).json({
-        error: 'Access token missing',
-        message: 'GitHub did not return an access token'
-      });
+      console.error('❌ No access token received from GitHub')
+      
+      // Redirect to frontend with error parameters
+      const frontendUrl = process.env.NODE_ENV === 'production'
+        ? 'https://your-frontend-domain.com'
+        : 'http://localhost:3000';
+      
+      const redirectUrl = `${frontendUrl}/?auth_error=${encodeURIComponent('Access token missing')}&auth_message=${encodeURIComponent('GitHub did not return an access token')}`;
+      
+      console.log('❌ Redirecting to frontend with access token error:', redirectUrl);
+      return res.redirect(redirectUrl);
     }
 
     console.log('🔄 Getting user profile from GitHub...')
@@ -187,10 +254,17 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
 
   } catch (error) {
     console.error('❌ GitHub OAuth callback error:', error);
-    res.status(500).json({
-      error: 'Authentication failed',
-      message: 'Failed to complete GitHub authentication'
-    });
+    
+    // Redirect to frontend with error parameters
+    const frontendUrl = process.env.NODE_ENV === 'production'
+      ? 'https://your-frontend-domain.com'
+      : 'http://localhost:3000';
+    
+    const errorMessage = error.message || 'Failed to complete GitHub authentication';
+    const redirectUrl = `${frontendUrl}/?auth_error=${encodeURIComponent('Authentication failed')}&auth_message=${encodeURIComponent(errorMessage)}`;
+    
+    console.log('❌ Redirecting to frontend with general error:', redirectUrl);
+    res.redirect(redirectUrl);
   }
 }));
 
