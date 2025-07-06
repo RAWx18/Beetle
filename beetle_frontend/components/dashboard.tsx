@@ -62,6 +62,28 @@ import { Progress } from "@/components/ui/progress"
 import { useGitHubData } from "@/hooks/useGitHubData"
 import { useAuth } from "@/contexts/AuthContext"
 
+// Mock data definitions
+const mockNotifications = [
+  {
+    icon: GitBranch,
+    title: "PR Review Request",
+    message: "Gaurav requested your review on PR #247",
+    time: "5 minutes ago",
+  },
+  {
+    icon: Star,
+    title: "Repository Starred",
+    message: "Your repository 'awesome-ui' received 5 new stars",
+    time: "1 hour ago",
+  },
+  {
+    icon: Shield,
+    title: "Security Alert",
+    message: "Vulnerability detected in lodash dependency",
+    time: "2 hours ago",
+  },
+]
+
 interface DashboardProps {
   onSignOut: () => void
 }
@@ -92,6 +114,18 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   } = useGitHubData()
   
   const { user, isAuthenticated, login, loginDemo, enableAutoDemo, disableAutoDemo } = useAuth()
+
+  // Handle tab switching with better state management
+  const [debouncedActiveTab, setDebouncedActiveTab] = useState(activeTab);
+  
+  useEffect(() => {
+    // Debounce tab switching to prevent rapid changes
+    const timer = setTimeout(() => {
+      setDebouncedActiveTab(activeTab);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [activeTab]);
 
   // Get time-based greeting
   const getGreeting = () => {
@@ -359,7 +393,15 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      {dataLoading && (
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <span className="text-muted-foreground">Loading dashboard data...</span>
+          </div>
+        </div>
+      )}
       {/* Error Banner */}
       {dataError && (
         <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-6 py-4 rounded-lg relative mb-6 max-w-4xl mx-auto mt-4">
@@ -572,9 +614,9 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <AnimatePresence mode="wait">
-          {activeTab === "overview" && (
+          {debouncedActiveTab === "overview" && (
             <motion.div
-              key="overview"
+              key={`overview-${dataLoading ? 'loading' : 'loaded'}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -933,27 +975,16 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
             </motion.div>
           )}
 
-          {activeTab === "activity" && (
-            <motion.div
-              key="activity"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <h2 className="text-2xl font-bold">Activity</h2>
-              <ContributionHeatmap />
-            </motion.div>
-          )}
 
-          {activeTab === "projects" && (
-            <motion.div
-              key="projects"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
+
+                      {debouncedActiveTab === "projects" && (
+              <motion.div
+                key={`projects-${dataLoading ? 'loading' : 'loaded'}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
               {/* Projects Header */}
               <div className="flex items-center justify-between">
                 <div>
@@ -1092,9 +1123,9 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
             </motion.div>
           )}
 
-          {activeTab === "activity" && (
+          {debouncedActiveTab === "activity" && (
             <motion.div
-              key="activity"
+              key={`activity-${dataLoading ? 'loading' : 'loaded'}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -1274,9 +1305,9 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
             </motion.div>
           )}
 
-          {activeTab === "insights" && (
+          {debouncedActiveTab === "insights" && (
             <motion.div
-              key="insights"
+              key={`insights-${dataLoading ? 'loading' : 'loaded'}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -1869,27 +1900,6 @@ const monthlyGoals = [
   { title: "Commits", current: 47, target: 60 },
   { title: "PRs Merged", current: 8, target: 12 },
   { title: "Issues Closed", current: 15, target: 20 },
-]
-
-const mockNotifications = [
-  {
-    icon: GitBranch,
-    title: "PR Review Request",
-    message: "Gaurav requested your review on PR #247",
-    time: "5 minutes ago",
-  },
-  {
-    icon: Star,
-    title: "Repository Starred",
-    message: "Your repository 'awesome-ui' received 5 new stars",
-    time: "1 hour ago",
-  },
-  {
-    icon: Shield,
-    title: "Security Alert",
-    message: "Vulnerability detected in lodash dependency",
-    time: "2 hours ago",
-  },
 ]
 
 const starredProjects = [
