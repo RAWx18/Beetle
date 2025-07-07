@@ -71,6 +71,7 @@ import { OrganizationProfilePage } from "@/components/organization-profile-page"
 import { Progress } from "@/components/ui/progress"
 import { useGitHubData } from "@/hooks/useGitHubData"
 import { useAuth } from "@/contexts/AuthContext"
+import { toast } from "sonner"
 
 // Mock data definitions
 const mockNotifications = [
@@ -1693,11 +1694,22 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                                 <ProjectCard 
                                   key={repo.id} 
                                   project={{
-                                    name: repo.full_name,
+                                    name: repo.name,
+                                    full_name: repo.full_name,
                                     description: repo.description || 'No description available',
+                                    owner: repo.owner,
+                                    language: repo.language,
                                     languages: [repo.language].filter(Boolean),
                                     stars: repo.stargazers_count.toString(),
                                     forks: repo.forks_count.toString(),
+                                    stargazers_count: repo.stargazers_count,
+                                    forks_count: repo.forks_count,
+                                    html_url: repo.html_url,
+                                    clone_url: repo.clone_url,
+                                    default_branch: repo.default_branch,
+                                    created_at: repo.created_at,
+                                    updated_at: repo.updated_at,
+                                    private: repo.private,
                                     updated: new Date(repo.updated_at).toLocaleDateString(),
                                   }} 
                                   type="owned" 
@@ -1747,11 +1759,22 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                                 <ProjectCard 
                                   key={repo.id} 
                                   project={{
-                                    name: repo.full_name,
+                                    name: repo.name,
+                                    full_name: repo.full_name,
                                     description: repo.description || 'No description available',
+                                    owner: repo.owner,
+                                    language: repo.language,
                                     languages: [repo.language].filter(Boolean),
                                     stars: repo.stargazers_count.toString(),
                                     forks: repo.forks_count.toString(),
+                                    stargazers_count: repo.stargazers_count,
+                                    forks_count: repo.forks_count,
+                                    html_url: repo.html_url,
+                                    clone_url: repo.clone_url,
+                                    default_branch: repo.default_branch,
+                                    created_at: repo.created_at,
+                                    updated_at: repo.updated_at,
+                                    private: repo.private,
                                     updated: new Date(repo.updated_at).toLocaleDateString(),
                                   }} 
                                   type="starred" 
@@ -2525,26 +2548,43 @@ function ProjectCard({ project, type }: { project: any; type: "starred" | "owned
   const router = useRouter()
 
   const handleOpenInBeetle = () => {
-    // Encode repository data as URL parameters
-    const repoData = encodeURIComponent(JSON.stringify({
-      name: project.name,
-      full_name: project.full_name,
-      description: project.description,
-      owner: project.owner,
-      language: project.language,
-      stargazers_count: project.stargazers_count,
-      forks_count: project.forks_count,
-      html_url: project.html_url,
-      clone_url: project.clone_url,
-      default_branch: project.default_branch,
-      created_at: project.created_at,
-      updated_at: project.updated_at,
-      private: project.private,
-      type: type
-    }))
-    
-    // Navigate to contribution page with repository data
-    router.push(`/contribution?repo=${repoData}`)
+    try {
+      // Extract owner information from full_name if not available
+      const [ownerLogin, repoName] = project.full_name.split('/');
+      
+      // Create properly structured repository data
+      const repoData = {
+        name: repoName || project.name,
+        full_name: project.full_name,
+        description: project.description || 'No description available',
+        owner: {
+          login: ownerLogin,
+          avatar_url: project.owner?.avatar_url || 'https://github.com/github.png',
+          type: project.owner?.type || 'User'
+        },
+        language: project.language || 'Unknown',
+        stargazers_count: parseInt(project.stars) || 0,
+        forks_count: parseInt(project.forks) || 0,
+        html_url: project.html_url,
+        clone_url: project.html_url ? `${project.html_url}.git` : '',
+        default_branch: project.default_branch || 'main',
+        created_at: project.created_at || new Date().toISOString(),
+        updated_at: project.updated_at || new Date().toISOString(),
+        private: project.private || false,
+        type: type as "starred" | "owned"
+      };
+      
+      // Encode repository data as URL parameters
+      const encodedRepoData = encodeURIComponent(JSON.stringify(repoData));
+      
+      // Navigate to contribution page with repository data
+      router.push(`/contribution?repo=${encodedRepoData}`);
+      
+      console.log('🔍 Opening repository in Beetle:', repoData.full_name);
+    } catch (error) {
+      console.error('Error preparing repository data:', error);
+      toast.error('Failed to open repository in Beetle');
+    }
   }
 
   const handleViewOnGitHub = () => {
@@ -2615,11 +2655,11 @@ function ProjectCard({ project, type }: { project: any; type: "starred" | "owned
 
             {type === "owned" && (
               <div className="flex gap-2 pt-2">
-                <Button size="sm" variant="outline" className="flex-1">
+                <Button size="sm" variant="outline" className="flex-1" onClick={handleOpenInBeetle}>
                   <Zap className="w-3 h-3 mr-1" />
                   Open
                 </Button>
-                <Button size="sm" variant="outline" className="flex-1">
+                <Button size="sm" variant="outline" className="flex-1" onClick={handleViewOnGitHub}>
                   <Github className="w-3 h-3 mr-1" />
                   GitHub
                 </Button>

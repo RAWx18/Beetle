@@ -150,8 +150,11 @@ const RepositoryView = ({ repository }: { repository: any }) => {
   );
 };
 
-// AIFAQ View Component (Original Content)
-const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: 'dev' | 'agents' | 'snowflake'; branchInfo: any }) => {
+// AIFAQ View Component (Updated for Dynamic Branches)
+const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: string; branchInfo: any }) => {
+  const { repository } = useRepository();
+  const projectName = repository?.name || 'Project';
+
   const content = {
     dev: {
       icon: <Code className="w-8 h-8" />,
@@ -191,12 +194,32 @@ const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: 'dev' | 'ag
     }
   };
 
-  const currentContent = content[selectedBranch];
+  // Get content for the selected branch, with fallback for unknown branches
+  const getBranchContent = (branch: string) => {
+    if (content[branch as keyof typeof content]) {
+      return content[branch as keyof typeof content];
+    }
+    
+    // Fallback for unknown branches
+    return {
+      icon: <GitBranch className="w-8 h-8" />,
+      title: `${projectName} ${branch} Branch`,
+      description: `The ${branch} branch focuses on specific features and improvements for ${projectName}.`,
+      features: [
+        `Active development on ${branch} branch`,
+        "Code quality and testing",
+        "Feature implementation and bug fixes",
+        "Documentation and guides",
+        "Team collaboration and reviews"
+      ]
+    };
+  };
+
+  const currentContent = getBranchContent(selectedBranch);
 
   const branchDiagrams = {
     dev: (
       <div className="flex flex-col items-center my-6">
-        {/* Example: Integration diagram */}
         <div className="flex items-center gap-4">
           <span className="bg-blue-500 text-white rounded-full px-3 py-1">Agents</span>
           <span className="text-2xl">+</span>
@@ -209,7 +232,6 @@ const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: 'dev' | 'ag
     ),
     agents: (
       <div className="flex flex-col items-center my-6">
-        {/* Example: Agent workflow diagram */}
         <div className="flex items-center gap-4">
           <span className="bg-emerald-500 text-white rounded-full px-3 py-1">Ingest</span>
           <span className="text-2xl">→</span>
@@ -222,7 +244,6 @@ const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: 'dev' | 'ag
     ),
     snowflake: (
       <div className="flex flex-col items-center my-6">
-        {/* Example: Data flow diagram */}
         <div className="flex items-center gap-4">
           <span className="bg-cyan-500 text-white rounded-full px-3 py-1">User Query</span>
           <span className="text-2xl">→</span>
@@ -239,7 +260,7 @@ const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: 'dev' | 'ag
     dev: [
       { label: 'Feature Merging', description: 'Integrate new features from agents and snowflake branches' },
       { label: 'Interface Testing', description: 'Ensure compatibility and stability across modules' },
-      { label: 'Production Release', description: 'Deploy stable, unified AIFAQ releases' },
+      { label: 'Production Release', description: `Deploy stable, unified ${projectName} releases` },
     ],
     agents: [
       { label: 'Data Ingestion', description: 'Process and structure documents for FAQ discovery' },
@@ -253,11 +274,35 @@ const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: 'dev' | 'ag
     ],
   };
 
+  // Get diagram and timeline for the selected branch, with fallback
+  const getBranchDiagram = (branch: string) => {
+    return branchDiagrams[branch as keyof typeof branchDiagrams] || (
+      <div className="flex flex-col items-center my-6">
+        <div className="flex items-center gap-4">
+          <span className="bg-gray-500 text-white rounded-full px-3 py-1">Development</span>
+          <span className="text-2xl">→</span>
+          <span className="bg-gray-600 text-white rounded-full px-3 py-1">Testing</span>
+          <span className="text-2xl">→</span>
+          <span className="bg-gray-700 text-white rounded-full px-3 py-1">Production</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">Standard development workflow</p>
+      </div>
+    );
+  };
+
+  const getBranchTimeline = (branch: string) => {
+    return branchTimelines[branch as keyof typeof branchTimelines] || [
+      { label: 'Development', description: `Active development on ${branch} branch` },
+      { label: 'Testing', description: 'Code review and testing processes' },
+      { label: 'Deployment', description: 'Production deployment and monitoring' },
+    ];
+  };
+
   return (
     <div className="space-y-8">
       <div className="text-center">
         <div className="flex items-center justify-center gap-3 mb-4">
-          <div className={`p-3 rounded-full ${selectedBranch === 'dev' ? 'bg-blue-500' : selectedBranch === 'agents' ? 'bg-emerald-500' : 'bg-cyan-500'}`}>
+          <div className={`p-3 rounded-full ${selectedBranch === 'dev' ? 'bg-blue-500' : selectedBranch === 'agents' ? 'bg-emerald-500' : selectedBranch === 'snowflake' ? 'bg-cyan-500' : 'bg-gray-500'}`}>
             <div className="text-white">
               {currentContent.icon}
             </div>
@@ -287,7 +332,7 @@ const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: 'dev' | 'ag
             <ul className="space-y-2">
               {currentContent.features.map((feature: string, idx: number) => (
                 <li key={idx} className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${selectedBranch === 'dev' ? 'bg-blue-500' : selectedBranch === 'agents' ? 'bg-emerald-500' : 'bg-cyan-500'}`}></div>
+                  <div className={`w-2 h-2 rounded-full ${selectedBranch === 'dev' ? 'bg-blue-500' : selectedBranch === 'agents' ? 'bg-emerald-500' : selectedBranch === 'snowflake' ? 'bg-cyan-500' : 'bg-gray-500'}`}></div>
                   <span className="text-sm text-slate-600 dark:text-slate-300">{feature}</span>
                 </li>
               ))}
@@ -298,10 +343,10 @@ const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: 'dev' | 'ag
 
       <div className="my-8">
         <h4 className="font-semibold text-lg mb-3">Architecture Diagram</h4>
-        {branchDiagrams[selectedBranch]}
+        {getBranchDiagram(selectedBranch)}
         <h4 className="font-semibold text-lg mb-3 mt-8">Development Timeline</h4>
         <Timeline color={branchInfo.color}>
-          {branchTimelines[selectedBranch].map((item: { label: string; description: string }, idx: number) => (
+          {getBranchTimeline(selectedBranch).map((item: { label: string; description: string }, idx: number) => (
             <TimelineItem key={idx} label={item.label} description={item.description} />
           ))}
         </Timeline>
@@ -316,11 +361,11 @@ export const BranchWhat = () => {
   const { repository, isRepositoryLoaded } = useRepository();
   const branchInfo = getBranchInfo();
 
-  // If we have repository data, show repository info instead of AIFAQ info
-  if (isRepositoryLoaded && repository) {
+  // Always show repository info if we have repository data
+  if (repository) {
     return <RepositoryView repository={repository} />;
   }
 
-  // Otherwise show the original AIFAQ content
+  // Otherwise show the AIFAQ content with dynamic branch support
   return <AIFAQView selectedBranch={selectedBranch} branchInfo={branchInfo} />;
 };

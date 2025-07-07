@@ -1,7 +1,8 @@
 import { useBranch } from '@/contexts/BranchContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Shield, Zap, Users, Database, GitBranch, Star, Link2, BookOpen, MessageCircle } from 'lucide-react';
+import { Shield, Zap, Users, Database, GitBranch, Star, Link2, BookOpen, MessageCircle, Code } from 'lucide-react';
+import { useRepository } from '@/contexts/RepositoryContext';
 
 const branchContent = {
   dev: {
@@ -164,19 +165,88 @@ const branchContent = {
 
 export const BranchWhy = () => {
   const { selectedBranch } = useBranch();
-  const content = branchContent[selectedBranch];
+  const { repository } = useRepository();
+  const projectName = repository?.name || 'Project';
+  
+  // Get content for the selected branch, with fallback for unknown branches
+  const getBranchContent = (branch: string) => {
+    if (branchContent[branch as keyof typeof branchContent]) {
+      return branchContent[branch as keyof typeof branchContent];
+    }
+    
+    // Fallback for unknown branches
+    return {
+      color: 'text-gray-600',
+      gradient: 'from-gray-600 via-gray-500 to-gray-400',
+      hero: {
+        title: `Why ${projectName} ${branch} Branch?`,
+        desc: `The ${branch} branch focuses on specific features and improvements for ${projectName}.`
+      },
+      features: [
+        {
+          icon: <GitBranch className="w-6 h-6 text-gray-600" />, 
+          title: 'Branch Development',
+          desc: `Active development and feature work on the ${branch} branch.`
+        },
+        {
+          icon: <Code className="w-6 h-6 text-gray-500" />, 
+          title: 'Code Quality',
+          desc: 'Maintains high code quality and follows best practices.'
+        },
+        {
+          icon: <Users className="w-6 h-6 text-gray-400" />, 
+          title: 'Collaboration',
+          desc: 'Team collaboration and code review processes.'
+        },
+        {
+          icon: <BookOpen className="w-6 h-6 text-gray-400" />, 
+          title: 'Documentation',
+          desc: 'Comprehensive documentation and guides.'
+        },
+      ],
+      architecture: [
+        { label: 'Development', color: 'bg-gray-600' },
+        { label: '→', color: '' },
+        { label: 'Testing', color: 'bg-gray-500' },
+        { label: '→', color: '' },
+        { label: 'Production', color: 'bg-gray-700' },
+      ],
+      comparison: [
+        { feature: 'Active Development', aifaq: 'Yes', traditional: 'Yes' },
+        { feature: 'Code Review', aifaq: 'Yes', traditional: 'Sometimes' },
+        { feature: 'Testing', aifaq: 'Yes', traditional: 'Yes' },
+        { feature: 'Documentation', aifaq: 'Yes', traditional: 'Sometimes' },
+      ],
+      testimonial: {
+        quote: `${projectName} ${branch} branch represents our commitment to quality and innovation.`,
+        author: 'Team',
+        role: 'Developers',
+        color: 'text-gray-600'
+      },
+      faqs: [
+        { q: `What is the ${branch} branch?`, a: `It is where active development and feature work happens for ${projectName}.` },
+        { q: 'How do I contribute?', a: 'Check the README, follow the contribution guidelines, and submit PRs!' },
+        { q: 'What tech is used?', a: 'Various technologies depending on the project requirements.' },
+      ]
+    };
+  };
+  
+  const content = getBranchContent(selectedBranch);
+
+  // Helper to replace 'AIFAQ' with projectName in strings
+  const replaceProjectName = (str: string) => str.replace(/AIFAQ/g, projectName);
 
   return (
     <div className="space-y-12">
       {/* Hero Section */}
       <div className="text-center py-8">
-        <h1 className={`text-4xl md:text-6xl font-bold bg-gradient-to-r ${content.gradient} bg-clip-text text-transparent mb-4`}>{content.hero.title}</h1>
-        <p className="text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">{content.hero.desc}</p>
+        <h1 className={`text-4xl md:text-6xl font-bold bg-gradient-to-r ${content.gradient} bg-clip-text text-transparent mb-4`}>{replaceProjectName(content.hero.title)}</h1>
+        <p className="text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">{replaceProjectName(content.hero.desc)}</p>
       </div>
 
       {/* Feature Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-        {content.features.map((f, i) => (
+        {content.features.map((f: any, i: number) => (
           <Card key={i} className="glass-panel">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">{f.icon}<CardTitle className={content.color}>{f.title}</CardTitle></div>
@@ -192,7 +262,7 @@ export const BranchWhy = () => {
       <div className="max-w-3xl mx-auto">
         <h2 className={`text-2xl font-bold text-center mb-4 ${content.color}`}>Architecture (Simplified)</h2>
         <div className="flex flex-wrap items-center justify-center gap-2">
-          {content.architecture.map((item, idx) =>
+          {content.architecture.map((item: any, idx: number) =>
             item.label === '→' || item.label === '+' ? (
               <span key={idx} className="text-2xl font-bold text-muted-foreground">{item.label}</span>
             ) : (
@@ -204,18 +274,18 @@ export const BranchWhy = () => {
 
       {/* Comparison Table */}
       <div className="max-w-3xl mx-auto">
-        <h2 className={`text-2xl font-bold text-center mb-4 ${content.color}`}>AIFAQ vs. Traditional</h2>
+        <h2 className={`text-2xl font-bold text-center mb-4 ${content.color}`}>{projectName} vs. Traditional</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full border border-muted-foreground/20 rounded-lg">
             <thead>
               <tr className="bg-muted">
                 <th className="px-4 py-2 text-left">Feature</th>
-                <th className={`px-4 py-2 text-left ${content.color}`}>AIFAQ</th>
+                <th className={`px-4 py-2 text-left ${content.color}`}>{projectName}</th>
                 <th className="px-4 py-2 text-left text-muted-foreground">Traditional</th>
               </tr>
             </thead>
             <tbody>
-              {content.comparison.map((row, i) => (
+              {content.comparison.map((row: any, i: number) => (
                 <tr key={i} className="border-t border-muted-foreground/10">
                   <td className="px-4 py-2 font-medium">{row.feature}</td>
                   <td className={`px-4 py-2 font-semibold ${content.color}`}>{row.aifaq}</td>
@@ -230,7 +300,7 @@ export const BranchWhy = () => {
       {/* Testimonial/Quote */}
       <div className="max-w-2xl mx-auto text-center py-8">
         <div className={`inline-block bg-primary/10 border-l-4 px-6 py-4 rounded-lg ${content.color} border-current`}>
-          <p className="text-lg italic mb-2">“{content.testimonial.quote}”</p>
+          <p className="text-lg italic mb-2">“{replaceProjectName(content.testimonial.quote)}”</p>
           <div className="flex items-center justify-center gap-2 mt-2">
             <Star className="w-5 h-5 text-amber-400" />
             <span className="font-semibold">{content.testimonial.author}</span>
@@ -243,10 +313,10 @@ export const BranchWhy = () => {
       <div className="max-w-2xl mx-auto">
         <h2 className={`text-2xl font-bold text-center mb-4 ${content.color}`}>Frequently Asked Questions</h2>
         <Accordion type="single" collapsible>
-          {content.faqs.map((faq, i) => (
+          {content.faqs.map((faq: any, i: number) => (
             <AccordionItem key={i} value={`item-${i}`}>
-              <AccordionTrigger>{faq.q}</AccordionTrigger>
-              <AccordionContent>{faq.a}</AccordionContent>
+              <AccordionTrigger>{replaceProjectName(faq.q)}</AccordionTrigger>
+              <AccordionContent>{replaceProjectName(faq.a)}</AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>

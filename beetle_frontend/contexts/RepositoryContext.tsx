@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useRef } from 'react';
 
 interface RepositoryData {
   name: string;
@@ -42,10 +42,19 @@ interface RepositoryProviderProps {
 export const RepositoryProvider: React.FC<RepositoryProviderProps> = ({ children }) => {
   const [repository, setRepository] = useState<RepositoryData | null>(null);
   const [isRepositoryLoaded, setIsRepositoryLoaded] = useState(false);
+  const prevRepositoryRef = useRef<RepositoryData | null>(null);
 
   const handleSetRepository = (repo: RepositoryData | null) => {
-    setRepository(repo);
-    setIsRepositoryLoaded(true);
+    // Compare only essential properties to avoid issues with timestamps
+    const prevKey = prevRepositoryRef.current ? `${prevRepositoryRef.current.owner.login}/${prevRepositoryRef.current.name}` : null;
+    const newKey = repo ? `${repo.owner.login}/${repo.name}` : null;
+    
+    if (prevKey !== newKey) {
+      prevRepositoryRef.current = repo;
+      setRepository(repo);
+      setIsRepositoryLoaded(true);
+      console.log('🔍 RepositoryContext: Repository set to:', newKey);
+    }
   };
 
   return (

@@ -43,7 +43,7 @@ import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
 
 export default function Home() {
-  const { isAuthenticated, user, login, logout, loading, setUserFromCallback } = useAuth()
+  const { isAuthenticated, user, login, logout, loading, setUserFromCallback, loginDemo } = useAuth()
   const searchParams = useSearchParams()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
@@ -177,6 +177,12 @@ export default function Home() {
     console.log("Searching for:", query)
   }
 
+  const handleTryDemo = () => {
+    // Enable demo mode and redirect to contribution page
+    loginDemo();
+    window.location.href = '/contribution';
+  }
+
   if (!mounted) return null
 
   if (isAuthenticated) {
@@ -275,7 +281,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     variant="outline"
-                    onClick={() => window.location.href = '/contribution'}
+                    onClick={handleTryDemo}
                     className="px-8 py-6 text-lg rounded-xl border-2 hover:bg-muted/50"
                   >
                     <PlayCircle className="w-5 h-5 mr-3" />

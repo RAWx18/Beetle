@@ -9,7 +9,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { UserProfile } from '@/lib/types';
-import { Mail, Save, X, Plus, ExternalLink } from 'lucide-react';
+import { Mail, Save, X, Plus, ExternalLink, GitBranch } from 'lucide-react';
+import { useBranch } from '@/contexts/BranchContext';
+import { useRepository } from '@/contexts/RepositoryContext';
 
 const initialProfile: UserProfile = {
   name: 'Alex Johnson',
@@ -24,6 +26,11 @@ const initialProfile: UserProfile = {
 
 const Profile = () => {
   const showContent = useAnimateIn(false, 300);
+  const { selectedBranch, getBranchInfo } = useBranch();
+  const { repository } = useRepository();
+  const branchInfo = getBranchInfo();
+  const projectName = repository?.name || 'Project';
+  
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [isEditing, setIsEditing] = useState(false);
   const [tempProfile, setTempProfile] = useState<UserProfile>(initialProfile);
@@ -66,6 +73,19 @@ const Profile = () => {
     <div className="max-w-7xl mx-auto px-4 pt-24 pb-16">
       <AnimatedTransition show={showContent} animation="slide-up">
         <div className="mb-8">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold">User Profile</h1>
+            <p className="text-muted-foreground mt-2">
+              Manage your profile and contributions for {projectName}
+            </p>
+            <div className="mt-4 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted">
+                <GitBranch className="w-4 h-4" />
+                {selectedBranch} branch
+              </span>
+            </div>
+          </div>
+          
           {!isEditing ? (
             <Card className="w-full mb-8">
               <CardHeader className="flex flex-row items-center gap-4">

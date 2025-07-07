@@ -255,6 +255,108 @@ const getRepositoryDetails = async (accessToken, owner, repo) => {
 // Get repository branches
 const getRepositoryBranches = async (accessToken, owner, repo) => {
   try {
+    // Demo mode support
+    if (accessToken === 'demo-github-token') {
+      return [
+        {
+          name: 'main',
+          commit: {
+            sha: 'abc123def456',
+            url: 'https://api.github.com/repos/demo-user/beetle-app/commits/abc123def456',
+            html_url: 'https://github.com/demo-user/beetle-app/commit/abc123def456',
+            author: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            committer: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            message: 'Initial commit',
+            tree: {
+              sha: 'tree123',
+              url: 'https://api.github.com/repos/demo-user/beetle-app/git/trees/tree123'
+            },
+            parents: []
+          },
+          protected: false,
+          protection: null
+        },
+        {
+          name: 'dev',
+          commit: {
+            sha: 'def456ghi789',
+            url: 'https://api.github.com/repos/demo-user/beetle-app/commits/def456ghi789',
+            html_url: 'https://github.com/demo-user/beetle-app/commit/def456ghi789',
+            author: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            committer: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            message: 'Add development features',
+            tree: {
+              sha: 'tree456',
+              url: 'https://api.github.com/repos/demo-user/beetle-app/git/trees/tree456'
+            },
+            parents: [{ sha: 'abc123def456' }]
+          },
+          protected: false,
+          protection: null
+        },
+        {
+          name: 'feature/new-ui',
+          commit: {
+            sha: 'ghi789jkl012',
+            url: 'https://api.github.com/repos/demo-user/beetle-app/commits/ghi789jkl012',
+            html_url: 'https://github.com/demo-user/beetle-app/commit/ghi789jkl012',
+            author: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            committer: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            message: 'Implement new UI components',
+            tree: {
+              sha: 'tree789',
+              url: 'https://api.github.com/repos/demo-user/beetle-app/git/trees/tree789'
+            },
+            parents: [{ sha: 'def456ghi789' }]
+          },
+          protected: false,
+          protection: null
+        },
+        {
+          name: 'hotfix/auth-bug',
+          commit: {
+            sha: 'jkl012mno345',
+            url: 'https://api.github.com/repos/demo-user/beetle-app/commits/jkl012mno345',
+            html_url: 'https://github.com/demo-user/beetle-app/commit/jkl012mno345',
+            author: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            committer: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            message: 'Fix authentication bug',
+            tree: {
+              sha: 'tree012',
+              url: 'https://api.github.com/repos/demo-user/beetle-app/git/trees/tree012'
+            },
+            parents: [{ sha: 'abc123def456' }]
+          },
+          protected: false,
+          protection: null
+        }
+      ];
+    }
+
     const cacheKey = `repo_branches_${owner}_${repo}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
