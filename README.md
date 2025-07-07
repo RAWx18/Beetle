@@ -10,6 +10,7 @@
 [![Contributors](https://img.shields.io/github/contributors/RAWx18/Beetle.svg?style=for-the-badge&logo=git)](https://github.com/RAWx18/Beetle/graphs/contributors)
 [![Under Development](https://img.shields.io/badge/Status-Under%20Development-yellow.svg?style=for-the-badge)](#)
 [![Join Discord](https://img.shields.io/badge/Join%20us%20on-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/FkrWfGtZn3)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10871/badge)](https://www.bestpractices.dev/projects/10871)
 
 [🚀 **Try Demo**](https://beetle-demo.vercel.app/) • [📖 **Documentation**](https://github.com/RAWx18/Beetle/README.md) • [💬 **Join Community**](https://discord.gg/FkrWfGtZn3)
 
