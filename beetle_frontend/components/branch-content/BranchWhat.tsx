@@ -1,13 +1,157 @@
 import { useBranch } from '@/contexts/BranchContext';
+import { useRepository } from '@/contexts/RepositoryContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Code, Database, Brain } from 'lucide-react';
+import { Code, Database, Brain, Github, Star, GitBranch, Calendar, User, Lock, Globe } from 'lucide-react';
 import { Timeline, TimelineItem } from '@/components/ui/timeline';
 import { createDiagram } from '@/components/ui/diagram';
+import { Badge } from '@/components/ui/badge';
 
-export const BranchWhat = () => {
-  const { selectedBranch, getBranchInfo } = useBranch();
-  const branchInfo = getBranchInfo();
+// Repository View Component
+const RepositoryView = ({ repository }: { repository: any }) => {
+  const getRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)}mo ago`;
+    return `${Math.floor(diffInSeconds / 31536000)}y ago`;
+  };
 
+  return (
+    <div className="space-y-8">
+      <div className="text-center">
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <div className="p-3 rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
+            <Github className="w-8 h-8 text-white" />
+          </div>
+        </div>
+        <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 bg-clip-text text-transparent mb-4">
+          {repository.name}
+        </h1>
+        <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto">
+          {repository.description || "No description available"}
+        </p>
+      </div>
+
+      <Card className="glass-panel">
+        <CardHeader>
+          <CardTitle className="text-blue-600">Repository Information</CardTitle>
+          <CardDescription>
+            {repository.private ? "Private Repository" : "Public Repository"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {/* Repository Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-background/50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{repository.stargazers_count}</div>
+                <div className="text-xs text-muted-foreground">Stars</div>
+              </div>
+              <div className="text-center p-3 bg-background/50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{repository.forks_count}</div>
+                <div className="text-xs text-muted-foreground">Forks</div>
+              </div>
+              <div className="text-center p-3 bg-background/50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">{repository.language || "N/A"}</div>
+                <div className="text-xs text-muted-foreground">Language</div>
+              </div>
+              <div className="text-center p-3 bg-background/50 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">{repository.default_branch}</div>
+                <div className="text-xs text-muted-foreground">Default Branch</div>
+              </div>
+            </div>
+
+            {/* Repository Details */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Owner:</span>
+                <span className="font-medium">{repository.owner?.login}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Created:</span>
+                <span className="font-medium">{new Date(repository.created_at).toLocaleDateString()}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Last Updated:</span>
+                <span className="font-medium">{getRelativeTime(repository.updated_at)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {repository.private ? (
+                  <Lock className="w-4 h-4 text-red-500" />
+                ) : (
+                  <Globe className="w-4 h-4 text-green-500" />
+                )}
+                <span className="text-sm text-muted-foreground">Visibility:</span>
+                <Badge variant={repository.private ? "destructive" : "default"}>
+                  {repository.private ? "Private" : "Public"}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Repository Type */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Type:</span>
+              <Badge variant="secondary" className="capitalize">
+                {repository.type}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Repository Actions */}
+      <Card className="glass-panel">
+        <CardHeader>
+          <CardTitle>Repository Actions</CardTitle>
+          <CardDescription>
+            Quick actions for this repository
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <a 
+              href={repository.html_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 p-4 rounded-lg border hover:bg-accent transition-colors"
+            >
+              <Github className="w-5 h-5" />
+              <div>
+                <div className="font-medium">View on GitHub</div>
+                <div className="text-sm text-muted-foreground">Open repository page</div>
+              </div>
+            </a>
+            <div className="flex items-center gap-3 p-4 rounded-lg border bg-muted/50">
+              <GitBranch className="w-5 h-5" />
+              <div>
+                <div className="font-medium">Clone Repository</div>
+                <div className="text-sm text-muted-foreground">Copy clone URL</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-4 rounded-lg border bg-muted/50">
+              <Star className="w-5 h-5" />
+              <div>
+                <div className="font-medium">Star Repository</div>
+                <div className="text-sm text-muted-foreground">Show your support</div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// AIFAQ View Component (Original Content)
+const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: 'dev' | 'agents' | 'snowflake'; branchInfo: any }) => {
   const content = {
     dev: {
       icon: <Code className="w-8 h-8" />,
@@ -141,7 +285,7 @@ export const BranchWhat = () => {
             </p>
             <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-3">Key Components & Features:</h4>
             <ul className="space-y-2">
-              {currentContent.features.map((feature, idx) => (
+              {currentContent.features.map((feature: string, idx: number) => (
                 <li key={idx} className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${selectedBranch === 'dev' ? 'bg-blue-500' : selectedBranch === 'agents' ? 'bg-emerald-500' : 'bg-cyan-500'}`}></div>
                   <span className="text-sm text-slate-600 dark:text-slate-300">{feature}</span>
@@ -157,11 +301,26 @@ export const BranchWhat = () => {
         {branchDiagrams[selectedBranch]}
         <h4 className="font-semibold text-lg mb-3 mt-8">Development Timeline</h4>
         <Timeline color={branchInfo.color}>
-          {branchTimelines[selectedBranch].map((item, idx) => (
+          {branchTimelines[selectedBranch].map((item: { label: string; description: string }, idx: number) => (
             <TimelineItem key={idx} label={item.label} description={item.description} />
           ))}
         </Timeline>
       </div>
     </div>
   );
+};
+
+// Main BranchWhat Component
+export const BranchWhat = () => {
+  const { selectedBranch, getBranchInfo } = useBranch();
+  const { repository, isRepositoryLoaded } = useRepository();
+  const branchInfo = getBranchInfo();
+
+  // If we have repository data, show repository info instead of AIFAQ info
+  if (isRepositoryLoaded && repository) {
+    return <RepositoryView repository={repository} />;
+  }
+
+  // Otherwise show the original AIFAQ content
+  return <AIFAQView selectedBranch={selectedBranch} branchInfo={branchInfo} />;
 };

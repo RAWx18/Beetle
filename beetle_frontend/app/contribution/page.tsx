@@ -6,6 +6,7 @@ import { useAnimateIn } from '@/lib/animations';
 import { BranchWhat } from '@/components/branch-content/BranchWhat';
 import AnimatedTransition from '@/components/AnimatedTransition';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRepository } from '@/contexts/RepositoryContext';
 import { toast } from 'sonner';
 
 export default function ContributionPage() {
@@ -15,6 +16,7 @@ export default function ContributionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setUserFromCallback, isAuthenticated } = useAuth();
+  const { setRepository } = useRepository();
 
   // Handle authentication parameters from OAuth callback
   useEffect(() => {
@@ -65,6 +67,25 @@ export default function ContributionPage() {
 
     handleAuth();
   }, [searchParams, setUserFromCallback, authProcessed, router]);
+
+  // Handle repository data from URL parameters
+  useEffect(() => {
+    const repoParam = searchParams.get('repo');
+    if (repoParam) {
+      try {
+        const repoData = JSON.parse(decodeURIComponent(repoParam));
+        setRepository(repoData);
+        console.log('Repository data loaded:', repoData.name);
+        
+        // Clean up URL parameters
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      } catch (error) {
+        console.error('Error parsing repository data:', error);
+        toast.error('Invalid repository data');
+      }
+    }
+  }, [searchParams, setRepository]);
 
   // Redirect to landing page if not authenticated and no auth params
   useEffect(() => {

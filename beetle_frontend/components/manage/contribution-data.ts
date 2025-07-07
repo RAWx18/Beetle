@@ -1,4 +1,3 @@
-
 export type PullRequest = {
   id: string;
   title: string;
@@ -54,7 +53,118 @@ export type BotLog = {
   details?: string;
 };
 
-export const contributionData = {
+// Function to transform GitHub API data to our format
+export const transformGitHubData = (
+  userActivity: any[],
+  pullRequests: any[],
+  issues: any[],
+  commits: any[],
+  user: any
+) => {
+  // Transform pull requests
+  const transformedPRs: PullRequest[] = pullRequests.map((pr, index) => ({
+    id: `pr-${pr.id || index}`,
+    title: pr.title,
+    status: pr.state === 'open' ? 'open' : pr.merged ? 'merged' : 'closed',
+    author: pr.user?.login || user?.login || 'Unknown',
+    reviewers: pr.requested_reviewers?.map((r: any) => r.login) || [],
+    sourceBranch: pr.head?.ref || 'main',
+    targetBranch: pr.base?.ref || 'main',
+    createdAt: pr.created_at,
+    lastUpdated: pr.updated_at,
+    labels: pr.labels?.map((l: any) => l.name) || [],
+    description: pr.body || '',
+    comments: pr.comments || 0,
+    additions: pr.additions || 0,
+    deletions: pr.deletions || 0
+  }));
+
+  // Transform issues
+  const transformedIssues: Issue[] = issues.map((issue, index) => ({
+    id: `issue-${issue.id || index}`,
+    title: issue.title,
+    status: issue.state === 'open' ? 'open' : 'closed',
+    assignee: issue.assignee?.login,
+    priority: 'medium', // GitHub doesn't have priority, default to medium
+    labels: issue.labels?.map((l: any) => l.name) || [],
+    branch: 'main', // Default branch
+    createdAt: issue.created_at,
+    discussions: issue.comments || 0,
+    linkedPRs: [], // Would need additional API call to get linked PRs
+    description: issue.body || '',
+    type: issue.labels?.some((l: any) => l.name === 'bug') ? 'bug' : 
+          issue.labels?.some((l: any) => l.name === 'documentation') ? 'documentation' : 
+          issue.labels?.some((l: any) => l.name === 'enhancement') ? 'enhancement' : 'feature',
+    reporter: issue.user?.login || user?.login || 'Unknown'
+  }));
+
+  // Transform activity from GitHub events
+  const transformedActivity: ActivityItem[] = userActivity.map((activity, index) => {
+    const getActivityType = (type: string) => {
+      switch (type) {
+        case 'PushEvent': return 'commit';
+        case 'PullRequestEvent': 
+          return activity.payload?.action === 'opened' ? 'pr_opened' : 
+                 activity.payload?.action === 'closed' ? 'pr_merged' : 'pr_opened';
+        case 'IssuesEvent':
+          return activity.payload?.action === 'opened' ? 'issue_opened' : 'issue_closed';
+        case 'IssueCommentEvent': return 'comment';
+        case 'PullRequestReviewEvent': return 'review';
+        default: return 'commit';
+      }
+    };
+
+    const getDescription = (activity: any) => {
+      switch (activity.type) {
+        case 'PushEvent':
+          return `Pushed ${activity.payload?.commits?.length || 0} commits`;
+        case 'PullRequestEvent':
+          return `${activity.payload?.action === 'opened' ? 'Opened' : 'Updated'} PR #${activity.payload?.pull_request?.number}`;
+        case 'IssuesEvent':
+          return `${activity.payload?.action === 'opened' ? 'Opened' : 'Updated'} issue #${activity.payload?.issue?.number}`;
+        case 'IssueCommentEvent':
+          return 'Added comment';
+        case 'PullRequestReviewEvent':
+          return 'Submitted review';
+        default:
+          return 'Activity';
+      }
+    };
+
+    return {
+      id: `act-${activity.id || index}`,
+      type: getActivityType(activity.type),
+      user: activity.actor?.login || user?.login || 'Unknown',
+      description: getDescription(activity),
+      timestamp: activity.created_at,
+      branch: activity.payload?.ref?.replace('refs/heads/', '') || 'main',
+      details: activity.payload?.commits?.[0]?.message || activity.payload?.pull_request?.title || activity.payload?.issue?.title
+    };
+  });
+
+  // Generate bot logs (simulated for now)
+  const botLogs: BotLog[] = [
+    {
+      id: 'bot-1',
+      botName: 'Auto-Labeler',
+      action: 'label_added',
+      description: 'Automatically labeled recent activities',
+      timestamp: new Date().toISOString(),
+      branch: 'main',
+      status: 'success'
+    }
+  ];
+
+  return {
+    pullRequests: transformedPRs,
+    issues: transformedIssues,
+    activity: transformedActivity,
+    botLogs
+  };
+};
+
+// Fallback static data for when no real data is available
+export const fallbackContributionData = {
   pullRequests: [
     {
       id: 'pr-1',
@@ -324,3 +434,6 @@ export const contributionData = {
     }
   ]
 };
+
+// Export the fallback data as the default for backward compatibility
+export const contributionData = fallbackContributionData;

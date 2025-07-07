@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { BranchProvider } from "@/contexts/BranchContext";
+import { RepositoryProvider } from "@/contexts/RepositoryContext";
 import Navbar from "@/components/Navbar";
 
 const queryClient = new QueryClient();
@@ -22,14 +23,16 @@ export default function ClientProviders({ children }: ClientProvidersProps) {
       <ThemeProvider>
         <AuthProvider>
           <BranchProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <div className="min-h-screen">
-                <Navbar />
-                {children}
-              </div>
-            </TooltipProvider>
+            <RepositoryProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <div className="min-h-screen">
+                  <Navbar />
+                  {children}
+                </div>
+              </TooltipProvider>
+            </RepositoryProvider>
           </BranchProvider>
         </AuthProvider>
       </ThemeProvider>

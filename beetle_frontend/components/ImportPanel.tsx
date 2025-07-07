@@ -1,12 +1,74 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Upload, FileText, Globe, Database, Type, GitBranch, Folder, File, Check, ChevronRight, ChevronDown, Search, CheckSquare, Square, X, Filter, RefreshCw, ChevronUp, PlusCircle, GitPullRequest, Activity, Bug, Bot } from 'lucide-react';
-import { ImportSource } from '@/lib/types';
-import AnimatedTransition from './AnimatedTransition';
-import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useBranch } from '@/contexts/BranchContext';
-import { BranchType } from '@/contexts/BranchContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { 
+  FileText, 
+  Database, 
+  Globe, 
+  Upload, 
+  Type, 
+  GitBranch, 
+  ChevronRight, 
+  ChevronDown, 
+  Folder, 
+  File, 
+  X, 
+  Check, 
+  Search, 
+  Filter, 
+  Download, 
+  Settings, 
+  Info, 
+  AlertCircle,
+  GitPullRequest,
+  GitCommit,
+  Bug,
+  Star,
+  Activity,
+  Users,
+  Calendar,
+  Clock,
+  Code2,
+  Shield,
+  Eye,
+  Zap,
+  Target,
+  MessageSquare,
+  Award,
+  Flame,
+  TrendingUp,
+  TrendingDown,
+  Plus,
+  Minus,
+  Trash2,
+  Copy,
+  ExternalLink,
+  RefreshCw,
+  Loader2,
+  CheckSquare,
+  Square,
+  ChevronUp,
+  Bot,
+  PlusCircle
+} from 'lucide-react';
+import { transformGitHubData, fallbackContributionData } from './manage/contribution-data';
+import GitHubAPI from '@/lib/github-api';
+import AnimatedTransition from './AnimatedTransition';
+import { ImportSource } from '@/lib/types';
 
 const importSources: ImportSource[] = [
   {
@@ -60,30 +122,8 @@ const importSources: ImportSource[] = [
   }
 ];
 
-// Add mock data for contribution panel data
-const contributionData = {
-  pullRequests: [
-    { id: 'pr-1', title: 'Add pagination to dashboard', status: 'open', sourceBranch: 'dev', targetBranch: 'main' },
-    { id: 'pr-2', title: 'Fix authentication bug', status: 'merged', sourceBranch: 'agents', targetBranch: 'dev' },
-    { id: 'pr-3', title: 'Improve data connectors', status: 'closed', sourceBranch: 'snowflake', targetBranch: 'dev' },
-    { id: 'pr-4', title: 'Add new agent types', status: 'open', sourceBranch: 'agents', targetBranch: 'main' }
-  ],
-  issues: [
-    { id: 'issue-1', title: 'Dashboard not loading on Firefox', status: 'open', branch: 'dev', labels: ['bug', 'frontend'] },
-    { id: 'issue-2', title: 'Add support for Snowflake integration', status: 'closed', branch: 'snowflake', labels: ['feature', 'integration'] },
-    { id: 'issue-3', title: 'Agent API returns 500 error', status: 'open', branch: 'agents', labels: ['bug', 'backend'] }
-  ],
-  botLogs: [
-    { id: 'log-1', timestamp: '2023-12-01T12:30:00Z', action: 'Data fetch', status: 'success', branch: 'dev' },
-    { id: 'log-2', timestamp: '2023-12-02T10:15:00Z', action: 'Agent deployment', status: 'failed', branch: 'agents' },
-    { id: 'log-3', timestamp: '2023-12-03T15:45:00Z', action: 'Snowflake integration', status: 'success', branch: 'snowflake' }
-  ],
-  activity: [
-    { id: 'activity-1', timestamp: '2023-12-04T14:22:00Z', action: 'Push commit', user: 'alice', branch: 'dev' },
-    { id: 'activity-2', timestamp: '2023-12-05T09:10:00Z', action: 'Create branch', user: 'bob', branch: 'agents' },
-    { id: 'activity-3', timestamp: '2023-12-06T11:35:00Z', action: 'Merge PR', user: 'charlie', branch: 'snowflake' }
-  ]
-};
+// Real contribution data will be fetched and transformed
+let contributionData = fallbackContributionData;
 
 // Mock data for branch files structure
 const branchFileStructure: Record<string, any[]> = {
@@ -822,6 +862,64 @@ export const ImportPanel: React.FC = () => {
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const [fileStructure, setFileStructure] = useState(branchFileStructure);
   const { selectedBranch: contextBranch, getBranchInfo } = useBranch();
+  const { user, token } = useAuth();
+  const [realContributionData, setRealContributionData] = useState(fallbackContributionData);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  // Fetch real GitHub data
+  useEffect(() => {
+    const fetchRealData = async () => {
+      if (!token) {
+        setRealContributionData(fallbackContributionData);
+        setDataLoading(false);
+        return;
+      }
+
+      try {
+        setDataLoading(true);
+        const githubAPI = new GitHubAPI(token);
+        
+        // Fetch user activity
+        const userActivity = await githubAPI.getUserActivity(user?.login, 1, 100);
+        
+        // Fetch pull requests from user's repositories
+        const userRepos = await githubAPI.getUserRepositories(1, 10);
+        const allPullRequests: any[] = [];
+        const allIssues: any[] = [];
+        const allCommits: any[] = [];
+
+        // Fetch data from each repository
+        for (const repo of userRepos.slice(0, 5)) { // Limit to 5 repos to avoid rate limits
+          try {
+            const [prs, issues, commits] = await Promise.all([
+              githubAPI.getRepositoryPullRequests(repo.owner.login, repo.name, 'all', 1, 20),
+              githubAPI.getRepositoryIssues(repo.owner.login, repo.name, 'all', 1, 20),
+              githubAPI.getRepositoryCommits(repo.owner.login, repo.name, 'main', 1, 20)
+            ]);
+            
+            allPullRequests.push(...prs);
+            allIssues.push(...issues);
+            allCommits.push(...commits);
+          } catch (error) {
+            console.error(`Error fetching data for ${repo.full_name}:`, error);
+          }
+        }
+
+        // Transform the data
+        const transformedData = transformGitHubData(userActivity, allPullRequests, allIssues, allCommits, user);
+        setRealContributionData(transformedData as typeof fallbackContributionData);
+        contributionData = transformedData as typeof fallbackContributionData;
+      } catch (error) {
+        console.error('Error fetching real contribution data:', error);
+        setRealContributionData(fallbackContributionData);
+        contributionData = fallbackContributionData;
+      } finally {
+        setDataLoading(false);
+      }
+    };
+
+    fetchRealData();
+  }, [user, token]);
   
   // Add these state declarations inside the component
   const [selectedDataTypes, setSelectedDataTypes] = useState<{

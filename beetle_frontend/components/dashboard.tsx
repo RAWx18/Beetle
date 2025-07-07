@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
 import {
   Star,
   GitBranch,
@@ -1042,16 +1043,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
             {/* Actions & User Menu */}
             <div className="flex items-center space-x-3">
-              {/* Settings Button */}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleSettingsClick}
-                className="relative"
-              >
-                <Settings className="w-4 h-4" />
-              </Button>
-              
               {/* Notifications */}
               <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
                 <DropdownMenuTrigger asChild>
@@ -2531,6 +2522,35 @@ function FeaturedProjectsCarousel({ trendingRepositories }: { trendingRepositori
 }
 
 function ProjectCard({ project, type }: { project: any; type: "starred" | "owned" }) {
+  const router = useRouter()
+
+  const handleOpenInBeetle = () => {
+    // Encode repository data as URL parameters
+    const repoData = encodeURIComponent(JSON.stringify({
+      name: project.name,
+      full_name: project.full_name,
+      description: project.description,
+      owner: project.owner,
+      language: project.language,
+      stargazers_count: project.stargazers_count,
+      forks_count: project.forks_count,
+      html_url: project.html_url,
+      clone_url: project.clone_url,
+      default_branch: project.default_branch,
+      created_at: project.created_at,
+      updated_at: project.updated_at,
+      private: project.private,
+      type: type
+    }))
+    
+    // Navigate to contribution page with repository data
+    router.push(`/contribution?repo=${repoData}`)
+  }
+
+  const handleViewOnGitHub = () => {
+    window.open(project.html_url, '_blank')
+  }
+
   return (
     <motion.div whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
       <Card className="h-full hover:shadow-lg transition-all duration-300 group cursor-pointer">
@@ -2547,11 +2567,11 @@ function ProjectCard({ project, type }: { project: any; type: "starred" | "owned
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleOpenInBeetle}>
                   <Zap className="w-4 h-4 mr-2" />
                   Open in Beetle
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleViewOnGitHub}>
                   <Github className="w-4 h-4 mr-2" />
                   View on GitHub
                 </DropdownMenuItem>

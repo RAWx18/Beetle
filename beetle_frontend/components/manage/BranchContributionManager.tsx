@@ -1,9 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useBranch } from '@/contexts/BranchContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Search, Filter, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { contributionData } from './contribution-data';
+import { contributionData, transformGitHubData, fallbackContributionData } from './contribution-data';
+import GitHubAPI from '@/lib/github-api';
 import BranchActivity from './BranchActivity';
 import OverviewDashboard from './OverviewDashboard';
 import MyContributions from './MyContributions';
@@ -35,36 +37,92 @@ interface BranchContributionManagerProps {
 
 const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContributionManagerProps) => {
   const { selectedBranch, getBranchInfo } = useBranch();
+  const { user, token } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [issueFilters, setIssueFilters] = useState<{ status: string; type: string; priority: string; labels: string[] }>({ status: 'all', type: 'all', priority: 'all', labels: [] });
   const [prFilters, setPrFilters] = useState<{ status: string; labels: string[] }>({ status: 'all', labels: [] });
+  const [realContributionData, setRealContributionData] = useState(fallbackContributionData);
+  const [dataLoading, setDataLoading] = useState(true);
   
   const branchInfo = getBranchInfo();
-  
+
+  // Fetch real GitHub data
+  useEffect(() => {
+    const fetchRealData = async () => {
+      if (!token) {
+        setRealContributionData(fallbackContributionData);
+        setDataLoading(false);
+        return;
+      }
+
+      try {
+        setDataLoading(true);
+        const githubAPI = new GitHubAPI(token);
+        
+        // Fetch user activity
+        const userActivity = await githubAPI.getUserActivity(user?.login, 1, 100);
+        
+        // Fetch pull requests from user's repositories
+        const userRepos = await githubAPI.getUserRepositories(1, 10);
+        const allPullRequests: any[] = [];
+        const allIssues: any[] = [];
+        const allCommits: any[] = [];
+
+        // Fetch data from each repository
+        for (const repo of userRepos.slice(0, 5)) { // Limit to 5 repos to avoid rate limits
+          try {
+            const [prs, issues, commits] = await Promise.all([
+              githubAPI.getRepositoryPullRequests(repo.owner.login, repo.name, 'all', 1, 20),
+              githubAPI.getRepositoryIssues(repo.owner.login, repo.name, 'all', 1, 20),
+              githubAPI.getRepositoryCommits(repo.owner.login, repo.name, 'main', 1, 20)
+            ]);
+            
+            allPullRequests.push(...prs);
+            allIssues.push(...issues);
+            allCommits.push(...commits);
+          } catch (error) {
+            console.error(`Error fetching data for ${repo.full_name}:`, error);
+          }
+        }
+
+        // Transform the data
+        const transformedData = transformGitHubData(userActivity, allPullRequests, allIssues, allCommits, user);
+        setRealContributionData(transformedData as typeof fallbackContributionData);
+      } catch (error) {
+        console.error('Error fetching real contribution data:', error);
+        setRealContributionData(fallbackContributionData);
+      } finally {
+        setDataLoading(false);
+      }
+    };
+
+    fetchRealData();
+  }, [user, token]);
+
   // Filter data based on selected branch
   const branchData = useMemo(() => {
     const branchKey = selectedBranch;
     return {
-      pullRequests: contributionData.pullRequests.filter(pr => 
+      pullRequests: realContributionData.pullRequests.filter(pr => 
         pr.targetBranch === branchKey || pr.sourceBranch === branchKey
       ),
-      issues: contributionData.issues.filter(issue => 
+      issues: realContributionData.issues.filter(issue => 
         issue.branch === branchKey || issue.labels.includes(branchKey)
       ),
-      activity: contributionData.activity.filter(activity => 
+      activity: realContributionData.activity.filter(activity => 
         activity.branch === branchKey
       )
     };
-  }, [selectedBranch]);
+  }, [selectedBranch, realContributionData]);
 
-  const allIssueLabels = Array.from(new Set(contributionData.issues.flatMap(i => i.labels)));
-  const allPRLabels = Array.from(new Set(contributionData.pullRequests.flatMap(pr => pr.labels)));
-  const allIssueTypes = Array.from(new Set(contributionData.issues.map(i => i.type)));
-  const allIssuePriorities = Array.from(new Set(contributionData.issues.map(i => i.priority)));
-  const allIssueStatuses = ['all', ...Array.from(new Set(contributionData.issues.map(i => i.status)))];
-  const allPRStatuses = ['all', ...Array.from(new Set(contributionData.pullRequests.map(pr => pr.status)))]
+  const allIssueLabels = Array.from(new Set(realContributionData.issues.flatMap(i => i.labels)));
+  const allPRLabels = Array.from(new Set(realContributionData.pullRequests.flatMap(pr => pr.labels)));
+  const allIssueTypes = Array.from(new Set(realContributionData.issues.map(i => i.type)));
+  const allIssuePriorities = Array.from(new Set(realContributionData.issues.map(i => i.priority)));
+  const allIssueStatuses = ['all', ...Array.from(new Set(realContributionData.issues.map(i => i.status)))];
+  const allPRStatuses = ['all', ...Array.from(new Set(realContributionData.pullRequests.map(pr => pr.status)))]
 
   const filteredData = useMemo(() => {
     let prs = branchData.pullRequests;
