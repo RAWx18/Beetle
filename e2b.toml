@@ -1,0 +1,19 @@
+# This is a config for E2B sandbox template.
+# You can use template ID (k82qbkv6kr0lslfd12sw) or template name (commit) to create a sandbox:
+
+# Python SDK
+# from e2b import Sandbox, AsyncSandbox
+# sandbox = Sandbox("commit") # Sync sandbox
+# sandbox = await AsyncSandbox.create("commit") # Async sandbox
+
+# JS SDK
+# import { Sandbox } from 'e2b'
+# const sandbox = await Sandbox.create('commit')
+
+template_id = "k82qbkv6kr0lslfd12sw"
+dockerfile = "e2b.Dockerfile"
+template_name = "commit"
+start_cmd = "/compile_page.sh"
+cpu_count = 4
+memory_mb = 8_192
+team_id = "0b55fd06-7a99-4806-9f45-965361e10098"

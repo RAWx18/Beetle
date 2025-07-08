@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+@import './typography.css' layer(components);
+@import url('https://fonts.googleapis.com/css2?family=Mona+Sans:ital,wght@0,200..900;1,200..900&display=swap');
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --text-2xs: 0.6875rem;
+
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-mona-sans);
+}
+
+@layer utilities {
+  /* Mona Sans variable font examples */
+  .mona-sans-light {
+    font-family: 'Mona Sans', sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 200;
+    font-style: normal;
+    font-variation-settings: 'wdth' 100;
+  }
+  .mona-sans-regular {
+    font-family: 'Mona Sans', sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 400;
+    font-style: normal;
+    font-variation-settings: 'wdth' 100;
+  }
+  .mona-sans-bold {
+    font-family: 'Mona Sans', sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 900;
+    font-style: normal;
+    font-variation-settings: 'wdth' 100;
+  }
+}
