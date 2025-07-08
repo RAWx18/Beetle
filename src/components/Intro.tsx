@@ -81,6 +81,9 @@ export function Intro() {
         <IconLink href="https://discord.com/invite/FkrWfGtZn3" icon={DiscordIcon} className="flex-none">
           Discord
         </IconLink>
+        <IconLink href="https://beetle-demo.vercel.app" icon={FeedIcon} className="flex-none">
+          Demo Website
+        </IconLink>
       </div>
     </>
   )
