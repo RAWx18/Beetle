@@ -9,11 +9,18 @@ export function FormattedDate({
   date,
   ...props
 }: React.ComponentPropsWithoutRef<'time'> & { date: string | Date }) {
-  date = typeof date === 'string' ? new Date(date) : date
+  if (!date) return null;
+  let parsedDate = typeof date === 'string' ? new Date(date) : date;
+  const isValidDate = parsedDate instanceof Date && !isNaN(parsedDate.getTime());
+
+  if (!isValidDate) {
+    // Render as plain text if not a valid date
+    return <time {...props}>{String(date)}</time>;
+  }
 
   return (
-    <time dateTime={date.toISOString()} {...props}>
-      {dateFormatter.format(date)}
+    <time dateTime={parsedDate.toISOString()} {...props}>
+      {dateFormatter.format(parsedDate)}
     </time>
-  )
+  );
 }
