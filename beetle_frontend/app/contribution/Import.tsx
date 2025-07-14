@@ -23,12 +23,6 @@ const Import = () => {
           <p className="text-muted-foreground mt-2">
             Add knowledge to your second brain from various sources for {projectName} ({selectedBranch})
           </p>
-          <div className="mt-4 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted">
-              <span className="w-2 h-2 rounded-full bg-primary"></span>
-              {selectedBranch} branch
-            </span>
-          </div>
         </div>
         
         <ImportPanel />

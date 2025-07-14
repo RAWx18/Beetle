@@ -45,8 +45,8 @@ const customStyles = `
   }
   
   @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 5px rgba(255, 165, 0, 0.3); }
-    50% { box-shadow: 0 0 20px rgba(255, 165, 0, 0.6); }
+    0%, 100% { box-shadow: 0 0 5px hsl(var(--primary) / 0.3); }
+    50% { box-shadow: 0 0 20px hsl(var(--primary) / 0.6); }
   }
   
   .animate-slide-up {
@@ -80,7 +80,7 @@ const customStyles = `
     top: 0;
     left: 0;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.3), transparent);
     width: 100%;
     transform: translateX(-100%);
     animation: shimmer 2s infinite;

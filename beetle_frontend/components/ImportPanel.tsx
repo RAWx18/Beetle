@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBranch } from '@/contexts/BranchContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRepository } from '@/contexts/RepositoryContext';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -860,11 +861,14 @@ const BranchContent: React.FC<BranchContentProps> = ({
 export const ImportPanel: React.FC = () => {
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
-  const [fileStructure, setFileStructure] = useState(branchFileStructure);
-  const { selectedBranch: contextBranch, getBranchInfo } = useBranch();
+  const [fileStructure, setFileStructure] = useState<Record<string, any[]>>({});
+  const { selectedBranch: contextBranch, getBranchInfo, branchList } = useBranch();
   const { user, token } = useAuth();
+  const { repository } = useRepository();
   const [realContributionData, setRealContributionData] = useState(fallbackContributionData);
   const [dataLoading, setDataLoading] = useState(true);
+  const [branchFileStructures, setBranchFileStructures] = useState<Record<string, any[]>>({});
+  const [branchStructuresLoading, setBranchStructuresLoading] = useState(false);
 
   // Fetch real GitHub data
   useEffect(() => {
@@ -920,6 +924,221 @@ export const ImportPanel: React.FC = () => {
 
     fetchRealData();
   }, [user, token]);
+
+  // Fetch real file structures for branches
+  useEffect(() => {
+    const fetchBranchFileStructures = async () => {
+      if (!token || !branchList || branchList.length === 0) {
+        // Fallback to mock data if no real branches
+        setBranchFileStructures(branchFileStructure);
+        setFileStructure(branchFileStructure);
+        return;
+      }
+
+      try {
+        setBranchStructuresLoading(true);
+        const githubAPI = new GitHubAPI(token);
+        const structures: Record<string, any[]> = {};
+
+        // Fetch file structure for each branch
+        for (const branch of branchList) {
+          try {
+            let structure;
+            
+            // Try to get real file structure if repository is available
+            if (repository?.owner?.login && repository?.name) {
+              try {
+                const treeData = await githubAPI.getRepositoryTree(repository.owner.login, repository.name, branch);
+                structure = convertTreeToFileStructure(treeData);
+              } catch (treeError) {
+                console.warn(`Could not fetch real tree for branch ${branch}, using mock data:`, treeError);
+                structure = generateMockFileStructure(branch);
+              }
+            } else {
+              // Use mock structure if no repository context
+              structure = generateMockFileStructure(branch);
+            }
+            
+            structures[branch] = structure;
+          } catch (error) {
+            console.error(`Error fetching file structure for branch ${branch}:`, error);
+            // Fallback to basic structure
+            structures[branch] = [
+              {
+                name: 'src',
+                type: 'folder',
+                expanded: false,
+                selected: false,
+                children: [
+                  { name: 'index.ts', type: 'file', selected: false },
+                  { name: 'utils.ts', type: 'file', selected: false }
+                ]
+              },
+              { name: 'README.md', type: 'file', selected: false },
+              { name: 'package.json', type: 'file', selected: false }
+            ];
+          }
+        }
+
+        setBranchFileStructures(structures);
+        setFileStructure(structures);
+      } catch (error) {
+        console.error('Error fetching branch file structures:', error);
+        // Fallback to mock data
+        setBranchFileStructures(branchFileStructure);
+        setFileStructure(branchFileStructure);
+      } finally {
+        setBranchStructuresLoading(false);
+      }
+    };
+
+    fetchBranchFileStructures();
+  }, [token, branchList]);
+
+  // Helper function to convert GitHub tree to file structure
+  const convertTreeToFileStructure = (treeData: any[]): any[] => {
+    const structure: any[] = [];
+    const folderMap = new Map<string, any>();
+
+    // First pass: create all items
+    treeData.forEach((item: any) => {
+      const pathParts = item.path.split('/');
+      const fileName = pathParts[pathParts.length - 1];
+      
+      if (item.type === 'tree') {
+        // It's a folder
+        const folderItem = {
+          name: fileName,
+          type: 'folder' as const,
+          expanded: false,
+          selected: false,
+          children: []
+        };
+        
+        if (pathParts.length === 1) {
+          // Root level folder
+          structure.push(folderItem);
+        } else {
+          // Nested folder
+          const parentPath = pathParts.slice(0, -1).join('/');
+          if (!folderMap.has(parentPath)) {
+            folderMap.set(parentPath, { children: [] });
+          }
+          folderMap.get(parentPath).children.push(folderItem);
+        }
+        folderMap.set(item.path, folderItem);
+      } else {
+        // It's a file
+        const fileItem = {
+          name: fileName,
+          type: 'file' as const,
+          selected: false
+        };
+        
+        if (pathParts.length === 1) {
+          // Root level file
+          structure.push(fileItem);
+        } else {
+          // Nested file
+          const parentPath = pathParts.slice(0, -1).join('/');
+          if (!folderMap.has(parentPath)) {
+            folderMap.set(parentPath, { children: [] });
+          }
+          folderMap.get(parentPath).children.push(fileItem);
+        }
+      }
+    });
+
+    return structure;
+  };
+
+  // Helper function to generate mock file structure based on branch name
+  const generateMockFileStructure = (branch: string): any[] => {
+    const baseStructure = [
+      {
+        name: 'src',
+        type: 'folder',
+        expanded: false,
+        selected: false,
+        children: [
+          {
+            name: 'components',
+            type: 'folder',
+            expanded: false,
+            selected: false,
+            children: [
+              { name: 'Button.tsx', type: 'file', selected: false },
+              { name: 'Card.tsx', type: 'file', selected: false },
+              { name: 'Navbar.tsx', type: 'file', selected: false }
+            ]
+          },
+          {
+            name: 'utils',
+            type: 'folder',
+            expanded: false,
+            selected: false,
+            children: [
+              { name: 'helpers.ts', type: 'file', selected: false },
+              { name: 'api.ts', type: 'file', selected: false }
+            ]
+          },
+          { name: 'App.tsx', type: 'file', selected: false },
+          { name: 'index.tsx', type: 'file', selected: false }
+        ]
+      },
+      {
+        name: 'public',
+        type: 'folder',
+        expanded: false,
+        selected: false,
+        children: [
+          { name: 'index.html', type: 'file', selected: false },
+          { name: 'favicon.ico', type: 'file', selected: false }
+        ]
+      },
+      { name: 'package.json', type: 'file', selected: false },
+      { name: 'README.md', type: 'file', selected: false }
+    ];
+
+    // Customize structure based on branch name
+    if (branch === 'dev' && baseStructure[0]?.children) {
+      baseStructure[0].children.push({
+        name: 'dev-tools',
+        type: 'folder',
+        expanded: false,
+        selected: false,
+        children: [
+          { name: 'debug.ts', type: 'file', selected: false },
+          { name: 'logger.ts', type: 'file', selected: false }
+        ]
+      });
+    } else if (branch === 'agents' && baseStructure[0]?.children) {
+      baseStructure[0].children.push({
+        name: 'agents',
+        type: 'folder',
+        expanded: false,
+        selected: false,
+        children: [
+          { name: 'DataAgent.ts', type: 'file', selected: false },
+          { name: 'QueryAgent.ts', type: 'file', selected: false },
+          { name: 'RetrievalAgent.ts', type: 'file', selected: false }
+        ]
+      });
+    } else if (branch === 'snowflake' && baseStructure[0]?.children) {
+      baseStructure[0].children.push({
+        name: 'connectors',
+        type: 'folder',
+        expanded: false,
+        selected: false,
+        children: [
+          { name: 'SnowflakeConnector.ts', type: 'file', selected: false },
+          { name: 'SecurityLayer.ts', type: 'file', selected: false }
+        ]
+      });
+    }
+
+    return baseStructure;
+  };
   
   // Add these state declarations inside the component
   const [selectedDataTypes, setSelectedDataTypes] = useState<{
@@ -1007,10 +1226,16 @@ export const ImportPanel: React.FC = () => {
   // Function to get the branch color
   const getBranchColorClass = (branch: string): string => {
     switch(branch) {
+      case 'main': return 'text-green-600';
+      case 'master': return 'text-green-600';
       case 'dev': return 'text-blue-600';
+      case 'develop': return 'text-blue-600';
       case 'agents': return 'text-emerald-600';
       case 'snowflake': return 'text-cyan-600';
-      default: return 'text-blue-600';
+      case 'feature': return 'text-purple-600';
+      case 'hotfix': return 'text-red-600';
+      case 'release': return 'text-orange-600';
+      default: return 'text-gray-600';
     }
   };
 
@@ -1176,7 +1401,7 @@ export const ImportPanel: React.FC = () => {
             <div>
               <label className="block text-sm font-medium mb-2">Select Branch</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {['all', 'dev', 'agents', 'snowflake'].map(branch => (
+                {['all', ...branchList].map(branch => (
                   <button
                     key={branch}
                     className={cn(
@@ -1496,26 +1721,38 @@ export const ImportPanel: React.FC = () => {
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {Object.keys(fileStructure).map((branch) => {
-                  const branchInfo = {
-                    name: `${branch} Branch`,
-                    color: getBranchColorClass(branch),
-                    description: '',
-                    maintainer: '',
-                    githubUrl: ''
-                  };
-                  
-                  return (
-                    <BranchCard
-                      key={branch}
-                      branch={branch}
-                      isContextBranch={branch === contextBranch}
-                      isSelected={selectedBranches.includes(branch)}
-                      onSelect={handleBranchSelect}
-                      branchInfo={branchInfo}
-                    />
-                  );
-                })}
+                {branchStructuresLoading ? (
+                  <div className="col-span-full flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="ml-2 text-muted-foreground">Loading branches...</span>
+                  </div>
+                ) : branchList.length === 0 ? (
+                  <div className="col-span-full text-center py-8 text-muted-foreground">
+                    <GitBranch className="h-8 w-8 mx-auto mb-2" />
+                    <p>No branches available</p>
+                  </div>
+                ) : (
+                  branchList.map((branch) => {
+                    const branchInfo = {
+                      name: `${branch} Branch`,
+                      color: getBranchColorClass(branch),
+                      description: branch === contextBranch ? 'Current branch' : '',
+                      maintainer: '',
+                      githubUrl: ''
+                    };
+                    
+                    return (
+                      <BranchCard
+                        key={branch}
+                        branch={branch}
+                        isContextBranch={branch === contextBranch}
+                        isSelected={selectedBranches.includes(branch)}
+                        onSelect={handleBranchSelect}
+                        branchInfo={branchInfo}
+                      />
+                    );
+                  })
+                )}
               </div>
             </div>
             
@@ -1539,13 +1776,13 @@ export const ImportPanel: React.FC = () => {
                 ))}
                 
                 {/* Select another branch button */}
-                {selectedBranches.length < Object.keys(fileStructure).length && (
+                {selectedBranches.length < branchList.length && (
                   <div className="flex justify-center">
                     <button 
                       className="flex items-center gap-1 text-sm text-primary hover:underline"
                       onClick={() => {
                         // Show branches selection UI
-                        const availableBranches = Object.keys(fileStructure).filter(
+                        const availableBranches = branchList.filter(
                           branch => !selectedBranches.includes(branch)
                         );
                         
@@ -1589,7 +1826,10 @@ export const ImportPanel: React.FC = () => {
               <div className="p-8 text-center border border-dashed border-border rounded-lg">
                 <GitBranch size={40} className="mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">
-                  Select one or more branches to view and import their files
+                  {branchList.length > 0 
+                    ? "Select one or more branches to view and import their files"
+                    : "No branches available for import"
+                  }
                 </p>
               </div>
             )}

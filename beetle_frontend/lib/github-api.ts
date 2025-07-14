@@ -208,6 +208,27 @@ class GitHubAPI {
     return response.languages;
   }
 
+  // Get current user profile
+  async getCurrentUserProfile() {
+    const response = await this.request('/auth/profile');
+    return response.user;
+  }
+
+  // Update current user profile
+  async updateCurrentUserProfile(updateData: any) {
+    const response = await this.request('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(updateData)
+    });
+    return response.user;
+  }
+
+  // Get repository tree structure
+  async getRepositoryTree(owner: string, repo: string, branch: string = 'main') {
+    const response = await this.request(`/github/repositories/${owner}/${repo}/tree?branch=${branch}`);
+    return response.tree;
+  }
+
   // Get user starred repositories
   async getUserStarredRepositories(page = 1, per_page = 100): Promise<Repository[]> {
     const response = await this.request(`/github/starred?page=${page}&per_page=${per_page}`);
