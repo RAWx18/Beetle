@@ -15,8 +15,9 @@ const Import = () => {
   const projectName = repository?.name || 'Project';
   
   return (
-    <div className="max-w-7xl mx-auto px-4 pt-24 pb-16">
+    <div className="max-w-7xl mx-auto px-4 pt-10 pb-16 h-screen">
       <AnimatedTransition show={showContent} animation="slide-up">
+        <div className="h-full overflow-y-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold">Import Data</h1>
           <p className="text-muted-foreground mt-2">
@@ -31,6 +32,7 @@ const Import = () => {
         </div>
         
         <ImportPanel />
+        </div>
       </AnimatedTransition>
     </div>
   );

@@ -22,8 +22,9 @@ export default function SettingsPage() {
   const projectName = repository?.name || 'Project';
 
   return (
-    <div className="max-w-4xl mx-auto px-4 pt-24 pb-16">
+    <div className="max-w-4xl mx-auto px-4 pt-10 pb-16 h-screen">
       <AnimatedTransition show={showContent} animation="slide-up">
+        <div className="h-full overflow-y-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Settings</h1>
           <p className="text-muted-foreground mt-2">
@@ -260,6 +261,7 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
         </div>
       </AnimatedTransition>
     </div>

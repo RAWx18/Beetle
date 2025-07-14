@@ -237,7 +237,7 @@ const RepositoryView = ({ repository }: { repository: any }) => {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: customStyles }} />
-      <div className="max-w-6xl mx-auto space-y-12 bg-black-900 min-h-screen p-8">
+      <div className="max-w-6xl mx-auto space-y-12 bg-black-900 h-full overflow-y-auto p-8">
         {/* Hero Section with Owner Profile */}
         <div className="text-center space-y-8">
           <div className="flex flex-col items-center space-y-6">
@@ -765,7 +765,7 @@ const AIFAQView = ({ selectedBranch, branchInfo }: { selectedBranch: string; bra
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 h-full overflow-y-auto">
       <div className="text-center">
         <div className="flex items-center justify-center gap-3 mb-4">
           <div className={`p-3 rounded-full ${selectedBranch === 'dev' ? 'bg-blue-500' : selectedBranch === 'agents' ? 'bg-emerald-500' : selectedBranch === 'snowflake' ? 'bg-cyan-500' : 'bg-black-500'}`}>

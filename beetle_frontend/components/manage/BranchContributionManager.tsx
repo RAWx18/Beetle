@@ -314,7 +314,7 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pb-0 mb-0">
         {renderSectionContent()}
       </div>
 

@@ -177,7 +177,7 @@ export const Navbar = () => {
   return (
     <>
       <TooltipProvider>
-        <header className="glass-panel fixed top-6 left-1/2 transform -translate-x-1/2 z-40 rounded-lg px-1 py-1">
+        <header className="glass-panel fixed top-4 left-1/2 transform -translate-x-1/2 z-40 rounded-lg px-1 py-1">
           <nav className="flex items-center">
             <NavItem
               to="#"

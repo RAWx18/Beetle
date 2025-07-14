@@ -19,10 +19,10 @@ const ManagePage = () => {
   };
 
   return (
-    <div className="max-w-full mx-auto h-screen pt-24 pb-6">
+    <div className="max-w-full mx-auto h-screen pt-20 overflow-hidden fixed bottom-0 left-0 right-0">
       <Toaster position="top-right" />
       <AnimatedTransition show={showContent} animation="slide-up">
-        <div className="flex h-[calc(100vh-130px)]">
+        <div className="flex h-[calc(100vh-80px)]">
           <TooltipProvider>
             <CortexSidebar 
               onCortexSelect={handleCortexSelect}

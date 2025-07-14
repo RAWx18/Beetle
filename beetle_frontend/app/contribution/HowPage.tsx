@@ -155,9 +155,11 @@ const HowPage = () => {
   
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-24">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-24 h-screen">
         <AnimatedTransition show={showContent} animation="fade" duration={800}>
-          <BranchHow />
+          <div className="h-full overflow-y-auto">
+            <BranchHow />
+          </div>
         </AnimatedTransition>
       </div>
     </div>

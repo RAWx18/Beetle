@@ -70,8 +70,9 @@ const Profile = () => {
   };
   
   return (
-    <div className="max-w-7xl mx-auto px-4 pt-24 pb-16">
+    <div className="max-w-7xl mx-auto px-4 pt-10 pb-16 h-screen">
       <AnimatedTransition show={showContent} animation="slide-up">
+        <div className="h-full overflow-y-auto">
         <div className="mb-8">
           <div className="text-center mb-6">
             <h1 className="text-3xl font-bold">User Profile</h1>
@@ -227,6 +228,7 @@ const Profile = () => {
           </div>
           
           <ProjectRoadmap />
+        </div>
         </div>
       </AnimatedTransition>
     </div>

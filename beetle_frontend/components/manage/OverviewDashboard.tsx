@@ -20,7 +20,7 @@ const OverviewDashboard = ({ branchData, branch }: OverviewDashboardProps) => {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 h-full flex flex-col max-h-full overflow-hidden">
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -77,15 +77,15 @@ const OverviewDashboard = ({ branchData, branch }: OverviewDashboardProps) => {
       </div>
 
       {/* Recent Activity Summary */}
-      <Card>
+      <Card className="flex-1 min-h-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-orange-500" />
             Recent Activity
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
+        <CardContent className="h-full">
+          <div className="space-y-3 max-h-64 overflow-y-auto">
             {branchData.activity.slice(0, 5).map((activity: any) => (
               <div key={activity.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50">
                 <Avatar className="h-8 w-8">
