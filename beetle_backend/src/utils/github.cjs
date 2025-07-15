@@ -17,6 +17,12 @@ const createGitHubClient = (accessToken) => {
   });
 };
 
+// Validate owner parameter
+const isValidOwner = (owner) => {
+  const ownerRegex = /^[a-zA-Z0-9_-]+$/; // Allow alphanumeric, underscores, and hyphens
+  return ownerRegex.test(owner);
+};
+
 // Create GraphQL client
 const createGraphQLClient = (accessToken) => {
   return axios.create({
@@ -989,6 +995,11 @@ const getFileContent = async (accessToken, owner, repo, path, branch = 'main') =
 // Fetch file trees from all branches for a repository
 const getRepositoryTreesForAllBranches = async (accessToken, owner, repo) => {
   try {
+    // Validate owner parameter
+    if (!isValidOwner(owner)) {
+      throw new Error('Invalid owner parameter');
+    }
+
     const cacheKey = `repo_trees_all_branches_${owner}_${repo}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
