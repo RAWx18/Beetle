@@ -397,7 +397,7 @@ const getRepositoryBranches = async (accessToken, owner, repo) => {
 // Add a delay utility to avoid rate limiting
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// Get repository issues
+// Get repository issues (cache per repo, state, page)
 const getRepositoryIssues = async (accessToken, owner, repo, state = 'open', page = 1, perPage = 100) => {
   try {
     const cacheKey = `repo_issues_${owner}_${repo}_${state}_${page}`;
@@ -446,109 +446,9 @@ const getRepositoryIssues = async (accessToken, owner, repo, state = 'open', pag
   }
 };
 
-// Get repository pull requests
+// Get repository pull requests (cache per repo, state, page)
 const getRepositoryPullRequests = async (accessToken, owner, repo, state = 'open', page = 1, perPage = 100) => {
   try {
-    // Demo mode support
-    if (accessToken === 'demo-github-token') {
-      return [
-        {
-          id: 1,
-          number: 15,
-          title: "Implement real-time updates",
-          body: "Add real-time updates to the dashboard for better user experience",
-          state: "open",
-          locked: false,
-          draft: false,
-          merged: false,
-          mergeable: true,
-          mergeable_state: "clean",
-          merged_at: null,
-          closed_at: null,
-          user: {
-            login: "demo-user",
-            avatar_url: "https://github.com/github.png"
-          },
-          assignees: [],
-          requested_reviewers: [],
-          labels: [
-            { name: "enhancement", color: "a2eeef" },
-            { name: "frontend", color: "0e8a16" }
-          ],
-          head: {
-            label: "demo-user:feature/realtime-updates",
-            ref: "feature/realtime-updates",
-            sha: "abc123",
-            user: { login: "demo-user" },
-            repo: { name: "beetle-app" }
-          },
-          base: {
-            label: "demo-user:main",
-            ref: "main",
-            sha: "def456",
-            user: { login: "demo-user" },
-            repo: { name: "beetle-app" }
-          },
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-          updated_at: new Date().toISOString(),
-          html_url: "https://github.com/demo-user/beetle-app/pull/15",
-          comments: 2,
-          review_comments: 1,
-          commits: 3,
-          additions: 45,
-          deletions: 12,
-          changed_files: 5
-        },
-        {
-          id: 2,
-          number: 14,
-          title: "Fix authentication flow",
-          body: "Resolve issues with GitHub OAuth authentication",
-          state: "open",
-          locked: false,
-          draft: false,
-          merged: false,
-          mergeable: true,
-          mergeable_state: "clean",
-          merged_at: null,
-          closed_at: null,
-          user: {
-            login: "demo-user",
-            avatar_url: "https://github.com/github.png"
-          },
-          assignees: [],
-          requested_reviewers: [],
-          labels: [
-            { name: "bug", color: "d73a4a" },
-            { name: "auth", color: "fef2c0" }
-          ],
-          head: {
-            label: "demo-user:fix/auth-flow",
-            ref: "fix/auth-flow",
-            sha: "ghi789",
-            user: { login: "demo-user" },
-            repo: { name: "beetle-app" }
-          },
-          base: {
-            label: "demo-user:main",
-            ref: "main",
-            sha: "def456",
-            user: { login: "demo-user" },
-            repo: { name: "beetle-app" }
-          },
-          created_at: new Date(Date.now() - 7200000).toISOString(),
-          updated_at: new Date(Date.now() - 1800000).toISOString(),
-          html_url: "https://github.com/demo-user/beetle-app/pull/14",
-          comments: 1,
-          review_comments: 0,
-          commits: 2,
-          additions: 23,
-          deletions: 8,
-          changed_files: 3
-        }
-      ];
-    }
-
     const cacheKey = `repo_prs_${owner}_${repo}_${state}_${page}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
@@ -584,20 +484,8 @@ const getRepositoryPullRequests = async (accessToken, owner, repo, state = 'open
       assignees: pr.assignees,
       requested_reviewers: pr.requested_reviewers,
       labels: pr.labels,
-      head: {
-        label: pr.head.label,
-        ref: pr.head.ref,
-        sha: pr.head.sha,
-        user: pr.head.user,
-        repo: pr.head.repo
-      },
-      base: {
-        label: pr.base.label,
-        ref: pr.base.ref,
-        sha: pr.base.sha,
-        user: pr.base.user,
-        repo: pr.base.repo
-      },
+      head: pr.head,
+      base: pr.base,
       created_at: pr.created_at,
       updated_at: pr.updated_at,
       html_url: pr.html_url,
@@ -617,7 +505,7 @@ const getRepositoryPullRequests = async (accessToken, owner, repo, state = 'open
   }
 };
 
-// Get repository commits
+// Get repository commits (cache per repo, branch, page)
 const getRepositoryCommits = async (accessToken, owner, repo, branch = 'main', page = 1, perPage = 100) => {
   try {
     const cacheKey = `repo_commits_${owner}_${repo}_${branch}_${page}`;
@@ -636,15 +524,7 @@ const getRepositoryCommits = async (accessToken, owner, repo, branch = 'main', p
     const commits = response.data.map(commit => ({
       sha: commit.sha,
       node_id: commit.node_id,
-      commit: {
-        author: commit.commit.author,
-        committer: commit.commit.committer,
-        message: commit.commit.message,
-        tree: commit.commit.tree,
-        url: commit.commit.url,
-        comment_count: commit.commit.comment_count,
-        verification: commit.commit.verification
-      },
+      commit: commit.commit,
       url: commit.url,
       html_url: commit.html_url,
       comments_url: commit.comments_url,
@@ -804,39 +684,9 @@ const getUserActivity = async (accessToken, username, page = 1, perPage = 100) =
   }
 };
 
-// Get repository contributors
+// Get repository contributors (cache per repo)
 const getRepositoryContributors = async (accessToken, owner, repo) => {
   try {
-    // Demo mode support
-    if (accessToken === 'demo-github-token') {
-      return [
-        {
-          login: "demo-user",
-          id: 1,
-          avatar_url: "https://github.com/github.png",
-          contributions: 45,
-          type: "User",
-          site_admin: false
-        },
-        {
-          login: "john-doe",
-          id: 2,
-          avatar_url: "https://github.com/github.png",
-          contributions: 23,
-          type: "User",
-          site_admin: false
-        },
-        {
-          login: "jane-smith",
-          id: 3,
-          avatar_url: "https://github.com/github.png",
-          contributions: 12,
-          type: "User",
-          site_admin: false
-        }
-      ];
-    }
-
     const cacheKey = `repo_contributors_${owner}_${repo}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
@@ -861,7 +711,7 @@ const getRepositoryContributors = async (accessToken, owner, repo) => {
   }
 };
 
-// Get repository languages
+// Get repository languages (cache per repo)
 const getRepositoryLanguages = async (accessToken, owner, repo) => {
   try {
     const cacheKey = `repo_languages_${owner}_${repo}`;
