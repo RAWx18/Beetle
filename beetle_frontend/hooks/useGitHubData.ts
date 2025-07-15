@@ -27,7 +27,9 @@ export interface QuickStats {
 export const useGitHubData = () => {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);  // New state for background updates
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   
   // Data states
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -56,6 +58,11 @@ export const useGitHubData = () => {
   const isInitialized = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const apiRef = useRef<GitHubAPI | null>(null);
+
+  // Refs for auto-refresh
+  const autoRefreshInterval = useRef<NodeJS.Timeout | null>(null);
+  const isVisible = useRef(true);
+  const isInitialLoad = useRef(true);
 
   console.log('useGitHubData - Token:', token ? 'Available' : 'Not available');
   console.log('useGitHubData - User:', user);
@@ -393,98 +400,87 @@ export const useGitHubData = () => {
       }));
   };
 
-  // Fetch real GitHub data
-  const fetchRealData = useCallback(async () => {
+  // Modified fetch function with silent update option
+  const fetchRealData = useCallback(async (silent = false) => {
     if (!apiRef.current) {
       console.log('No API instance available');
       setError('No API instance available');
       return;
     }
 
-    console.log('Fetching real GitHub data...');
-    setLoading(true);
+    console.log('Fetching GitHub data...');
+    if (!silent) {
+      setLoading(true);
+    } else {
+      setUpdating(true);
+    }
     setError(null);
 
-    // Check if backend is accessible
-    const isBackendHealthy = await apiRef.current.checkBackendHealth();
-    if (!isBackendHealthy) {
-      setError('Backend server is not accessible. Please check if the server is running and try again. You can use demo mode to explore the application.');
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Fetch repositories first
-      const repos = await apiRef.current.getUserRepositories();
-      console.log('Repositories fetched:', repos.length);
-      setRepositories(repos);
-
-      // Fetch starred repositories
-      try {
-        const starred = await apiRef.current.getUserStarredRepositories();
-        console.log('Starred repositories fetched:', starred.length);
-        setStarredRepositories(starred);
-      } catch (err) {
-        console.error('Error fetching starred repositories:', err);
-        setStarredRepositories([]);
+      // Check if backend is accessible
+      const isBackendHealthy = await apiRef.current.checkBackendHealth();
+      if (!isBackendHealthy) {
+        setError('Backend server is not accessible. Please check if the server is running and try again. You can use demo mode to explore the application.');
+        return;
       }
 
-      // Fetch trending repositories
-      try {
-        const trending = await apiRef.current.getTrendingRepositories();
-        console.log('Trending repositories fetched:', trending.length);
-        setTrendingRepositories(trending);
-      } catch (err) {
-        console.error('Error fetching trending repositories:', err);
-        setTrendingRepositories([]);
-      }
-
-      // Calculate basic stats from repositories
-      const totalStars = repos.reduce((sum, repo) => sum + repo.stargazers_count, 0);
-      const totalForks = repos.reduce((sum, repo) => sum + repo.forks_count, 0);
-      const totalIssues = repos.reduce((sum, repo) => sum + (repo as any).open_issues_count || 0, 0);
-      
-      setDashboardStats(prev => ({
-        ...prev,
-        totalRepos: repos.length,
-        totalStars,
-        totalForks,
-        totalIssues,
-      }));
-
-      // Fetch user-wide data (not repository-specific)
-      const [activity] = await Promise.allSettled([
-        apiRef.current.getUserActivity(),
+      // Fetch data in parallel to improve performance
+      const [
+        repos,
+        starred,
+        trending,
+        activity
+      ] = await Promise.all([
+        apiRef.current.getUserRepositories(),
+        apiRef.current.getUserStarredRepositories().catch(() => []),
+        apiRef.current.getTrendingRepositories().catch(() => []),
+        apiRef.current.getUserActivity().catch(() => [])
       ]);
 
-      if (activity.status === 'fulfilled') {
-        setUserActivity(activity.value);
-        
-        // Transform activity data to proper types
-        const commits = transformActivityToCommits(activity.value);
-        const prs = transformActivityToPRs(activity.value);
-        const issues = transformActivityToIssues(activity.value);
-        
+      // Update states only if the component is still mounted
+      if (isInitialized.current) {
+        setRepositories(repos);
+        setStarredRepositories(starred);
+        setTrendingRepositories(trending);
+        setUserActivity(activity);
+
+        // Transform and update derived data
+        const commits = transformActivityToCommits(activity);
+        const prs = transformActivityToPRs(activity);
+        const issues = transformActivityToIssues(activity);
+
         setRecentCommits(commits.slice(0, 20));
         setOpenPRs(prs.slice(0, 20));
         setOpenIssues(issues.slice(0, 20));
-        
-        setDashboardStats(prev => ({ 
-          ...prev, 
+
+        // Calculate stats
+        const totalStars = repos.reduce((sum, repo) => sum + repo.stargazers_count, 0);
+        const totalForks = repos.reduce((sum, repo) => sum + repo.forks_count, 0);
+        const totalIssues = repos.reduce((sum, repo) => sum + (repo as any).open_issues_count || 0, 0);
+
+        setDashboardStats(prev => ({
+          totalRepos: repos.length,
           totalCommits: commits.length,
           totalPRs: prs.length,
+          totalIssues,
+          totalStars,
+          totalForks,
         }));
-        
-        setQuickStats(prev => ({ 
-          ...prev, 
+
+        setQuickStats(prev => ({
+          ...prev,
+          commitsToday: commits.filter(c => {
+            const date = new Date(c.commit.author.date);
+            const today = new Date();
+            return date.toDateString() === today.toDateString();
+          }).length,
           activePRs: prs.filter(pr => pr.state === 'open').length,
-          starsEarned: totalStars 
+          starsEarned: totalStars,
+          collaborators: new Set(commits.map(c => c.author?.login).filter(Boolean)).size
         }));
       }
-
     } catch (err) {
       console.error('Error fetching GitHub data:', err);
-      
       // Provide more specific error messages
       let errorMessage = 'Failed to fetch GitHub data';
       if (err instanceof Error) {
@@ -504,10 +500,12 @@ export const useGitHubData = () => {
       } else {
         errorMessage = `Failed to fetch GitHub data: ${String(err)}`;
       }
-      
       setError(errorMessage);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
+      setUpdating(false);
     }
   }, []);
 
@@ -535,7 +533,7 @@ export const useGitHubData = () => {
       setLoading(false);
       setError(null);
     } else {
-      fetchRealData();
+      fetchRealData(false);  // Use loading state for initial fetch
     }
   }, [token, user, setMockData, fetchRealData]);
 
@@ -549,37 +547,32 @@ export const useGitHubData = () => {
         created_at: new Date().toISOString()
       })));
     } else {
-      fetchRealData();
+      fetchRealData(true);  // Use silent update for manual refresh
     }
   }, [token, fetchRealData]);
 
-  // Smart auto-refresh with longer intervals
+  // Auto-refresh with smart interval
   useEffect(() => {
     if (!token || !user) return;
 
-    // Clear any existing interval
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
 
-    // Set up new interval with longer duration (30 seconds instead of 5)
     intervalRef.current = setInterval(() => {
       console.log('Auto-refreshing data...');
       if (token === 'demo-token') {
-        // For demo mode, just update timestamps
         setUserActivity(prev => prev.map(activity => ({
           ...activity,
           created_at: new Date().toISOString()
         })));
       } else {
-        // For real data, fetch with error handling
-        fetchRealData().catch(err => {
+        fetchRealData(true).catch(err => {  // Use silent update for auto-refresh
           console.error('Auto-refresh failed:', err);
         });
       }
-    }, 30000); // 30 seconds interval
+    }, 30000);
 
-    // Cleanup on unmount
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -588,8 +581,92 @@ export const useGitHubData = () => {
     };
   }, [token, user, fetchRealData]);
 
+  // Handle visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isVisible.current = document.visibilityState === 'visible';
+      if (isVisible.current && !isInitialLoad.current) {
+        fetchRecentChanges();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Fetch only recent changes
+  const fetchRecentChanges = async () => {
+    if (!apiRef.current || token === 'demo-token') return;
+
+    try {
+      setUpdating(true);
+      const changes = await apiRef.current.getRecentChanges();
+
+      // Update states only if there are changes
+      if (changes.commits.length > 0) {
+        setRecentCommits(prev => [...changes.commits, ...prev].slice(0, 50));
+        setQuickStats(prev => ({ ...prev, commitsToday: prev.commitsToday + changes.commits.length }));
+      }
+
+      if (changes.prs.length > 0) {
+        setOpenPRs(prev => [...changes.prs, ...prev].slice(0, 50));
+        setQuickStats(prev => ({ ...prev, activePRs: prev.activePRs + changes.prs.length }));
+      }
+
+      if (changes.issues.length > 0) {
+        setOpenIssues(prev => [...changes.issues, ...prev].slice(0, 50));
+      }
+
+      if (changes.stats.newStars > 0 || changes.stats.newForks > 0) {
+        setDashboardStats(prev => ({
+          ...prev,
+          totalStars: prev.totalStars + changes.stats.newStars,
+          totalForks: prev.totalForks + changes.stats.newForks,
+        }));
+        setQuickStats(prev => ({
+          ...prev,
+          starsEarned: prev.starsEarned + changes.stats.newStars,
+        }));
+      }
+
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Error fetching recent changes:', err);
+      // Don't set error state for background updates
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Setup auto-refresh
+  useEffect(() => {
+    if (!token || token === 'demo-token') return;
+
+    // Initial load
+    if (isInitialLoad.current) {
+      fetchRealData();
+      isInitialLoad.current = false;
+    }
+
+    // Setup auto-refresh interval (every 2 minutes)
+    autoRefreshInterval.current = setInterval(() => {
+      if (isVisible.current) {
+        fetchRecentChanges();
+      }
+    }, 2 * 60 * 1000);
+
+    return () => {
+      if (autoRefreshInterval.current) {
+        clearInterval(autoRefreshInterval.current);
+      }
+    };
+  }, [token, fetchRealData]);
+
   return {
     loading,
+    updating,  // Add updating state to the return object
     error,
     repositories,
     starredRepositories,
@@ -600,6 +677,7 @@ export const useGitHubData = () => {
     userActivity,
     dashboardStats,
     quickStats,
-    refreshData,
+    lastUpdated,
+    refreshData: fetchRecentChanges,
   };
 }; 

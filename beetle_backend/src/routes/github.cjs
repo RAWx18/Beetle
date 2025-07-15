@@ -648,4 +648,98 @@ router.get('/repositories/:owner/:repo/branches/:branch', asyncHandler(async (re
   }
 }));
 
+// Get recent changes since timestamp
+router.get('/recent-changes', asyncHandler(async (req, res) => {
+  const { since } = req.query;
+  const { accessToken } = req.user;
+
+  try {
+    // Fetch recent activity
+    const activity = await octokit.request('GET /users/{username}/events', {
+      username: req.user.login,
+      per_page: 30,
+      headers: {
+        authorization: `token ${accessToken}`,
+      },
+    });
+
+    // Filter activity since the given timestamp
+    const recentActivity = activity.data.filter(event => 
+      new Date(event.created_at) > new Date(since)
+    );
+
+    // Process different types of events
+    const commits = recentActivity
+      .filter(event => event.type === 'PushEvent')
+      .flatMap(event => event.payload.commits || [])
+      .map(commit => ({
+        sha: commit.sha,
+        commit: {
+          message: commit.message,
+          author: {
+            name: commit.author.name,
+            email: commit.author.email,
+            date: new Date().toISOString()
+          }
+        },
+        author: {
+          login: req.user.login,
+          avatar_url: req.user.avatar_url
+        }
+      }));
+
+    const prs = recentActivity
+      .filter(event => event.type === 'PullRequestEvent')
+      .map(event => ({
+        id: event.payload.pull_request.id,
+        number: event.payload.pull_request.number,
+        title: event.payload.pull_request.title,
+        state: event.payload.pull_request.state,
+        created_at: event.payload.pull_request.created_at,
+        updated_at: event.payload.pull_request.updated_at,
+        user: {
+          login: event.payload.pull_request.user.login,
+          avatar_url: event.payload.pull_request.user.avatar_url
+        },
+        head: { ref: event.payload.pull_request.head.ref },
+        base: { ref: event.payload.pull_request.base.ref }
+      }));
+
+    const issues = recentActivity
+      .filter(event => event.type === 'IssuesEvent')
+      .map(event => ({
+        id: event.payload.issue.id,
+        number: event.payload.issue.number,
+        title: event.payload.issue.title,
+        state: event.payload.issue.state,
+        created_at: event.payload.issue.created_at,
+        updated_at: event.payload.issue.updated_at,
+        user: {
+          login: event.payload.issue.user.login,
+          avatar_url: event.payload.issue.user.avatar_url
+        },
+        labels: event.payload.issue.labels
+      }));
+
+    // Get stats changes
+    const stats = {
+      newStars: recentActivity.filter(event => event.type === 'WatchEvent').length,
+      newForks: recentActivity.filter(event => event.type === 'ForkEvent').length
+    };
+
+    res.json({
+      commits,
+      prs,
+      issues,
+      stats
+    });
+  } catch (error) {
+    console.error('Error fetching recent changes:', error);
+    res.status(500).json({
+      error: 'Failed to fetch recent changes',
+      message: error.message
+    });
+  }
+}));
+
 module.exports = router; 
