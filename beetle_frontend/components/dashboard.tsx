@@ -43,6 +43,7 @@ import {
   Trash2,
   HelpCircle,
   Heart,
+  Clock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -72,6 +73,7 @@ import { Progress } from "@/components/ui/progress"
 import { useGitHubData } from "@/hooks/useGitHubData"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "sonner"
+import { formatDistanceToNow } from "date-fns"
 
 // Mock data definitions
 const mockNotifications = [
@@ -197,6 +199,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   // Use real GitHub data and auth
   const {
     loading: dataLoading,
+    updating,
     error: dataError,
     repositories,
     starredRepositories,
@@ -207,6 +210,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     userActivity,
     dashboardStats,
     quickStats,
+    lastUpdated,
     refreshData,
   } = useGitHubData()
   
@@ -902,253 +906,160 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background relative">
-      {dataLoading && (
-        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <span className="text-muted-foreground">Loading dashboard data...</span>
-          </div>
-        </div>
-      )}
-      {/* Error Banner */}
-      {dataError && (
-        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-6 py-4 rounded-lg relative mb-6 max-w-4xl mx-auto mt-4">
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                Unable to fetch GitHub data
-              </h3>
-              <div className="mt-2 text-sm text-red-700 dark:text-red-300">
-                <p>{dataError}</p>
-                {dataError.includes('Authentication required') && (
-                  <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 rounded-md">
-                    <p className="font-medium mb-2">To fix this:</p>
-                    <ul className="text-xs space-y-1">
-                      <li>• Click "Connect with GitHub" to authorize access to your repositories</li>
-                      <li>• Or use "Try Demo Mode" to explore with sample data</li>
-                      <li>• Make sure you're logged into GitHub in your browser</li>
-                    </ul>
-                    <div className="mt-3 flex gap-2">
-                      <Button 
-                        size="sm" 
-                        onClick={login}
-                        className="text-xs"
-                      >
-                        <Github className="w-3 h-3 mr-1" />
-                        Connect with GitHub
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={loginDemo}
-                        className="text-xs"
-                      >
-                        <Play className="w-3 h-3 mr-1" />
-                        Try Demo Mode
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {(dataError.includes('Failed to fetch') || dataError.includes('Backend server is not accessible')) && (
-                  <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 rounded-md">
-                    <p className="font-medium mb-2">Possible solutions:</p>
-                    <ul className="text-xs space-y-1">
-                      <li>• Check your internet connection</li>
-                      <li>• Try refreshing the page</li>
-                      <li>• Use demo mode if the issue persists</li>
-                    </ul>
-                    <div className="mt-3 flex gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={handleSmoothRefresh}
-                        className="text-xs"
-                      >
-                        <RefreshCw className="w-3 h-3 mr-1" />
-                        Retry
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        onClick={() => {
-                          localStorage.setItem('beetle_token', 'demo-token');
-                          localStorage.setItem('isAuthenticated', 'true');
-                          window.location.reload();
-                        }}
-                        className="text-xs"
-                      >
-                        <Play className="w-3 h-3 mr-1" />
-                        Switch to Demo Mode
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Enhanced Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            {/* Logo & Navigation */}
-            <div className="flex items-center space-x-8">
-              <motion.div
-                className="flex items-center space-x-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-              >
-                <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
-                  <Code className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-xl font-bold">Beetle</span>
-              </motion.div>
-
-              {/* Quick Navigation */}
-              <nav className="hidden md:flex items-center space-x-1">
-                {[
-                  { name: "Overview", id: "overview", icon: BarChart3 },
-                  { name: "Projects", id: "projects", icon: Folder },
-                  { name: "Activity", id: "activity", icon: Activity },
-                  { name: "Insights", id: "insights", icon: TrendingUp },
-                ].map((item) => (
-                  <Button
-                    key={item.id}
-                    variant={activeTab === item.id ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setActiveTab(item.id as "overview" | "projects" | "activity" | "insights")}
-                    className="flex items-center gap-2"
-                  >
-                    <item.icon className="w-4 h-4" />
-                    {item.name}
-                  </Button>
-                ))}
-              </nav>
-            </div>
-
-            {/* Enhanced Search */}
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 items-center">
+          {/* Logo & Navigation */}
+          <div className="flex items-center space-x-8">
             <motion.div
-              className="flex-1 max-w-2xl mx-8"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+              className="flex items-center space-x-2"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
             >
-              <EnhancedSearch onResultSelect={handleSearchResultSelect} onViewAllResults={handleViewAllResults} />
+              <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+                <Code className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-xl font-bold">Beetle</span>
             </motion.div>
 
-            {/* Actions & User Menu */}
-            <div className="flex items-center space-x-3">
-              {/* Notifications */}
-              <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="relative" data-notification-button>
-                    <Bell className="w-4 h-4" />
-                    {unreadNotifications > 0 && (
-                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-72" align="end">
-                  <div className="p-3 border-b">
-                    <h4 className="font-semibold">Notifications</h4>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {notifications.length > 0 ? (
-                      notifications.map((notification, index) => (
-                        <div
-                          key={index} 
-                          className={`p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors ${!notification.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}
-                          onClick={() => markNotificationAsRead(index)}
-                        >
-                          <div className="flex items-start gap-3">
-                            <notification.icon className="w-4 h-4 mt-1 text-muted-foreground" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium">{notification.title}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
-                            </div>
+            {/* Quick Navigation */}
+            <nav className="hidden md:flex items-center space-x-1">
+              {[
+                { name: "Overview", id: "overview", icon: BarChart3 },
+                { name: "Projects", id: "projects", icon: Folder },
+                { name: "Activity", id: "activity", icon: Activity },
+                { name: "Insights", id: "insights", icon: TrendingUp },
+              ].map((item) => (
+                <Button
+                  key={item.id}
+                  variant={activeTab === item.id ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveTab(item.id as "overview" | "projects" | "activity" | "insights")}
+                  className="flex items-center gap-2"
+                >
+                  <item.icon className="w-4 h-4" />
+                  {item.name}
+                </Button>
+              ))}
+            </nav>
+          </div>
+
+          {/* Enhanced Search */}
+          <motion.div
+            className="flex-1 max-w-2xl mx-8"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <EnhancedSearch onResultSelect={handleSearchResultSelect} onViewAllResults={handleViewAllResults} />
+          </motion.div>
+
+          {/* Actions & User Menu */}
+          <div className="flex items-center space-x-3">
+            {/* Notifications */}
+            <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="relative" data-notification-button>
+                  <Bell className="w-4 h-4" />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-72" align="end">
+                <div className="p-3 border-b">
+                  <h4 className="font-semibold">Notifications</h4>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.length > 0 ? (
+                    notifications.map((notification, index) => (
+                      <div
+                        key={index} 
+                        className={`p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors ${!notification.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}
+                        onClick={() => markNotificationAsRead(index)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <notification.icon className="w-4 h-4 mt-1 text-muted-foreground" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{notification.title}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
                           </div>
                         </div>
-                      ))
-                    ) : (
-                      <div className="p-6 text-center text-muted-foreground">
-                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">No notifications</p>
                       </div>
-                    )}
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center text-muted-foreground">
+                      <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No notifications</p>
+                    </div>
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-              {/* User Menu */}
-              <DropdownMenu open={showProfileMenu} onOpenChange={setShowProfileMenu}>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=36&width=36"} alt="User" />
+            {/* User Menu */}
+            <DropdownMenu open={showProfileMenu} onOpenChange={setShowProfileMenu}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=36&width=36"} alt="User" />
+                    <AvatarFallback>{user?.login?.[0]?.toUpperCase() || "U"}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end">
+                <div className="p-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=32&width=32"} />
                       <AvatarFallback>{user?.login?.[0]?.toUpperCase() || "U"}</AvatarFallback>
                     </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end">
-                  <div className="p-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=32&width=32"} />
-                        <AvatarFallback>{user?.login?.[0]?.toUpperCase() || "U"}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-medium">{getUserDisplayName()}</p>
-                        <p className="text-xs text-muted-foreground">{user?.email || user?.login || "user@example.com"}</p>
-                      </div>
+                    <div>
+                      <p className="text-sm font-medium">{getUserDisplayName()}</p>
+                      <p className="text-xs text-muted-foreground">{user?.email || user?.login || "user@example.com"}</p>
                     </div>
                   </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleProfileClick}>
-                    <User className="mr-2 h-4 w-4" />
-                    View Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSettingsClick}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open('https://github.com/settings/profile', '_blank')}>
-                    <Github className="mr-2 h-4 w-4" />
-                    GitHub Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleThemeToggle}>
-                    {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-                    {theme === "dark" ? "Light Mode" : "Dark Mode"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open('https://github.com/notifications', '_blank')}>
-                    <Bell className="mr-2 h-4 w-4" />
-                    GitHub Notifications
-                  </DropdownMenuItem>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleProfileClick}>
+                  <User className="mr-2 h-4 w-4" />
+                  View Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSettingsClick}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.open('https://github.com/settings/profile', '_blank')}>
+                  <Github className="mr-2 h-4 w-4" />
+                  GitHub Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleThemeToggle}>
+                  {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+                  {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.open('https://github.com/notifications', '_blank')}>
+                  <Bell className="mr-2 h-4 w-4" />
+                  GitHub Notifications
+                </DropdownMenuItem>
 
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => window.open('https://github.com/support', '_blank')}>
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    Help & Support
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open('https://github.com/Beetle', '_blank')}>
-                    <Heart className="mr-2 h-4 w-4" />
-                    About Beetle
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} className="text-red-600 hover:text-red-700">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => window.open('https://github.com/support', '_blank')}>
+                  <HelpCircle className="mr-2 h-4 w-4" />
+                  Help & Support
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.open('https://github.com/Beetle', '_blank')}>
+                  <Heart className="mr-2 h-4 w-4" />
+                  About Beetle
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="text-red-600 hover:text-red-700">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>

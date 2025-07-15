@@ -85,9 +85,11 @@ export interface UserActivity {
 
 class GitHubAPI {
   private token: string;
+  private lastUpdateTimestamp: string;
 
   constructor(token: string) {
     this.token = token;
+    this.lastUpdateTimestamp = new Date().toISOString();
   }
 
   // Check if the backend is accessible
@@ -263,6 +265,31 @@ class GitHubAPI {
     }
     const response = await this.request(`/github/trending?${params}`);
     return response.repositories;
+  }
+
+  // Get recent changes since last update
+  async getRecentChanges(): Promise<{
+    commits: Commit[];
+    prs: PullRequest[];
+    issues: Issue[];
+    stats: {
+      newStars: number;
+      newForks: number;
+    };
+  }> {
+    try {
+      const response = await this.request(`/github/recent-changes?since=${this.lastUpdateTimestamp}`);
+      this.lastUpdateTimestamp = new Date().toISOString();
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch recent changes:', error);
+      throw error;
+    }
+  }
+
+  // Update last fetch timestamp
+  updateLastFetchTime() {
+    this.lastUpdateTimestamp = new Date().toISOString();
   }
 }
 
