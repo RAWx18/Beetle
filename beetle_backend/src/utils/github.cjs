@@ -363,23 +363,24 @@ const getRepositoryBranches = async (accessToken, owner, repo) => {
 
     const client = createGitHubClient(accessToken);
     const response = await client.get(`/repos/${owner}/${repo}/branches`);
-
-    const branches = response.data.map(branch => ({
-      name: branch.name,
-      commit: {
-        sha: branch.commit.sha,
-        url: branch.commit.url,
-        html_url: branch.commit.html_url,
-        author: branch.commit.author,
-        committer: branch.commit.committer,
-        message: branch.commit.message,
-        tree: branch.commit.tree,
-        parents: branch.commit.parents
-      },
-      protected: branch.protected,
-      protection: branch.protection
+    const branches = await Promise.all(response.data.map(async branch => {
+      let fullCommit = branch.commit;
+      // If commit object does not have 'commit' or 'tree', fetch full commit
+      if (!fullCommit.commit || !fullCommit.commit.tree) {
+        try {
+          const commitResp = await client.get(`/repos/${owner}/${repo}/commits/${branch.commit.sha}`);
+          fullCommit = commitResp.data;
+        } catch (e) {
+          // If fetching full commit fails, keep the original minimal commit
+        }
+      }
+      return {
+        name: branch.name,
+        commit: fullCommit,
+        protected: branch.protected,
+        protection: branch.protection
+      };
     }));
-
     await setCache(cacheKey, branches, 900); // Cache for 15 minutes
     return branches;
   } catch (error) {
@@ -930,6 +931,130 @@ const searchRepositories = async (accessToken, query, sort = 'stars', order = 'd
   }
 };
 
+// Fetch repository tree (file/folder structure)
+const getRepositoryTree = async (accessToken, owner, repo, branch = 'main') => {
+  try {
+    const cacheKey = `repo_tree_${owner}_${repo}_${branch}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return cached;
+
+    const client = createGitHubClient(accessToken);
+    // Get the SHA of the branch
+    const branchResp = await client.get(`/repos/${owner}/${repo}/branches/${branch}`);
+    const treeSha = branchResp.data.commit.commit.tree.sha;
+    // Get the tree recursively
+    const treeResp = await client.get(`/repos/${owner}/${repo}/git/trees/${treeSha}`, {
+      params: { recursive: 1 }
+    });
+    await setCache(cacheKey, treeResp.data.tree, 900); // Cache for 15 minutes
+    return treeResp.data.tree;
+  } catch (error) {
+    console.error('Error fetching repository tree:', error.message);
+    throw new Error('Failed to fetch repository tree');
+  }
+};
+
+// Fetch file content from a repo
+const getFileContent = async (accessToken, owner, repo, path, branch = 'main') => {
+  try {
+    const cacheKey = `repo_file_content_${owner}_${repo}_${branch}_${path}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return cached;
+
+    const client = createGitHubClient(accessToken);
+    const resp = await client.get(`/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, {
+      params: { ref: branch }
+    });
+    // If file is encoded in base64, decode it
+    let content = resp.data.content;
+    if (resp.data.encoding === 'base64') {
+      content = Buffer.from(content, 'base64').toString('utf-8');
+    }
+    await setCache(cacheKey, content, 600); // Cache for 10 minutes
+    return content;
+  } catch (error) {
+    console.error('Error fetching file content:', error.message);
+    throw new Error('Failed to fetch file content');
+  }
+};
+
+// Fetch file trees from all branches for a repository
+const getRepositoryTreesForAllBranches = async (accessToken, owner, repo) => {
+  try {
+    const cacheKey = `repo_trees_all_branches_${owner}_${repo}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return cached;
+
+    const client = createGitHubClient(accessToken);
+    // First, get all branches
+    let branchesResp;
+    try {
+      branchesResp = await client.get(`/repos/${owner}/${repo}/branches`);
+    } catch (error) {
+      console.error('Error fetching branches:', error.message, error.response?.data);
+      throw new Error(`Failed to fetch branches: ${error.response?.data?.message || error.message}`);
+    }
+    const branches = branchesResp.data;
+    if (!Array.isArray(branches) || branches.length === 0) {
+      throw new Error('No branches found in repository');
+    }
+    // Fetch tree for each branch
+    const treesByBranch = {};
+    let allFailed = true;
+    for (const branch of branches) {
+      try {
+        const branchName = branch.name;
+        // Defensive: check for commit and tree existence
+        if (!branch.commit || !branch.commit.commit || !branch.commit.commit.tree || !branch.commit.commit.tree.sha) {
+          throw new Error('Branch commit or tree SHA missing');
+        }
+        const treeSha = branch.commit.commit.tree.sha;
+        // Get the tree recursively for this branch
+        let treeResp;
+        try {
+          treeResp = await client.get(`/repos/${owner}/${repo}/git/trees/${treeSha}`, {
+            params: { recursive: 1 }
+          });
+        } catch (treeError) {
+          throw new Error(`Failed to fetch tree: ${treeError.response?.data?.message || treeError.message}`);
+        }
+        treesByBranch[branchName] = {
+          branch: branchName,
+          tree: treeResp.data.tree,
+          lastCommit: {
+            sha: branch.commit.sha,
+            message: branch.commit.commit.message,
+            author: branch.commit.commit.author,
+            committer: branch.commit.commit.committer
+          }
+        };
+        allFailed = false;
+      } catch (branchError) {
+        console.error(`Error fetching tree for branch ${branch.name}:`, branchError.message);
+        treesByBranch[branch.name] = {
+          branch: branch.name,
+          tree: [],
+          error: branchError.message,
+          lastCommit: branch.commit && branch.commit.commit ? {
+            sha: branch.commit.sha,
+            message: branch.commit.commit.message,
+            author: branch.commit.commit.author,
+            committer: branch.commit.commit.committer
+          } : null
+        };
+      }
+    }
+    if (allFailed) {
+      throw new Error('Failed to fetch repository trees for all branches (all branches failed)');
+    }
+    await setCache(cacheKey, treesByBranch, 900); // Cache for 15 minutes
+    return treesByBranch;
+  } catch (error) {
+    console.error('Error fetching repository trees for all branches:', error.message, error.stack);
+    throw new Error(error.message || 'Failed to fetch repository trees for all branches');
+  }
+};
+
 // Export all functions
 module.exports = {
   getUserProfile,
@@ -942,5 +1067,8 @@ module.exports = {
   getUserActivity,
   getRepositoryContributors,
   getRepositoryLanguages,
-  searchRepositories
+  searchRepositories,
+  getRepositoryTree,
+  getFileContent,
+  getRepositoryTreesForAllBranches
 }; 

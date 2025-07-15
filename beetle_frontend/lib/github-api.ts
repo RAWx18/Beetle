@@ -229,6 +229,24 @@ class GitHubAPI {
     return response.tree;
   }
 
+  // Get file trees from all branches
+  async getRepositoryTreesForAllBranches(owner: string, repo: string) {
+    const response = await this.request(`/github/repositories/${owner}/${repo}/trees`);
+    return response.treesByBranch;
+  }
+
+  // Get all branches with their file trees (comprehensive data)
+  async getBranchesWithTrees(owner: string, repo: string) {
+    const response = await this.request(`/github/repositories/${owner}/${repo}/branches-with-trees`);
+    return response;
+  }
+
+  // Get file content
+  async getFileContent(owner: string, repo: string, path: string, branch: string = 'main') {
+    const response = await this.request(`/github/repositories/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${branch}`);
+    return response.content;
+  }
+
   // Get user starred repositories
   async getUserStarredRepositories(page = 1, per_page = 100): Promise<Repository[]> {
     const response = await this.request(`/github/starred?page=${page}&per_page=${per_page}`);

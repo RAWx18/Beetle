@@ -12,6 +12,10 @@ const authRoutes = require('./routes/auth.cjs');
 const githubRoutes = require('./routes/github.cjs');
 const analyticsRoutes = require('./routes/analytics.cjs');
 const projectsRoutes = require('./routes/projects.cjs');
+const aiRoutes = require('./routes/ai.cjs');
+
+// Import environment utilities
+const { printEnvStatus } = require('./utils/env.cjs');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler.cjs');
@@ -93,6 +97,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/github', authMiddleware, githubRoutes);
 app.use('/api/analytics', authMiddleware, analyticsRoutes);
 app.use('/api/projects', authMiddleware, projectsRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -104,7 +109,8 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       github: '/api/github',
       analytics: '/api/analytics',
-      projects: '/api/projects'
+      projects: '/api/projects',
+      ai: '/api/ai'
     }
   });
 });
@@ -126,10 +132,14 @@ const startServer = async () => {
     await initDatabase();
     console.log('✅ Database initialized successfully');
     
+    // Print environment configuration status
+    printEnvStatus();
+    
     app.listen(PORT, () => {
       console.log(`🚀 Beetle Backend server running on port ${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/health`);
       console.log(`🔗 API Base URL: http://localhost:${PORT}/api`);
+      console.log(`🤖 AI Pipeline: http://localhost:${PORT}/api/ai/health`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

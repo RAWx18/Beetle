@@ -7,6 +7,7 @@ Backend API for Beetle - Git-based collaboration with Branch-Level Intelligence.
 - 🔐 **GitHub OAuth Authentication** - Secure login with GitHub
 - 📊 **GitHub API Integration** - Fetch repositories, branches, issues, PRs, and more
 - 📈 **Analytics & Insights** - Generate comprehensive analytics from GitHub data
+- 🤖 **AI Pipeline** - Multi-agent AI system for document processing, search, and chat
 - 🗄️ **Local Data Storage** - Store data locally using JSON database
 - 🔄 **Caching System** - Intelligent caching for better performance
 - 🛡️ **Security** - JWT tokens, rate limiting, and input validation
@@ -27,6 +28,9 @@ Backend API for Beetle - Git-based collaboration with Branch-Level Intelligence.
 - Node.js 18+ 
 - npm or yarn
 - GitHub OAuth App (for authentication)
+- GitHub Personal Access Token (for AI pipeline)
+- Google Gemini API Key (for AI pipeline)
+- Docker (for Qdrant vector database)
 
 ## Setup
 
@@ -39,13 +43,20 @@ npm install
 
 ### 2. Environment Configuration
 
-Copy the environment template and configure your variables:
+Set up your environment variables:
 
 ```bash
+# Interactive setup (recommended)
+npm run setup
+
+# Quick setup (copy from example)
+npm run setup:quick
+
+# Manual setup
 cp env.example .env
 ```
 
-Edit `.env` with your configuration:
+Edit `.env` with your configuration. Required variables:
 
 ```env
 # Server Configuration
@@ -70,7 +81,14 @@ RATE_LIMIT_MAX_REQUESTS=100
 
 # Cache Configuration
 CACHE_TTL=3600
+
+# AI Pipeline Configuration (Required)
+GEMINI_API_KEY=your_google_gemini_api_key
+QDRANT_URL=localhost
+QDRANT_PORT=6333
 ```
+
+For complete AI pipeline configuration, see `env.example` or run `npm run setup`.
 
 ### 3. GitHub OAuth Setup
 
@@ -79,7 +97,17 @@ CACHE_TTL=3600
 3. Set the callback URL to: `http://localhost:3001/auth/github/callback`
 4. Copy the Client ID and Client Secret to your `.env` file
 
-### 4. Start the Server
+### 4. AI Pipeline Setup
+
+```bash
+# Install Playwright browsers
+npx playwright install chromium
+
+# Start Qdrant vector database
+docker run -p 6333:6333 qdrant/qdrant
+```
+
+### 5. Start the Server
 
 ```bash
 # Development mode
@@ -90,6 +118,12 @@ npm start
 ```
 
 The server will start on `http://localhost:3001`
+
+### 6. Test AI Pipeline
+
+```bash
+npm run test:ai
+```
 
 ## API Endpoints
 
@@ -137,6 +171,18 @@ The server will start on `http://localhost:3001`
 - `GET /api/projects/:projectId/analytics` - Get project analytics
 - `POST /api/projects/import` - Import repository as project
 - `GET /api/projects/:projectId/beetle` - Get Beetle-specific project data
+
+### AI Pipeline
+
+- `GET /api/ai/health` - AI pipeline health check
+- `GET /api/ai/config` - Get AI pipeline configuration
+- `GET /api/ai/env` - Get detailed environment configuration
+- `GET /api/ai/status` - Get pipeline status
+- `POST /api/ai/ingest` - Ingest content from GitHub/websites
+- `POST /api/ai/pipeline/full` - Run full AI pipeline
+- `POST /api/ai/search` - Search documents with AI
+- `POST /api/ai/chat` - Chat with AI about documents
+- `POST /api/ai/test/:agent` - Test individual agents
 
 ## Frontend Integration
 

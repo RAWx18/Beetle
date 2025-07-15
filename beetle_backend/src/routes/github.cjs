@@ -10,7 +10,10 @@ const {
   getUserActivity,
   getRepositoryContributors,
   getRepositoryLanguages,
-  searchRepositories
+  searchRepositories,
+  getRepositoryTree,
+  getFileContent,
+  getRepositoryTreesForAllBranches
 } = require('../utils/github.cjs');
 const { saveRepository, getRepository } = require('../utils/database.cjs');
 const { asyncHandler } = require('../middleware/errorHandler.cjs');
@@ -645,6 +648,68 @@ router.get('/repositories/:owner/:repo/branches/:branch', asyncHandler(async (re
       error: 'Failed to fetch branch data',
       message: error.message
     });
+  }
+}));
+
+// Get repository tree (file/folder structure)
+router.get('/repositories/:owner/:repo/tree', asyncHandler(async (req, res) => {
+  const { owner, repo } = req.params;
+  const branch = req.query.branch || 'main';
+  try {
+    const tree = await getRepositoryTree(req.user.accessToken, owner, repo, branch);
+    res.json({ tree });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch repository tree', message: error.message });
+  }
+}));
+
+// Get file trees from all branches for a repository
+router.get('/repositories/:owner/:repo/trees', asyncHandler(async (req, res) => {
+  const { owner, repo } = req.params;
+  try {
+    const treesByBranch = await getRepositoryTreesForAllBranches(req.user.accessToken, owner, repo);
+    res.json({ treesByBranch });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch repository trees for all branches', message: error.message });
+  }
+}));
+
+// Get file content from a repo
+router.get('/repositories/:owner/:repo/contents/:path', asyncHandler(async (req, res) => {
+  const { owner, repo, path } = req.params;
+  const branch = req.query.ref || 'main';
+  try {
+    const content = await getFileContent(req.user.accessToken, owner, repo, path, branch);
+    res.json({ content });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch file content', message: error.message });
+  }
+}));
+
+// Get all branches with their file trees (comprehensive endpoint)
+router.get('/repositories/:owner/:repo/branches-with-trees', asyncHandler(async (req, res) => {
+  const { owner, repo } = req.params;
+  try {
+    // Get all branches
+    const branches = await getRepositoryBranches(req.user.accessToken, owner, repo);
+    
+    // Get trees for all branches
+    const treesByBranch = await getRepositoryTreesForAllBranches(req.user.accessToken, owner, repo);
+    
+    // Combine the data
+    const result = {
+      branches: branches,
+      treesByBranch: treesByBranch,
+      summary: {
+        totalBranches: branches.length,
+        branchesWithTrees: Object.keys(treesByBranch).length,
+        branchesWithErrors: Object.values(treesByBranch).filter(b => b.error).length
+      }
+    };
+    
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch branches with trees', message: error.message });
   }
 }));
 
