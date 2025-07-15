@@ -1793,16 +1793,6 @@ export const ImportPanel: React.FC = () => {
               Import context from multiple branches to enhance your AI interactions.
             </p>
             
-            {/* Debug info */}
-            <div className="bg-gray-100 p-3 rounded text-xs">
-              <p><strong>Debug Info:</strong></p>
-              <p>Repository: {repository?.owner?.login}/{repository?.name || 'Not set'}</p>
-              <p>Token: {token ? 'Available' : 'Not available'}</p>
-              <p>Branch List Length: {branchList.length}</p>
-              <p>Loading: {loadingBranches ? 'Yes' : 'No'}</p>
-              <p>Error: {branchError || 'None'}</p>
-            </div>
-            
             {/* Branch selection section */}
             <div className="mb-4">
               <div className="flex items-center justify-between mb-3">

@@ -365,11 +365,16 @@ const getRepositoryBranches = async (accessToken, owner, repo) => {
     const response = await client.get(`/repos/${owner}/${repo}/branches`);
     const branches = await Promise.all(response.data.map(async branch => {
       let fullCommit = branch.commit;
-      // If commit object does not have 'commit' or 'tree', fetch full commit
-      if (!fullCommit.commit || !fullCommit.commit.tree) {
+      // Try to get the full commit from cache first
+      const commitCacheKey = `repo_commit_${owner}_${repo}_${branch.commit.sha}`;
+      let cachedCommit = await getCache(commitCacheKey);
+      if (cachedCommit) {
+        fullCommit = cachedCommit;
+      } else if (!fullCommit.commit || !fullCommit.commit.tree) {
         try {
           const commitResp = await client.get(`/repos/${owner}/${repo}/commits/${branch.commit.sha}`);
           fullCommit = commitResp.data;
+          await setCache(commitCacheKey, fullCommit, 900); // Cache for 15 minutes
         } catch (e) {
           // If fetching full commit fails, keep the original minimal commit
         }
@@ -388,6 +393,9 @@ const getRepositoryBranches = async (accessToken, owner, repo) => {
     throw new Error('Failed to fetch repository branches');
   }
 };
+
+// Add a delay utility to avoid rate limiting
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // Get repository issues
 const getRepositoryIssues = async (accessToken, owner, repo, state = 'open', page = 1, perPage = 100) => {
@@ -1001,14 +1009,24 @@ const getRepositoryTreesForAllBranches = async (accessToken, owner, repo) => {
     // Fetch tree for each branch
     const treesByBranch = {};
     let allFailed = true;
-    for (const branch of branches) {
+    for (const [i, branch] of branches.entries()) {
       try {
-        const branchName = branch.name;
-        // Defensive: check for commit and tree existence
-        if (!branch.commit || !branch.commit.commit || !branch.commit.commit.tree || !branch.commit.commit.tree.sha) {
+        // Try to get the full commit from cache first
+        const commitCacheKey = `repo_commit_${owner}_${repo}_${branch.commit.sha}`;
+        let fullCommit = await getCache(commitCacheKey);
+        if (!fullCommit) {
+          // Fetch full commit if not cached
+          const commitResp = await client.get(`/repos/${owner}/${repo}/commits/${branch.commit.sha}`);
+          fullCommit = commitResp.data;
+          await setCache(commitCacheKey, fullCommit, 900); // Cache for 15 minutes
+          // Add a small delay to avoid rate limiting if many branches
+          if (branches.length > 5) await delay(200);
+        }
+        if (!fullCommit.commit || !fullCommit.commit.tree || !fullCommit.commit.tree.sha) {
           throw new Error('Branch commit or tree SHA missing');
         }
-        const treeSha = branch.commit.commit.tree.sha;
+        const branchName = branch.name;
+        const treeSha = fullCommit.commit.tree.sha;
         // Get the tree recursively for this branch
         let treeResp;
         try {
@@ -1022,10 +1040,10 @@ const getRepositoryTreesForAllBranches = async (accessToken, owner, repo) => {
           branch: branchName,
           tree: treeResp.data.tree,
           lastCommit: {
-            sha: branch.commit.sha,
-            message: branch.commit.commit.message,
-            author: branch.commit.commit.author,
-            committer: branch.commit.commit.committer
+            sha: fullCommit.sha,
+            message: fullCommit.commit.message,
+            author: fullCommit.commit.author,
+            committer: fullCommit.commit.committer
           }
         };
         allFailed = false;
@@ -1035,12 +1053,7 @@ const getRepositoryTreesForAllBranches = async (accessToken, owner, repo) => {
           branch: branch.name,
           tree: [],
           error: branchError.message,
-          lastCommit: branch.commit && branch.commit.commit ? {
-            sha: branch.commit.sha,
-            message: branch.commit.commit.message,
-            author: branch.commit.commit.author,
-            committer: branch.commit.commit.committer
-          } : null
+          lastCommit: null
         };
       }
     }
