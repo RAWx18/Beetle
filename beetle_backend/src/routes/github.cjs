@@ -13,7 +13,8 @@ const {
   searchRepositories,
   getRepositoryTree,
   getFileContent,
-  getRepositoryTreesForAllBranches
+  getRepositoryTreesForAllBranches,
+  isValidOwner
 } = require('../utils/github.cjs');
 const { saveRepository, getRepository } = require('../utils/database.cjs');
 const { asyncHandler } = require('../middleware/errorHandler.cjs');
@@ -667,6 +668,11 @@ router.get('/repositories/:owner/:repo/tree', asyncHandler(async (req, res) => {
 router.get('/repositories/:owner/:repo/trees', asyncHandler(async (req, res) => {
   const { owner, repo } = req.params;
   try {
+    // Validate owner parameter
+    if (!isValidOwner(owner)) {
+      return res.status(400).json({ error: 'Invalid owner parameter' });
+    }
+
     const treesByBranch = await getRepositoryTreesForAllBranches(req.user.accessToken, owner, repo);
     res.json({ treesByBranch });
   } catch (error) {
