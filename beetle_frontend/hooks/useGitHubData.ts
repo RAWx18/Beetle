@@ -424,17 +424,21 @@ export const useGitHubData = () => {
         return;
       }
 
-      // Fetch data in parallel to improve performance
+      // Fetch basic data in parallel to improve performance
       const [
         repos,
         starred,
         trending,
-        activity
+        activity,
+        aggregatedPRs,
+        aggregatedIssues
       ] = await Promise.all([
         apiRef.current.getUserRepositories(),
         apiRef.current.getUserStarredRepositories().catch(() => []),
         apiRef.current.getTrendingRepositories().catch(() => []),
-        apiRef.current.getUserActivity().catch(() => [])
+        apiRef.current.getUserActivity().catch(() => []),
+        apiRef.current.getAggregatedPullRequests('all', 15).catch(() => []),
+        apiRef.current.getAggregatedIssues('all', 15).catch(() => [])
       ]);
 
       // Update states only if the component is still mounted
@@ -444,14 +448,40 @@ export const useGitHubData = () => {
         setTrendingRepositories(trending);
         setUserActivity(activity);
 
-        // Transform and update derived data
-        const commits = transformActivityToCommits(activity);
-        const prs = transformActivityToPRs(activity);
-        const issues = transformActivityToIssues(activity);
+        // Use aggregated data for pull requests and issues
+        const allPullRequests = aggregatedPRs;
+        const allIssues = aggregatedIssues;
+        
+        // Transform activity data for additional commits
+        const activityCommits = transformActivityToCommits(activity);
+        
+        // Get commits from a few repositories to supplement activity data
+        const allCommits = [...activityCommits];
+        
+        // Fetch commits from top 3 repositories for more recent data
+        const topRepos = repos.slice(0, 3);
+        for (const repo of topRepos) {
+          try {
+            const repoCommits = await apiRef.current.getRepositoryCommits(repo.owner.login, repo.name, 'main', 1, 5);
+            allCommits.push(...repoCommits);
+          } catch (error) {
+            console.warn(`Failed to fetch commits for ${repo.full_name}:`, error);
+          }
+        }
 
-        setRecentCommits(commits.slice(0, 20));
-        setOpenPRs(prs.slice(0, 20));
-        setOpenIssues(issues.slice(0, 20));
+        // Combine and deduplicate commits
+        const uniqueCommits = allCommits.filter((commit, index, self) => 
+          index === self.findIndex(c => c.sha === commit.sha)
+        );
+
+        // Sort by date (most recent first)
+        allPullRequests.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        allIssues.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        uniqueCommits.sort((a, b) => new Date(b.commit.author.date).getTime() - new Date(a.commit.author.date).getTime());
+
+        setRecentCommits(uniqueCommits.slice(0, 20));
+        setOpenPRs(allPullRequests.slice(0, 20));
+        setOpenIssues(allIssues.slice(0, 20));
 
         // Calculate stats
         const totalStars = repos.reduce((sum, repo) => sum + repo.stargazers_count, 0);
@@ -460,23 +490,23 @@ export const useGitHubData = () => {
 
         setDashboardStats(prev => ({
           totalRepos: repos.length,
-          totalCommits: commits.length,
-          totalPRs: prs.length,
-          totalIssues,
+          totalCommits: uniqueCommits.length,
+          totalPRs: allPullRequests.length,
+          totalIssues: allIssues.length,
           totalStars,
           totalForks,
         }));
 
         setQuickStats(prev => ({
           ...prev,
-          commitsToday: commits.filter(c => {
+          commitsToday: uniqueCommits.filter(c => {
             const date = new Date(c.commit.author.date);
             const today = new Date();
             return date.toDateString() === today.toDateString();
           }).length,
-          activePRs: prs.filter(pr => pr.state === 'open').length,
+          activePRs: allPullRequests.filter(pr => pr.state === 'open').length,
           starsEarned: totalStars,
-          collaborators: new Set(commits.map(c => c.author?.login).filter(Boolean)).size
+          collaborators: new Set(uniqueCommits.map(c => c.author?.login).filter(Boolean)).size
         }));
       }
     } catch (err) {
@@ -602,39 +632,61 @@ export const useGitHubData = () => {
 
     try {
       setUpdating(true);
-      const changes = await apiRef.current.getRecentChanges();
+      
+      // Fetch recent activity and transform to get recent commits, PRs, and issues
+      const activity = await apiRef.current.getUserActivity(user?.login, 1, 10);
+      
+      if (activity.length > 0) {
+        // Transform activity to get recent data
+        const recentCommits = transformActivityToCommits(activity);
+        const recentPRs = transformActivityToPRs(activity);
+        const recentIssues = transformActivityToIssues(activity);
 
-      // Update states only if there are changes
-      if (changes.commits.length > 0) {
-        setRecentCommits(prev => [...changes.commits, ...prev].slice(0, 50));
-        setQuickStats(prev => ({ ...prev, commitsToday: prev.commitsToday + changes.commits.length }));
-      }
+        // Update states only if there are changes
+        if (recentCommits.length > 0) {
+          setRecentCommits(prev => {
+            const combined = [...recentCommits, ...prev];
+            const unique = combined.filter((commit, index, self) => 
+              index === self.findIndex(c => c.sha === commit.sha)
+            );
+            return unique.slice(0, 50);
+          });
+          setQuickStats(prev => ({ ...prev, commitsToday: prev.commitsToday + recentCommits.length }));
+        }
 
-      if (changes.prs.length > 0) {
-        setOpenPRs(prev => [...changes.prs, ...prev].slice(0, 50));
-        setQuickStats(prev => ({ ...prev, activePRs: prev.activePRs + changes.prs.length }));
-      }
+        if (recentPRs.length > 0) {
+          setOpenPRs(prev => {
+            const combined = [...recentPRs, ...prev];
+            const unique = combined.filter((pr, index, self) => 
+              index === self.findIndex(p => p.id === pr.id)
+            );
+            return unique.slice(0, 50);
+          });
+          setQuickStats(prev => ({ ...prev, activePRs: recentPRs.filter(pr => pr.state === 'open').length }));
+        }
 
-      if (changes.issues.length > 0) {
-        setOpenIssues(prev => [...changes.issues, ...prev].slice(0, 50));
-      }
+        if (recentIssues.length > 0) {
+          setOpenIssues(prev => {
+            const combined = [...recentIssues, ...prev];
+            const unique = combined.filter((issue, index, self) => 
+              index === self.findIndex(i => i.id === issue.id)
+            );
+            return unique.slice(0, 50);
+          });
+        }
 
-      if (changes.stats.newStars > 0 || changes.stats.newForks > 0) {
-        setDashboardStats(prev => ({
-          ...prev,
-          totalStars: prev.totalStars + changes.stats.newStars,
-          totalForks: prev.totalForks + changes.stats.newForks,
-        }));
-        setQuickStats(prev => ({
-          ...prev,
-          starsEarned: prev.starsEarned + changes.stats.newStars,
-        }));
+        setUserActivity(prev => {
+          const combined = [...activity, ...prev];
+          const unique = combined.filter((act, index, self) => 
+            index === self.findIndex(a => a.id === act.id)
+          );
+          return unique.slice(0, 100);
+        });
       }
 
       setLastUpdated(new Date());
-    } catch (err) {
-      console.error('Error fetching recent changes:', err);
-      // Don't set error state for background updates
+    } catch (error) {
+      console.error('Failed to fetch recent changes:', error);
     } finally {
       setUpdating(false);
     }
