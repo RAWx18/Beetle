@@ -13,6 +13,7 @@ const githubRoutes = require('./routes/github.cjs');
 const analyticsRoutes = require('./routes/analytics.cjs');
 const projectsRoutes = require('./routes/projects.cjs');
 const aiRoutes = require('./routes/ai.cjs');
+const aggregatedRoutes = require('./routes/aggregated.cjs');
 
 // Import environment utilities
 const { printEnvStatus } = require('./utils/env.cjs');
@@ -92,9 +93,17 @@ app.get('/health', (req, res) => {
   });
 });
 
+// GitHub OAuth callback route (direct mount for GitHub OAuth compatibility)
+app.use('/auth/github/callback', (req, res, next) => {
+  // Forward to the actual auth route handler
+  req.url = '/github/callback' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '');
+  authRoutes(req, res, next);
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/github', authMiddleware, githubRoutes);
+app.use('/api/aggregated', authMiddleware, aggregatedRoutes);
 app.use('/api/analytics', authMiddleware, analyticsRoutes);
 app.use('/api/projects', authMiddleware, projectsRoutes);
 app.use('/api/ai', aiRoutes);
@@ -108,6 +117,7 @@ app.get('/', (req, res) => {
     endpoints: {
       auth: '/api/auth',
       github: '/api/github',
+      aggregated: '/api/aggregated',
       analytics: '/api/analytics',
       projects: '/api/projects',
       ai: '/api/ai'

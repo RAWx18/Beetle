@@ -28,16 +28,7 @@
     "node-cache": "^5.1.2",
     "uuid": "^9.0.1",
     "@octokit/rest": "^20.0.2",
-    "google-generativeai": "^0.2.1",
-    "qdrant-client": "^1.7.0",
-    "sentence-transformers": "^2.2.2",
-    "playwright": "^1.40.0",
-    "trafilatura": "^7.4.0",
-    "beautifulsoup4": "^4.12.2",
-    "langdetect": "^1.0.9",
-    "numpy": "^1.24.3",
-    "pandas": "^2.0.3",
-    "pydantic": "^2.5.0"
+    "playwright": "^1.40.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
