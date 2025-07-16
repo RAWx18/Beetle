@@ -36,6 +36,9 @@ export default function RootLayout({
             </RepositoryProvider>
           </AuthProvider>
         </ThemeProvider>
+        {process.env.NODE_ENV === 'development' && (
+          <script src="/debug-auth.js" />
+        )}
       </body>
     </html>
   )

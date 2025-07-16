@@ -161,6 +161,24 @@ class GitHubAPI {
     return response.commits;
   }
 
+  // Get aggregated pull requests from all user repositories
+  async getAggregatedPullRequests(state = 'all', limit = 10): Promise<PullRequest[]> {
+    const response = await this.request(`/aggregated/pull-requests?state=${state}&limit=${limit}`);
+    return response.pullRequests;
+  }
+
+  // Get aggregated issues from all user repositories
+  async getAggregatedIssues(state = 'all', limit = 10): Promise<Issue[]> {
+    const response = await this.request(`/aggregated/issues?state=${state}&limit=${limit}`);
+    return response.issues;
+  }
+
+  // Get aggregated summary of all user repositories
+  async getAggregatedSummary(limit = 10) {
+    const response = await this.request(`/aggregated/summary?limit=${limit}`);
+    return response;
+  }
+
   // Get repository pull requests
   async getRepositoryPullRequests(owner: string, repo: string, state = 'open', page = 1, per_page = 100): Promise<PullRequest[]> {
     const response = await this.request(`/github/repositories/${owner}/${repo}/pulls?state=${state}&page=${page}&per_page=${per_page}`);

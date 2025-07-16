@@ -225,7 +225,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     });
   }, [repositories, starredRepositories, trendingRepositories, dataLoading, dataError]);
   
-  const { user, isAuthenticated, login, loginDemo, enableAutoDemo, disableAutoDemo } = useAuth()
+  const { user, isAuthenticated, login, loginDemo, enableAutoDemo, disableAutoDemo, forceLogout, token } = useAuth()
 
   // Initialize editable username when user data is available
   useEffect(() => {
@@ -907,6 +907,37 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Demo Mode Banner */}
+      {token === 'demo-token' && (
+        <div className="bg-orange-100 border-b border-orange-200 py-3 px-4">
+          <div className="container mx-auto flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">!</span>
+              </div>
+              <div>
+                <p className="text-orange-800 font-medium">Demo Mode Active</p>
+                <p className="text-orange-700 text-sm">You're viewing sample data. Connect your GitHub account to see real data.</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={login}
+                className="bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 transition-colors"
+              >
+                Connect GitHub
+              </button>
+              <button
+                onClick={forceLogout}
+                className="text-orange-600 text-sm font-medium hover:text-orange-700 transition-colors"
+              >
+                Exit Demo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center">
           {/* Logo & Navigation */}
@@ -1823,24 +1854,48 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       <CardTitle className="flex items-center space-x-2">
                         <GitBranch className="h-5 w-5" />
                         <span>Pull Requests</span>
+                        {updating && <div className="h-4 w-4 animate-spin border-2 border-current border-t-transparent rounded-full" />}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {openPRs.slice(0, shownPRsCount).map((pr) => (
-                        <div key={pr.id} className="flex items-center space-x-3 p-3 rounded-lg border">
-                          <div className="flex items-center space-x-2">
-                            <GitBranch className="h-4 w-4 text-blue-500" />
+                        <div key={pr.id} className="flex items-start space-x-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center space-x-2 mt-1">
+                            <GitBranch className={`h-4 w-4 ${pr.state === 'open' ? 'text-green-500' : pr.state === 'merged' ? 'text-purple-500' : 'text-gray-500'}`} />
                             <span className="text-sm font-medium">#{pr.number}</span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{pr.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {pr.user.login} • {getRelativeTime(pr.created_at)}
-                            </p>
+                            <p className="text-sm font-medium leading-tight mb-1">{pr.title}</p>
+                            <div className="flex items-center space-x-2 text-xs text-muted-foreground mb-2">
+                              <span>{pr.user.login}</span>
+                              <span>•</span>
+                              <span>{getRelativeTime(pr.created_at)}</span>
+                              {pr.head && pr.base && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-blue-600">{pr.head.ref}</span>
+                                  <span>→</span>
+                                  <span className="text-green-600">{pr.base.ref}</span>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-3 text-xs text-muted-foreground">
+                              {(pr as any).additions !== undefined && (
+                                <span className="text-green-600">+{(pr as any).additions}</span>
+                              )}
+                              {(pr as any).deletions !== undefined && (
+                                <span className="text-red-600">-{(pr as any).deletions}</span>
+                              )}
+                              {(pr as any).comments !== undefined && (
+                                <span>💬 {(pr as any).comments}</span>
+                              )}
+                            </div>
                           </div>
-                          <Badge variant={pr.state === 'open' ? 'default' : 'secondary'}>
-                            {pr.state}
-                          </Badge>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={pr.state === 'open' ? 'default' : pr.state === 'merged' ? 'secondary' : 'outline'}>
+                              {pr.state}
+                            </Badge>
+                          </div>
                         </div>
                       ))}
                       {/* Show More Button for PRs */}
@@ -1850,7 +1905,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                           className="w-full mt-4"
                           onClick={() => setShownPRsCount(c => Math.min(c + PRS_BATCH, openPRs.length))}
                         >
-                          Show More
+                          Show More ({openPRs.length - shownPRsCount} remaining)
                         </Button>
                       ) : openPRs.length > PRS_BATCH && shownPRsCount > PRS_BATCH ? (
                         <Button
@@ -1862,9 +1917,10 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                         </Button>
                       ) : null}
                       {openPRs.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          No pull requests found
-                        </p>
+                        <div className="text-center py-8">
+                          <GitBranch className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-sm text-muted-foreground">No pull requests found</p>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -1876,27 +1932,53 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       <CardTitle className="flex items-center space-x-2">
                         <MessageSquare className="h-5 w-5" />
                         <span>Issues</span>
+                        {updating && <div className="h-4 w-4 animate-spin border-2 border-current border-t-transparent rounded-full" />}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {openIssues.slice(0, shownIssuesCount).map((issue) => (
-                        <div key={issue.id} className="flex items-center space-x-3 p-3 rounded-lg border">
-                          <div className="flex items-center space-x-2">
-                            <MessageSquare className="h-4 w-4 text-green-500" />
+                        <div key={issue.id} className="flex items-start space-x-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center space-x-2 mt-1">
+                            <MessageSquare className={`h-4 w-4 ${issue.state === 'open' ? 'text-green-500' : 'text-purple-500'}`} />
                             <span className="text-sm font-medium">#{issue.number}</span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{issue.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {issue.user.login} • {getRelativeTime(issue.created_at)}
-                            </p>
+                            <p className="text-sm font-medium leading-tight mb-1">{issue.title}</p>
+                            <div className="flex items-center space-x-2 text-xs text-muted-foreground mb-2">
+                              <span>{issue.user.login}</span>
+                              <span>•</span>
+                              <span>{getRelativeTime(issue.created_at)}</span>
+                              {(issue as any).comments !== undefined && (
+                                <>
+                                  <span>•</span>
+                                  <span>💬 {(issue as any).comments}</span>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {issue.labels.slice(0, 3).map((label) => (
+                                <Badge 
+                                  key={label.name} 
+                                  variant="outline" 
+                                  className="text-xs"
+                                  style={{ 
+                                    backgroundColor: `#${label.color}20`, 
+                                    borderColor: `#${label.color}`, 
+                                    color: `#${label.color}` 
+                                  }}
+                                >
+                                  {label.name}
+                                </Badge>
+                              ))}
+                              {issue.labels.length > 3 && (
+                                <span className="text-xs text-muted-foreground">+{issue.labels.length - 3} more</span>
+                              )}
+                            </div>
                           </div>
                           <div className="flex items-center space-x-2">
-                            {issue.labels.slice(0, 2).map((label) => (
-                              <Badge key={label.name} variant="outline" className="text-xs">
-                                {label.name}
-                              </Badge>
-                            ))}
+                            <Badge variant={issue.state === 'open' ? 'default' : 'secondary'}>
+                              {issue.state}
+                            </Badge>
                           </div>
                         </div>
                       ))}
@@ -1907,7 +1989,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                           className="w-full mt-4"
                           onClick={() => setShownIssuesCount(c => Math.min(c + ISSUES_BATCH, openIssues.length))}
                         >
-                          Show More
+                          Show More ({openIssues.length - shownIssuesCount} remaining)
                         </Button>
                       ) : openIssues.length > ISSUES_BATCH && shownIssuesCount > ISSUES_BATCH ? (
                         <Button
@@ -1919,9 +2001,10 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                         </Button>
                       ) : null}
                       {openIssues.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          No issues found
-                        </p>
+                        <div className="text-center py-8">
+                          <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-sm text-muted-foreground">No issues found</p>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
