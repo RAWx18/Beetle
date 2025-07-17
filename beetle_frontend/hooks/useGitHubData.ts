@@ -435,7 +435,10 @@ export const useGitHubData = () => {
       ] = await Promise.all([
         apiRef.current.getUserRepositories(),
         apiRef.current.getUserStarredRepositories().catch(() => []),
-        apiRef.current.getTrendingRepositories().catch(() => []),
+        apiRef.current.getTrendingRepositories('weekly').catch((error) => {
+          console.warn('Failed to fetch trending repositories, using fallback:', error);
+          return [];
+        }),
         apiRef.current.getUserActivity().catch(() => []),
         apiRef.current.getAggregatedPullRequests('all', 15).catch(() => []),
         apiRef.current.getAggregatedIssues('all', 15).catch(() => [])

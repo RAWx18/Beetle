@@ -274,15 +274,22 @@ class GitHubAPI {
   }
 
   // Get trending repositories
-  async getTrendingRepositories(since = 'daily', language?: string): Promise<Repository[]> {
+  async getTrendingRepositories(since = 'weekly', language?: string): Promise<Repository[]> {
     const params = new URLSearchParams({
       since: since,
     });
     if (language) {
       params.append('language', language);
     }
-    const response = await this.request(`/github/trending?${params}`);
-    return response.repositories;
+    
+    try {
+      const response = await this.request(`/github/trending?${params}`);
+      return response.repositories;
+    } catch (error) {
+      console.error('Failed to fetch trending repositories:', error);
+      // Return empty array on error rather than throwing
+      return [];
+    }
   }
 
   // Get recent changes since last update
