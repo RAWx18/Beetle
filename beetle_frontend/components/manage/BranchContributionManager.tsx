@@ -156,6 +156,44 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
     };
   }, [branchData, searchQuery, prFilters, issueFilters, selectedSection]);
 
+  // Placeholder for internal platform activity (replace with real API call when available)
+  const getInternalPlatformActivity = () => {
+    // Example: fetch from localStorage or a static array
+    const stored = localStorage.getItem('beetle_internal_activity');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return [];
+      }
+    }
+    // Example static activity
+    return [
+      {
+        id: 'internal-1',
+        type: 'commit',
+        user: user?.login || 'PlatformUser',
+        description: 'Committed code via Beetle platform',
+        timestamp: new Date().toISOString(),
+        branch: selectedBranch || 'main',
+        details: 'Initial commit from platform UI'
+      }
+    ];
+  };
+
+  // Merge GitHub and internal activity for the activity feed
+  const mergedActivity = [
+    ...getInternalPlatformActivity(),
+    ...(branchData.activity || [])
+  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  // Calculate this month's commits from mergedActivity
+  const now = new Date();
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthlyCommits = mergedActivity.filter(
+    (a) => a.type === 'commit' && new Date(a.timestamp) >= firstOfMonth
+  ).length;
+
   const handleSectionChange = async (newSection: string) => {
     setIsLoading(true);
     // Simulate loading time for section switching
@@ -174,9 +212,9 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
 
     switch (selectedSection) {
       case 'overview':
-        return <OverviewDashboard branchData={filteredData} branch={selectedBranch} />;
+        return <OverviewDashboard branchData={{ ...filteredData, activity: mergedActivity, monthlyCommits }} branch={selectedBranch} />;
       case 'my-contributions':
-        return <MyContributions branchData={filteredData} branch={selectedBranch} />;
+        return <MyContributions branchData={{ ...filteredData, activity: mergedActivity, monthlyCommits }} branch={selectedBranch} />;
       case 'branch-planner':
         return <BranchPlanner branch={selectedBranch} />;
       case 'pr-issues-tracker':
@@ -215,9 +253,9 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
       case 'import-branch':
         return <ImportBranch />;
       case 'bot-logs':
-        return <BotLogs activities={filteredData.activity} branch={selectedBranch} />;
+        return <BotLogs activities={mergedActivity} branch={selectedBranch} />;
       default:
-        return <OverviewDashboard branchData={filteredData} branch={selectedBranch} />;
+        return <OverviewDashboard branchData={{ ...filteredData, activity: mergedActivity, monthlyCommits }} branch={selectedBranch} />;
     }
   };
 

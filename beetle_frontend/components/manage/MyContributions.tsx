@@ -18,6 +18,21 @@ const MyContributions = ({ branchData, branch }: MyContributionsProps) => {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Monthly Commits Stat */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Commits This Month</CardTitle>
+            <Clock className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{branchData.monthlyCommits ?? 0}</div>
+            <p className="text-xs text-muted-foreground">
+              in {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* My Pull Requests */}
         <Card>
