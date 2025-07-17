@@ -8,7 +8,10 @@ const {
   getUser, 
   updateUser, 
   createSession, 
-  deleteSession 
+  deleteSession,
+  getUserNotes, addUserNote, updateUserNote, deleteUserNote,
+  getUserSavedFilters, addUserSavedFilter, updateUserSavedFilter, deleteUserSavedFilter,
+  getUserPinnedItems, addUserPinnedItem, removeUserPinnedItem
 } = require('../utils/database.cjs');
 const { getUserProfile } = require('../utils/github.cjs');
 const { asyncHandler } = require('../middleware/errorHandler.cjs');
@@ -613,6 +616,185 @@ router.put('/profile', [
       error: 'Invalid token',
       message: 'The provided token is invalid or expired'
     });
+  }
+}));
+
+// User Notes CRUD
+router.get('/notes', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const notes = await getUserNotes(decoded.githubId);
+    res.json({ notes });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+router.post('/notes', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const note = req.body;
+    if (!note || !note.id) return res.status(400).json({ error: 'Note id required' });
+    await addUserNote(decoded.githubId, note);
+    const notes = await getUserNotes(decoded.githubId);
+    res.json({ notes });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+router.put('/notes/:id', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const noteId = req.params.id;
+    const updates = req.body;
+    await updateUserNote(decoded.githubId, noteId, updates);
+    const notes = await getUserNotes(decoded.githubId);
+    res.json({ notes });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+router.delete('/notes/:id', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const noteId = req.params.id;
+    await deleteUserNote(decoded.githubId, noteId);
+    const notes = await getUserNotes(decoded.githubId);
+    res.json({ notes });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+// Saved Filters CRUD
+router.get('/filters', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const filters = await getUserSavedFilters(decoded.githubId);
+    res.json({ filters });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+router.post('/filters', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const filter = req.body;
+    if (!filter || !filter.id) return res.status(400).json({ error: 'Filter id required' });
+    await addUserSavedFilter(decoded.githubId, filter);
+    const filters = await getUserSavedFilters(decoded.githubId);
+    res.json({ filters });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+router.put('/filters/:id', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const filterId = req.params.id;
+    const updates = req.body;
+    await updateUserSavedFilter(decoded.githubId, filterId, updates);
+    const filters = await getUserSavedFilters(decoded.githubId);
+    res.json({ filters });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+router.delete('/filters/:id', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const filterId = req.params.id;
+    await deleteUserSavedFilter(decoded.githubId, filterId);
+    const filters = await getUserSavedFilters(decoded.githubId);
+    res.json({ filters });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+// Pinned Items CRUD
+router.get('/pins', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const pins = await getUserPinnedItems(decoded.githubId);
+    res.json({ pins });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+router.post('/pins', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const pin = req.body;
+    if (!pin || !pin.id) return res.status(400).json({ error: 'Pin id required' });
+    await addUserPinnedItem(decoded.githubId, pin);
+    const pins = await getUserPinnedItems(decoded.githubId);
+    res.json({ pins });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+router.delete('/pins/:id', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const pinId = req.params.id;
+    await removeUserPinnedItem(decoded.githubId, pinId);
+    const pins = await getUserPinnedItems(decoded.githubId);
+    res.json({ pins });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
   }
 }));
 

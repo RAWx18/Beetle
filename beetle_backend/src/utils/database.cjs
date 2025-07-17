@@ -101,7 +101,10 @@ const createUser = async (githubId, userData) => {
       totalPRs: 0,
       totalIssues: 0,
       activeRepositories: 0
-    }
+    },
+    notes: [],
+    savedFilters: [],
+    pinnedItems: []
   };
   await saveDatabase();
   return database.data.users[githubId];
@@ -286,6 +289,90 @@ const cleanupExpiredSessions = async () => {
 // Run cleanup every hour
 setInterval(cleanupExpiredSessions, 60 * 60 * 1000);
 
+// User notes CRUD
+const getUserNotes = async (githubId) => {
+  const user = await getUser(githubId);
+  return user ? user.notes || [] : [];
+};
+const addUserNote = async (githubId, note) => {
+  const user = await getUser(githubId);
+  if (!user) return null;
+  user.notes = user.notes || [];
+  user.notes.push(note);
+  await updateUser(githubId, { notes: user.notes });
+  return note;
+};
+const updateUserNote = async (githubId, noteId, updates) => {
+  const user = await getUser(githubId);
+  if (!user) return null;
+  user.notes = user.notes || [];
+  const idx = user.notes.findIndex(n => n.id === noteId);
+  if (idx === -1) return null;
+  user.notes[idx] = { ...user.notes[idx], ...updates };
+  await updateUser(githubId, { notes: user.notes });
+  return user.notes[idx];
+};
+const deleteUserNote = async (githubId, noteId) => {
+  const user = await getUser(githubId);
+  if (!user) return false;
+  user.notes = user.notes || [];
+  user.notes = user.notes.filter(n => n.id !== noteId);
+  await updateUser(githubId, { notes: user.notes });
+  return true;
+};
+// Saved filters CRUD
+const getUserSavedFilters = async (githubId) => {
+  const user = await getUser(githubId);
+  return user ? user.savedFilters || [] : [];
+};
+const addUserSavedFilter = async (githubId, filter) => {
+  const user = await getUser(githubId);
+  if (!user) return null;
+  user.savedFilters = user.savedFilters || [];
+  user.savedFilters.push(filter);
+  await updateUser(githubId, { savedFilters: user.savedFilters });
+  return filter;
+};
+const updateUserSavedFilter = async (githubId, filterId, updates) => {
+  const user = await getUser(githubId);
+  if (!user) return null;
+  user.savedFilters = user.savedFilters || [];
+  const idx = user.savedFilters.findIndex(f => f.id === filterId);
+  if (idx === -1) return null;
+  user.savedFilters[idx] = { ...user.savedFilters[idx], ...updates };
+  await updateUser(githubId, { savedFilters: user.savedFilters });
+  return user.savedFilters[idx];
+};
+const deleteUserSavedFilter = async (githubId, filterId) => {
+  const user = await getUser(githubId);
+  if (!user) return false;
+  user.savedFilters = user.savedFilters || [];
+  user.savedFilters = user.savedFilters.filter(f => f.id !== filterId);
+  await updateUser(githubId, { savedFilters: user.savedFilters });
+  return true;
+};
+// Pinned items CRUD
+const getUserPinnedItems = async (githubId) => {
+  const user = await getUser(githubId);
+  return user ? user.pinnedItems || [] : [];
+};
+const addUserPinnedItem = async (githubId, item) => {
+  const user = await getUser(githubId);
+  if (!user) return null;
+  user.pinnedItems = user.pinnedItems || [];
+  user.pinnedItems.push(item);
+  await updateUser(githubId, { pinnedItems: user.pinnedItems });
+  return item;
+};
+const removeUserPinnedItem = async (githubId, itemId) => {
+  const user = await getUser(githubId);
+  if (!user) return false;
+  user.pinnedItems = user.pinnedItems || [];
+  user.pinnedItems = user.pinnedItems.filter(i => i.id !== itemId);
+  await updateUser(githubId, { pinnedItems: user.pinnedItems });
+  return true;
+};
+
 // Export all functions
 module.exports = {
   initDatabase,
@@ -308,5 +395,16 @@ module.exports = {
   getSession,
   updateSession,
   deleteSession,
-  cleanupExpiredSessions
+  cleanupExpiredSessions,
+  getUserNotes,
+  addUserNote,
+  updateUserNote,
+  deleteUserNote,
+  getUserSavedFilters,
+  addUserSavedFilter,
+  updateUserSavedFilter,
+  deleteUserSavedFilter,
+  getUserPinnedItems,
+  addUserPinnedItem,
+  removeUserPinnedItem
 }; 

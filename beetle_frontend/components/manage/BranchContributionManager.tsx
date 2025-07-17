@@ -1,11 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useBranch } from '@/contexts/BranchContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRepository } from '@/contexts/RepositoryContext';
 import { Search, Filter, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { contributionData, transformGitHubData, fallbackContributionData } from './contribution-data';
-import GitHubAPI from '@/lib/github-api';
 import BranchActivity from './BranchActivity';
 import OverviewDashboard from './OverviewDashboard';
 import MyContributions from './MyContributions';
@@ -30,6 +29,7 @@ import {
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
+import { apiService } from '@/lib/api';
 
 interface BranchContributionManagerProps {
   selectedSection?: string;
@@ -38,115 +38,112 @@ interface BranchContributionManagerProps {
 const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContributionManagerProps) => {
   const { selectedBranch, getBranchInfo } = useBranch();
   const { user, token } = useAuth();
+  const { repository } = useRepository();
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [issueFilters, setIssueFilters] = useState<{ status: string; type: string; priority: string; labels: string[] }>({ status: 'all', type: 'all', priority: 'all', labels: [] });
   const [prFilters, setPrFilters] = useState<{ status: string; labels: string[] }>({ status: 'all', labels: [] });
-  const [realContributionData, setRealContributionData] = useState(fallbackContributionData);
+  const [beetleData, setBeetleData] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
   
   const branchInfo = getBranchInfo();
 
-  // Fetch real GitHub data
+  // Fetch Beetle project data from backend
   useEffect(() => {
-    const fetchRealData = async () => {
-      if (!token) {
-        setRealContributionData(fallbackContributionData);
+    const fetchBeetleData = async () => {
+      if (!repository) {
+        setBeetleData(null);
         setDataLoading(false);
+        setDataError(null);
         return;
       }
-
+      setDataLoading(true);
+      setDataError(null);
       try {
-        setDataLoading(true);
-        const githubAPI = new GitHubAPI(token);
-        
-        // Fetch user activity
-        const userActivity = await githubAPI.getUserActivity(user?.login, 1, 100);
-        
-        // Fetch pull requests from user's repositories
-        const userRepos = await githubAPI.getUserRepositories(1, 10);
-        const allPullRequests: any[] = [];
-        const allIssues: any[] = [];
-        const allCommits: any[] = [];
-
-        // Fetch data from each repository
-        for (const repo of userRepos.slice(0, 5)) { // Limit to 5 repos to avoid rate limits
-          try {
-            const [prs, issues, commits] = await Promise.all([
-              githubAPI.getRepositoryPullRequests(repo.owner.login, repo.name, 'all', 1, 20),
-              githubAPI.getRepositoryIssues(repo.owner.login, repo.name, 'all', 1, 20),
-              githubAPI.getRepositoryCommits(repo.owner.login, repo.name, 'main', 1, 20)
-            ]);
-            
-            allPullRequests.push(...prs);
-            allIssues.push(...issues);
-            allCommits.push(...commits);
-          } catch (error) {
-            console.error(`Error fetching data for ${repo.full_name}:`, error);
-          }
+        const projectId = `${repository.owner.login}/${repository.name}`;
+        const response = await apiService.getBeetleProjectData(projectId);
+        if (response.error) {
+          setBeetleData(null);
+          setDataError(response.error.message);
+        } else {
+          setBeetleData(response.data);
+          // Debug log: fetched data
+          console.log('[Beetle Overview] beetleData:', response.data);
         }
-
-        // Transform the data
-        const transformedData = transformGitHubData(userActivity, allPullRequests, allIssues, allCommits, user);
-        setRealContributionData(transformedData as typeof fallbackContributionData);
-      } catch (error) {
-        console.error('Error fetching real contribution data:', error);
-        setRealContributionData(fallbackContributionData);
+      } catch (err: any) {
+        setBeetleData(null);
+        setDataError(err.message || 'Failed to fetch data');
       } finally {
         setDataLoading(false);
       }
     };
+    fetchBeetleData();
+  }, [repository]);
 
-    fetchRealData();
-  }, [user, token]);
-
-  // Filter data based on selected branch
+  // Memoize branch-specific data
   const branchData = useMemo(() => {
-    const branchKey = selectedBranch;
+    if (!beetleData || !beetleData.branches) {
+      console.log('[Beetle Overview] No beetleData or branches:', beetleData);
+      return { pullRequests: [], issues: [], activity: [] };
+    }
+    const branchNames = beetleData.branches.map((b: any) => b.name);
+    console.log('[Beetle Overview] Available branches:', branchNames, 'Selected branch:', selectedBranch);
+    const branch = beetleData.branches.find((b: any) => b.name === selectedBranch);
+    if (!branch) {
+      console.log('[Beetle Overview] Branch not found:', selectedBranch);
+    } else {
+      console.log('[Beetle Overview] Branch object:', branch);
+    }
+    // Transform commits to activity items
+    const activity = (branch?.commits || []).map((commit: any) => ({
+      id: commit.sha || commit.id || Math.random().toString(36).slice(2),
+      type: 'commit',
+      user: commit.commit?.author?.name || commit.author?.login || commit.commit?.committer?.name || 'Unknown',
+      description: commit.commit?.message?.split('\n')[0] || 'Commit',
+      timestamp: commit.commit?.author?.date || commit.commit?.committer?.date || commit.date || '',
+      branch: selectedBranch
+    }));
     return {
-      pullRequests: realContributionData.pullRequests.filter(pr => 
-        pr.targetBranch === branchKey || pr.sourceBranch === branchKey
-      ),
-      issues: realContributionData.issues.filter(issue => 
-        issue.branch === branchKey || issue.labels.includes(branchKey)
-      ),
-      activity: realContributionData.activity.filter(activity => 
-        activity.branch === branchKey
-      )
+      pullRequests: branch?.pullRequests || [],
+      issues: branch?.issues || [],
+      activity,
     };
-  }, [selectedBranch, realContributionData]);
+  }, [beetleData, selectedBranch]);
 
-  const allIssueLabels = Array.from(new Set(realContributionData.issues.flatMap(i => i.labels)));
-  const allPRLabels = Array.from(new Set(realContributionData.pullRequests.flatMap(pr => pr.labels)));
-  const allIssueTypes = Array.from(new Set(realContributionData.issues.map(i => i.type)));
-  const allIssuePriorities = Array.from(new Set(realContributionData.issues.map(i => i.priority)));
-  const allIssueStatuses = ['all', ...Array.from(new Set(realContributionData.issues.map(i => i.status)))];
-  const allPRStatuses = ['all', ...Array.from(new Set(realContributionData.pullRequests.map(pr => pr.status)))]
+  // Compute filter options
+  const allIssueLabels = Array.from(new Set(branchData.issues.flatMap((i: any) => i.labels?.map((l: any) => typeof l === 'string' ? l : l.name) || [])));
+  const allPRLabels = Array.from(new Set(branchData.pullRequests.flatMap((pr: any) => pr.labels?.map((l: any) => typeof l === 'string' ? l : l.name) || [])));
+  const allIssueTypes = Array.from(new Set(branchData.issues.map((i: any) => i.type || 'feature')));
+  const allIssuePriorities = Array.from(new Set(branchData.issues.map((i: any) => i.priority || 'medium')));
+  const allIssueStatuses = ['all', ...Array.from(new Set(branchData.issues.map((i: any) => i.status || i.state || 'open')))];
+  const allPRStatuses = ['all', ...Array.from(new Set(branchData.pullRequests.map((pr: any) => pr.status || pr.state || 'open')))]
 
+  // Filter data based on UI state
   const filteredData = useMemo(() => {
-    let prs = branchData.pullRequests;
-    let issues = branchData.issues;
+    let prs: any[] = branchData.pullRequests;
+    let issues: any[] = branchData.issues;
     if (selectedSection === 'pr-issues-tracker' || selectedSection === 'pr-tracker') {
-      if (prFilters.status !== 'all') prs = prs.filter(pr => pr.status === prFilters.status);
-      if (prFilters.labels.length > 0) prs = prs.filter(pr => pr.labels.some(l => prFilters.labels.includes(l)));
+      if (prFilters.status !== 'all') prs = prs.filter((pr: any) => (pr.status || pr.state) === prFilters.status);
+      if (prFilters.labels.length > 0) prs = prs.filter((pr: any) => (pr.labels || []).some((l: any) => prFilters.labels.includes(typeof l === 'string' ? l : l.name)));
     }
     if (selectedSection === 'pr-issues-tracker' || selectedSection === 'issue-tracker') {
-      if (issueFilters.status !== 'all') issues = issues.filter(issue => issue.status === issueFilters.status);
-      if (issueFilters.type !== 'all') issues = issues.filter(issue => issue.type === issueFilters.type);
-      if (issueFilters.priority !== 'all') issues = issues.filter(issue => issue.priority === issueFilters.priority);
-      if (issueFilters.labels.length > 0) issues = issues.filter(issue => issue.labels.some(l => issueFilters.labels.includes(l)));
+      if (issueFilters.status !== 'all') issues = issues.filter((issue: any) => (issue.status || issue.state) === issueFilters.status);
+      if (issueFilters.type !== 'all') issues = issues.filter((issue: any) => (issue.type || 'feature') === issueFilters.type);
+      if (issueFilters.priority !== 'all') issues = issues.filter((issue: any) => (issue.priority || 'medium') === issueFilters.priority);
+      if (issueFilters.labels.length > 0) issues = issues.filter((issue: any) => (issue.labels || []).some((l: any) => issueFilters.labels.includes(typeof l === 'string' ? l : l.name)));
     }
     if (searchQuery) {
-      prs = prs.filter(pr =>
-        pr.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        pr.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        pr.labels.some(label => label.toLowerCase().includes(searchQuery.toLowerCase()))
+      prs = prs.filter((pr: any) =>
+        pr.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        pr.author?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (pr.labels || []).some((label: any) => (typeof label === 'string' ? label : label.name).toLowerCase().includes(searchQuery.toLowerCase()))
       );
-      issues = issues.filter(issue =>
-        issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      issues = issues.filter((issue: any) =>
+        issue.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (issue.assignee && issue.assignee.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        issue.labels.some(label => label.toLowerCase().includes(searchQuery.toLowerCase()))
+        (issue.labels || []).some((label: any) => (typeof label === 'string' ? label : label.name).toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
     return {
@@ -276,6 +273,17 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
     handleSectionChange(selectedSection);
   }, [selectedSection]);
 
+  // Add error UI for auth/token issues
+  if (dataError && (dataError.includes('Access token required') || dataError.includes('401') || dataError.includes('403'))) {
+    return (
+      <div className="p-6 text-center text-red-600 bg-red-50 rounded-md">
+        <h2 className="text-xl font-semibold mb-2">Authentication Required</h2>
+        <p>{dataError}</p>
+        <p className="mt-2 text-sm text-red-500">Please log in again to view real contribution data.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Sticky Header */}
@@ -332,11 +340,11 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
                   <div className="flex gap-4">
                     <div className="flex-1">
                       <label className="block mb-1 text-sm font-medium">Status</label>
-                      <Select value={prFilters.status} onValueChange={v => handlePRFilterChange('status', v)}>
+                      <Select value={String(prFilters.status)} onValueChange={v => handlePRFilterChange('status', String(v))}>
                         <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
                         <SelectContent>
                           {allPRStatuses.map(status => (
-                            <SelectItem key={status} value={status}>{status}</SelectItem>
+                            <SelectItem key={String(status)} value={String(status)}>{String(status)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -345,9 +353,9 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
                       <label className="block mb-1 text-sm font-medium">Labels</label>
                       <div className="flex flex-wrap gap-2">
                         {allPRLabels.map(label => (
-                          <label key={label} className="flex items-center gap-1 text-xs cursor-pointer">
-                            <Checkbox checked={prFilters.labels.includes(label)} onCheckedChange={() => handlePRLabelToggle(label)} />
-                            {label}
+                          <label key={String(label)} className="flex items-center gap-1 text-xs cursor-pointer">
+                            <Checkbox checked={prFilters.labels.includes(String(label))} onCheckedChange={() => handlePRLabelToggle(String(label))} />
+                            {String(label)}
                           </label>
                         ))}
                       </div>
@@ -363,35 +371,35 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
                   <div className="flex gap-4 flex-wrap">
                     <div className="flex-1 min-w-[120px]">
                       <label className="block mb-1 text-sm font-medium">Status</label>
-                      <Select value={issueFilters.status} onValueChange={v => handleIssueFilterChange('status', v)}>
+                      <Select value={String(issueFilters.status)} onValueChange={v => handleIssueFilterChange('status', String(v))}>
                         <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
                         <SelectContent>
                           {allIssueStatuses.map(status => (
-                            <SelectItem key={status} value={status}>{status}</SelectItem>
+                            <SelectItem key={String(status)} value={String(status)}>{String(status)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="flex-1 min-w-[120px]">
                       <label className="block mb-1 text-sm font-medium">Type</label>
-                      <Select value={issueFilters.type} onValueChange={v => handleIssueFilterChange('type', v)}>
+                      <Select value={String(issueFilters.type)} onValueChange={v => handleIssueFilterChange('type', String(v))}>
                         <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">all</SelectItem>
                           {allIssueTypes.map(type => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                            <SelectItem key={String(type)} value={String(type)}>{String(type)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="flex-1 min-w-[120px]">
                       <label className="block mb-1 text-sm font-medium">Priority</label>
-                      <Select value={issueFilters.priority} onValueChange={v => handleIssueFilterChange('priority', v)}>
+                      <Select value={String(issueFilters.priority)} onValueChange={v => handleIssueFilterChange('priority', String(v))}>
                         <SelectTrigger><SelectValue placeholder="Priority" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">all</SelectItem>
                           {allIssuePriorities.map(priority => (
-                            <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+                            <SelectItem key={String(priority)} value={String(priority)}>{String(priority)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -400,9 +408,9 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
                       <label className="block mb-1 text-sm font-medium">Labels</label>
                       <div className="flex flex-wrap gap-2">
                         {allIssueLabels.map(label => (
-                          <label key={label} className="flex items-center gap-1 text-xs cursor-pointer">
-                            <Checkbox checked={issueFilters.labels.includes(label)} onCheckedChange={() => handleIssueLabelToggle(label)} />
-                            {label}
+                          <label key={String(label)} className="flex items-center gap-1 text-xs cursor-pointer">
+                            <Checkbox checked={issueFilters.labels.includes(String(label))} onCheckedChange={() => handleIssueLabelToggle(String(label))} />
+                            {String(label)}
                           </label>
                         ))}
                       </div>

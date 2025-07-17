@@ -311,6 +311,20 @@ router.post('/import', [
   body('branches').optional().isArray(),
   body('settings').optional().isObject()
 ], asyncHandler(async (req, res) => {
+  // Allow unauthenticated import in development mode
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('[DEV MODE] Skipping authentication for /projects/import');
+  } else {
+    // Require authentication in production
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        error: 'Access token required',
+        message: 'Please provide a valid Bearer token'
+      });
+    }
+    // Optionally, verify the token here if needed
+  }
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -400,14 +414,33 @@ router.get('/:projectId/beetle', asyncHandler(async (req, res) => {
   if (project.repository_url) {
     try {
       const [owner, repo] = project.repository_url.split('/').slice(-2);
-      
-      const [branches, issues, pullRequests, commits] = await Promise.all([
-        getRepositoryBranches(req.user.accessToken, owner, repo),
-        getRepositoryIssues(req.user.accessToken, owner, repo, 'all', 1, 100),
-        getRepositoryPullRequests(req.user.accessToken, owner, repo, 'all', 1, 100),
-        getRepositoryCommits(req.user.accessToken, owner, repo, 'main', 1, 100)
-      ]);
-
+      // Fetch all branches first
+      const branches = await getRepositoryBranches(req.user.accessToken, owner, repo);
+      // Fetch all issues and PRs once (for all branches)
+      const issues = await getRepositoryIssues(req.user.accessToken, owner, repo, 'all', 1, 100);
+      const pullRequests = await getRepositoryPullRequests(req.user.accessToken, owner, repo, 'all', 1, 100);
+      // For each branch, fetch commits for that branch directly
+      const branchData = await Promise.all(branches.map(async branch => {
+        const commits = await getRepositoryCommits(req.user.accessToken, owner, repo, branch.name, 1, 100);
+        return {
+          name: branch.name,
+          protected: branch.protected,
+          lastCommit: branch.commit,
+          // Issues: fallback to label/title matching
+          issues: issues.filter(issue => 
+            issue.labels.some(label => 
+              label.name.toLowerCase().includes(branch.name.toLowerCase()) ||
+              issue.title.toLowerCase().includes(branch.name.toLowerCase())
+            )
+          ),
+          // PRs: robust branch matching
+          pullRequests: pullRequests.filter(pr => 
+            pr.head.ref === branch.name || 
+            pr.base.ref === branch.name
+          ),
+          commits: commits
+        };
+      }));
       // Organize data for Beetle's branch-level intelligence
       const beetleData = {
         project: {
@@ -418,31 +451,12 @@ router.get('/:projectId/beetle', asyncHandler(async (req, res) => {
           language: project.language,
           html_url: project.html_url
         },
-        branches: branches.map(branch => ({
-          name: branch.name,
-          protected: branch.protected,
-          lastCommit: branch.commit,
-          // Filter issues and PRs related to this branch
-          issues: issues.filter(issue => 
-            issue.labels.some(label => 
-              label.name.toLowerCase().includes(branch.name.toLowerCase()) ||
-              issue.title.toLowerCase().includes(branch.name.toLowerCase())
-            )
-          ),
-          pullRequests: pullRequests.filter(pr => 
-            pr.head.ref === branch.name || 
-            pr.base.ref === branch.name ||
-            pr.title.toLowerCase().includes(branch.name.toLowerCase())
-          ),
-          commits: commits.filter(commit => 
-            commit.commit.message.toLowerCase().includes(branch.name.toLowerCase())
-          )
-        })),
+        branches: branchData,
         summary: {
           totalBranches: branches.length,
           totalIssues: issues.length,
           totalPullRequests: pullRequests.length,
-          totalCommits: commits.length,
+          totalCommits: branchData.reduce((acc, b) => acc + b.commits.length, 0),
           activeBranches: branches.filter(b => 
             (new Date() - new Date(b.commit.committer.date)) < (30 * 24 * 60 * 60 * 1000)
           ).length
@@ -487,7 +501,6 @@ router.get('/:projectId/beetle', asyncHandler(async (req, res) => {
           }
         }
       };
-
       res.json(beetleData);
     } catch (error) {
       console.error('Error fetching Beetle project data:', error);
@@ -514,6 +527,92 @@ router.get('/:projectId/beetle', asyncHandler(async (req, res) => {
         branchHealth: { score: 0, trend: 'stable', recommendations: [] }
       }
     });
+  }
+}));
+
+router.get('/:projectId/branches/:branch/suggestions', asyncHandler(async (req, res) => {
+  const { projectId, branch } = req.params;
+  const project = await getProject(projectId);
+  if (!project) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+  if (!project.repository_url) {
+    return res.status(400).json({ error: 'Project has no repository_url' });
+  }
+  const [owner, repo] = project.repository_url.split('/').slice(-2);
+  try {
+    const [branches, issues, pullRequests, commits] = await Promise.all([
+      getRepositoryBranches(req.user.accessToken, owner, repo),
+      getRepositoryIssues(req.user.accessToken, owner, repo, 'all', 1, 100),
+      getRepositoryPullRequests(req.user.accessToken, owner, repo, 'all', 1, 100),
+      getRepositoryCommits(req.user.accessToken, owner, repo, branch, 1, 100)
+    ]);
+    // Filter PRs and issues for this branch
+    const branchPRs = pullRequests.filter(pr => pr.head.ref === branch || pr.base.ref === branch);
+    const branchIssues = issues.filter(issue =>
+      issue.labels.some(label => label.name.toLowerCase().includes(branch.toLowerCase())) ||
+      issue.title.toLowerCase().includes(branch.toLowerCase())
+    );
+    // Suggestion 1: Stale PRs (>7 days, open, approved)
+    const now = new Date();
+    const stalePRs = branchPRs.filter(pr => {
+      const created = new Date(pr.created_at);
+      const daysOpen = (now - created) / (1000 * 60 * 60 * 24);
+      return pr.state === 'open' && daysOpen > 7 && pr.requested_reviewers?.length === 0;
+    });
+    // Suggestion 2: PRs with no reviewers
+    const noReviewerPRs = branchPRs.filter(pr => pr.state === 'open' && (!pr.requested_reviewers || pr.requested_reviewers.length === 0));
+    // Suggestion 3: Potential conflicts (simulate: if >1 PR is open)
+    const potentialConflicts = branchPRs.filter(pr => pr.state === 'open').length > 1;
+    // Suggestion 4: Many bug issues
+    const bugIssues = branchIssues.filter(issue => issue.labels.some(l => l.name === 'bug'));
+    // Build suggestions array
+    let id = 1;
+    const suggestions = [];
+    if (stalePRs.length > 0) {
+      suggestions.push({
+        id: id++,
+        type: 'optimization',
+        title: 'Merge stale PRs',
+        description: `You have ${stalePRs.length} PR(s) open for over a week with no reviewers. Consider merging or closing them.`,
+        priority: 'medium',
+        action: 'Review PRs'
+      });
+    }
+    if (noReviewerPRs.length > 0) {
+      suggestions.push({
+        id: id++,
+        type: 'collaboration',
+        title: 'Assign reviewers',
+        description: `${noReviewerPRs.length} PR(s) are missing reviewers. Auto-assign based on code ownership?`,
+        priority: 'high',
+        action: 'Auto-assign'
+      });
+    }
+    if (potentialConflicts) {
+      suggestions.push({
+        id: id++,
+        type: 'warning',
+        title: 'Potential conflicts',
+        description: 'Multiple PRs are open for this branch. Review for possible conflicts.',
+        priority: 'high',
+        action: 'Check Conflicts'
+      });
+    }
+    if (bugIssues.length > 3) {
+      suggestions.push({
+        id: id++,
+        type: 'insight',
+        title: 'Create issue template',
+        description: 'Many bug issues detected. Consider creating a bug report template.',
+        priority: 'low',
+        action: 'Create Template'
+      });
+    }
+    res.json({ suggestions });
+  } catch (error) {
+    console.error('Error generating smart suggestions:', error);
+    res.status(500).json({ error: 'Failed to generate suggestions', message: error.message });
   }
 }));
 

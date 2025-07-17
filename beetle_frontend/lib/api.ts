@@ -193,6 +193,68 @@ class ApiService {
   async getBeetleProjectData(projectId: string): Promise<ApiResponse<any>> {
     return this.request(`/projects/${projectId}/beetle`);
   }
+
+  // User Notes
+  async getNotes(): Promise<ApiResponse<{ notes: any[] }>> {
+    return this.request('/auth/notes');
+  }
+  async addNote(note: any): Promise<ApiResponse<{ notes: any[] }>> {
+    return this.request('/auth/notes', {
+      method: 'POST',
+      body: JSON.stringify(note),
+    });
+  }
+  async updateNote(noteId: string, updates: any): Promise<ApiResponse<{ notes: any[] }>> {
+    return this.request(`/auth/notes/${noteId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+  async deleteNote(noteId: string): Promise<ApiResponse<{ notes: any[] }>> {
+    return this.request(`/auth/notes/${noteId}`, {
+      method: 'DELETE',
+    });
+  }
+  // Saved Filters
+  async getFilters(): Promise<ApiResponse<{ filters: any[] }>> {
+    return this.request('/auth/filters');
+  }
+  async addFilter(filter: any): Promise<ApiResponse<{ filters: any[] }>> {
+    return this.request('/auth/filters', {
+      method: 'POST',
+      body: JSON.stringify(filter),
+    });
+  }
+  async updateFilter(filterId: string, updates: any): Promise<ApiResponse<{ filters: any[] }>> {
+    return this.request(`/auth/filters/${filterId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+  async deleteFilter(filterId: string): Promise<ApiResponse<{ filters: any[] }>> {
+    return this.request(`/auth/filters/${filterId}`, {
+      method: 'DELETE',
+    });
+  }
+  // Pinned Items
+  async getPins(): Promise<ApiResponse<{ pins: any[] }>> {
+    return this.request('/auth/pins');
+  }
+  async addPin(pin: any): Promise<ApiResponse<{ pins: any[] }>> {
+    return this.request('/auth/pins', {
+      method: 'POST',
+      body: JSON.stringify(pin),
+    });
+  }
+  async deletePin(pinId: string): Promise<ApiResponse<{ pins: any[] }>> {
+    return this.request(`/auth/pins/${pinId}`, {
+      method: 'DELETE',
+    });
+  }
+  // Smart Suggestions
+  async getSmartSuggestions(projectId: string, branch: string): Promise<ApiResponse<{ suggestions: any[] }>> {
+    return this.request(`/projects/${projectId}/branches/${branch}/suggestions`);
+  }
 }
 
 // Export singleton instance
