@@ -14,6 +14,7 @@ const analyticsRoutes = require('./routes/analytics.cjs');
 const projectsRoutes = require('./routes/projects.cjs');
 const aiRoutes = require('./routes/ai.cjs');
 const aggregatedRoutes = require('./routes/aggregated.cjs');
+const webhookRoutes = require('./routes/webhooks.cjs');
 
 // Import environment utilities
 const { printEnvStatus } = require('./utils/env.cjs');
@@ -107,6 +108,7 @@ app.use('/api/aggregated', authMiddleware, aggregatedRoutes);
 app.use('/api/analytics', authMiddleware, analyticsRoutes);
 app.use('/api/projects', authMiddleware, projectsRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -120,7 +122,8 @@ app.get('/', (req, res) => {
       aggregated: '/api/aggregated',
       analytics: '/api/analytics',
       projects: '/api/projects',
-      ai: '/api/ai'
+      ai: '/api/ai',
+      webhooks: '/api/webhooks'
     }
   });
 });
