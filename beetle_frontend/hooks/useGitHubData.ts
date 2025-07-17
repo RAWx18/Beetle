@@ -408,7 +408,7 @@ export const useGitHubData = () => {
       return;
     }
 
-    console.log('Fetching GitHub data...');
+    console.log('Fetching GitHub data...', silent ? '(silent refresh - replacing all data)' : '(initial load)');
     if (!silent) {
       setLoading(true);
     } else {
@@ -569,7 +569,7 @@ export const useGitHubData = () => {
 
   // Smart refresh function
   const refreshData = useCallback(() => {
-    console.log('Manual refresh triggered');
+    console.log('Manual refresh triggered - performing full data refresh');
     if (token === 'demo-token') {
       // For demo mode, just update timestamps
       setUserActivity(prev => prev.map(activity => ({
@@ -577,7 +577,7 @@ export const useGitHubData = () => {
         created_at: new Date().toISOString()
       })));
     } else {
-      fetchRealData(true);  // Use silent update for manual refresh
+      fetchRealData(true);  // Use silent update for manual refresh - this will replace all data
     }
   }, [token, fetchRealData]);
 
@@ -626,7 +626,7 @@ export const useGitHubData = () => {
     };
   }, []);
 
-  // Fetch only recent changes
+  // Fetch only recent changes (used for auto-refresh)
   const fetchRecentChanges = async () => {
     if (!apiRef.current || token === 'demo-token') return;
 
@@ -642,7 +642,7 @@ export const useGitHubData = () => {
         const recentPRs = transformActivityToPRs(activity);
         const recentIssues = transformActivityToIssues(activity);
 
-        // Update states only if there are changes
+        // Update states only if there are changes - append to existing data for auto-refresh
         if (recentCommits.length > 0) {
           setRecentCommits(prev => {
             const combined = [...recentCommits, ...prev];
@@ -730,6 +730,6 @@ export const useGitHubData = () => {
     dashboardStats,
     quickStats,
     lastUpdated,
-    refreshData: fetchRecentChanges,
+    refreshData,
   };
 }; 
