@@ -34,7 +34,6 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/contexts/AuthContext"
-import Dashboard from "@/components/dashboard"
 import { GitHubWorkflowVisualization } from "@/components/github-workflow-visualization"
 import { BranchVisualization } from "@/components/branch-visualization"
 import { PRReviewDemo } from "@/components/pr-review-demo"
@@ -186,7 +185,8 @@ export default function Home() {
   if (!mounted) return null
 
   if (isAuthenticated) {
-    return <Dashboard onSignOut={handleSignOut} />
+    router.push("/dashboard")
+    return null
   }
 
   return (
