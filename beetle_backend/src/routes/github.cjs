@@ -11,6 +11,8 @@ const {
   getRepositoryContributors,
   getRepositoryLanguages,
   searchRepositories,
+  searchUsers,
+  searchOrganizations,
   getRepositoryTree,
   getFileContent,
   getRepositoryTreesForAllBranches,
@@ -486,6 +488,70 @@ router.get('/search/repositories', [
   const { q, sort = 'stars', order = 'desc', page = 1, per_page = 30 } = req.query;
   
   const searchResults = await searchRepositories(req.user.accessToken, q, sort, order, page, per_page);
+
+  res.json({
+    ...searchResults,
+    query: q,
+    pagination: {
+      sort,
+      order,
+      page,
+      per_page
+    }
+  });
+}));
+
+// Search users
+router.get('/search/users', [
+  query('q').isString().notEmpty(),
+  query('sort').optional().isIn(['followers', 'repositories', 'joined']),
+  query('order').optional().isIn(['desc', 'asc']),
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('per_page').optional().isInt({ min: 1, max: 100 }).toInt()
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      details: errors.array()
+    });
+  }
+
+  const { q, sort = 'followers', order = 'desc', page = 1, per_page = 30 } = req.query;
+  
+  const searchResults = await searchUsers(req.user.accessToken, q, sort, order, page, per_page);
+
+  res.json({
+    ...searchResults,
+    query: q,
+    pagination: {
+      sort,
+      order,
+      page,
+      per_page
+    }
+  });
+}));
+
+// Search organizations
+router.get('/search/organizations', [
+  query('q').isString().notEmpty(),
+  query('sort').optional().isIn(['repositories', 'joined']),
+  query('order').optional().isIn(['desc', 'asc']),
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('per_page').optional().isInt({ min: 1, max: 100 }).toInt()
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      details: errors.array()
+    });
+  }
+
+  const { q, sort = 'repositories', order = 'desc', page = 1, per_page = 30 } = req.query;
+  
+  const searchResults = await searchOrganizations(req.user.accessToken, q, sort, order, page, per_page);
 
   res.json({
     ...searchResults,

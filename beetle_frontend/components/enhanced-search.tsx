@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
+import { githubSearchService, GitHubRepository, GitHubUser, GitHubOrganization } from "@/lib/search-service"
+import { useDebouncedSearch } from "@/hooks/useDebounce"
+import { toast } from "sonner"
 
 interface SearchResult {
   type: "repository" | "user" | "organization"
@@ -23,18 +26,26 @@ interface EnhancedSearchProps {
 export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSearchProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isOpen, setIsOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [searchResults, setSearchResults] = useState<{
-    repositories: any[]
-    users: any[]
-    organizations: any[]
-  }>({
-    repositories: [],
-    users: [],
-    organizations: [],
-  })
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
+
+  // Use debounced search with real GitHub data
+  const {
+    results: searchResults,
+    isLoading,
+    error,
+    search
+  } = useDebouncedSearch(
+    async (query: string) => {
+      try {
+        return await githubSearchService.searchAll(query, 1, 4); // Get 4 results per category for preview
+      } catch (error) {
+        toast.error('Search failed. Please check your connection and try again.');
+        throw error;
+      }
+    },
+    300 // 300ms debounce
+  );
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -48,62 +59,26 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  const handleSearch = async (query: string) => {
+  const handleSearch = (query: string) => {
     setSearchQuery(query)
 
     if (query.length > 2) {
-      setIsLoading(true)
       setIsOpen(true)
-
-      // Simulate API call with more realistic data
-      setTimeout(() => {
-        const filteredRepos = mockRepositories
-          .filter(
-            (repo) =>
-              repo.name.toLowerCase().includes(query.toLowerCase()) ||
-              repo.description.toLowerCase().includes(query.toLowerCase()) ||
-              repo.topics.some((topic: string) => topic.toLowerCase().includes(query.toLowerCase())),
-          )
-          .slice(0, 4)
-
-        const filteredUsers = mockUsers
-          .filter(
-            (user) =>
-              user.name.toLowerCase().includes(query.toLowerCase()) ||
-              user.username.toLowerCase().includes(query.toLowerCase()) ||
-              user.bio.toLowerCase().includes(query.toLowerCase()),
-          )
-          .slice(0, 3)
-
-        const filteredOrgs = mockOrganizations
-          .filter(
-            (org) =>
-              org.name.toLowerCase().includes(query.toLowerCase()) ||
-              org.description.toLowerCase().includes(query.toLowerCase()),
-          )
-          .slice(0, 3)
-
-        setSearchResults({
-          repositories: filteredRepos,
-          users: filteredUsers,
-          organizations: filteredOrgs,
-        })
-        setIsLoading(false)
-      }, 300)
+      search(query)
     } else {
       setIsOpen(false)
-      setSearchResults({ repositories: [], users: [], organizations: [] })
     }
   }
 
   const handleResultClick = (type: "repository" | "user" | "organization", data: any) => {
-    onResultSelect({ type, id: data.id || data.username || data.name, data })
+    onResultSelect({ type, id: data.id || data.login || data.name, data })
     setIsOpen(false)
     setSearchQuery("")
   }
 
-  const totalResults =
-    searchResults.repositories.length + searchResults.users.length + searchResults.organizations.length
+  const totalResults = searchResults 
+    ? (searchResults.repositories?.length || 0) + (searchResults.users?.length || 0) + (searchResults.organizations?.length || 0)
+    : 0;
   const hasResults = totalResults > 0
 
   return (
@@ -136,7 +111,15 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
             transition={{ duration: 0.2 }}
             className="absolute top-full left-0 right-0 mt-3 bg-background border-2 border-muted rounded-2xl shadow-2xl z-50 max-h-[80vh] overflow-hidden"
           >
-            {!isLoading && !hasResults && (
+            {!isLoading && error && (
+              <div className="p-8 text-center text-red-500">
+                <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <h3 className="font-medium mb-2">Search Error</h3>
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+
+            {!isLoading && !error && !hasResults && searchQuery.length > 2 && (
               <div className="p-8 text-center text-muted-foreground">
                 <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <h3 className="font-medium mb-2">No results found</h3>
@@ -144,7 +127,7 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
               </div>
             )}
 
-            {!isLoading && hasResults && (
+            {!isLoading && !error && hasResults && searchResults && (
               <div className="max-h-[80vh] overflow-y-auto">
                 {/* Quick Stats Header */}
                 <div className="p-4 border-b bg-muted/20">
@@ -154,20 +137,20 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs">
-                        {searchResults.repositories.length} repos
+                        {searchResults.repositories?.length || 0} repos
                       </Badge>
                       <Badge variant="outline" className="text-xs">
-                        {searchResults.users.length} users
+                        {searchResults.users?.length || 0} users
                       </Badge>
                       <Badge variant="outline" className="text-xs">
-                        {searchResults.organizations.length} orgs
+                        {searchResults.organizations?.length || 0} orgs
                       </Badge>
                     </div>
                   </div>
                 </div>
 
                 {/* Repositories Section */}
-                {searchResults.repositories.length > 0 && (
+                {searchResults.repositories && searchResults.repositories.length > 0 && (
                   <div className="p-4">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2 text-sm font-medium">
@@ -184,7 +167,7 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                       </Button>
                     </div>
                     <div className="space-y-3">
-                      {searchResults.repositories.map((repo: any, index: number) => (
+                      {searchResults.repositories.map((repo: GitHubRepository, index: number) => (
                         <motion.div
                           key={repo.id}
                           initial={{ opacity: 0, x: -20 }}
@@ -201,12 +184,12 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                               <h4 className="font-semibold text-sm group-hover:text-orange-500 transition-colors truncate">
                                 {repo.name}
                               </h4>
-                              {repo.isPrivate && (
+                              {repo.private && (
                                 <Badge variant="outline" className="text-xs">
                                   Private
                                 </Badge>
                               )}
-                              {repo.isArchived && (
+                              {repo.archived && (
                                 <Badge variant="secondary" className="text-xs">
                                   Archived
                                 </Badge>
@@ -215,18 +198,18 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                             <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{repo.description}</p>
                             <div className="flex items-center gap-4 text-xs text-muted-foreground">
                               <span className="flex items-center gap-1">
-                                <div className={`w-2 h-2 rounded-full ${repo.languageColor}`} />
-                                {repo.primaryLanguage}
+                                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                {repo.language || 'Unknown'}
                               </span>
                               <span className="flex items-center gap-1">
                                 <Star className="w-3 h-3" />
-                                {repo.stars}
+                                {repo.stargazers_count}
                               </span>
                               <span className="flex items-center gap-1">
                                 <GitBranch className="w-3 h-3" />
-                                {repo.forks}
+                                {repo.forks_count}
                               </span>
-                              <span>Updated {repo.updatedAt}</span>
+                              <span>Updated {new Date(repo.updated_at).toLocaleDateString()}</span>
                             </div>
                             <div className="flex flex-wrap gap-1 mt-2">
                               {repo.topics.slice(0, 3).map((topic: string) => (
@@ -244,9 +227,9 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                 )}
 
                 {/* Users Section */}
-                {searchResults.users.length > 0 && (
+                {searchResults.users && searchResults.users.length > 0 && (
                   <>
-                    {searchResults.repositories.length > 0 && <Separator />}
+                    {searchResults.repositories && searchResults.repositories.length > 0 && <Separator />}
                     <div className="p-4">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2 text-sm font-medium">
@@ -263,7 +246,7 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                         </Button>
                       </div>
                       <div className="space-y-3">
-                        {searchResults.users.map((user: any, index: number) => (
+                        {searchResults.users.map((user: GitHubUser, index: number) => (
                           <motion.div
                             key={user.id}
                             initial={{ opacity: 0, x: -20 }}
@@ -273,9 +256,9 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                             className="flex items-center gap-4 p-4 hover:bg-muted/50 rounded-xl cursor-pointer group transition-all duration-200"
                           >
                             <Avatar className="w-12 h-12 border-2 border-muted">
-                              <AvatarImage src={user.avatar || "/placeholder.jpeg"} />
+                              <AvatarImage src={user.avatar_url} />
                               <AvatarFallback>
-                                {user.name
+                                {(user.name || user.login)
                                   .split(" ")
                                   .map((n: string) => n[0])
                                   .join("")}
@@ -284,20 +267,20 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-semibold text-sm group-hover:text-orange-500 transition-colors">
-                                  {user.name}
+                                  {user.name || user.login}
                                 </h4>
-                                {user.isVerified && (
+                                {user.site_admin && (
                                   <Badge variant="default" className="text-xs">
-                                    Verified
+                                    Staff
                                   </Badge>
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground mb-1">@{user.username}</p>
+                              <p className="text-xs text-muted-foreground mb-1">@{user.login}</p>
                               <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{user.bio}</p>
                               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                 <span>{user.followers} followers</span>
                                 <span>{user.following} following</span>
-                                <span>{user.publicRepos} repos</span>
+                                <span>{user.public_repos} repos</span>
                                 {user.company && <span>{user.company}</span>}
                               </div>
                             </div>
@@ -310,9 +293,9 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                 )}
 
                 {/* Organizations Section */}
-                {searchResults.organizations.length > 0 && (
+                {searchResults.organizations && searchResults.organizations.length > 0 && (
                   <>
-                    {(searchResults.repositories.length > 0 || searchResults.users.length > 0) && <Separator />}
+                    {((searchResults.repositories && searchResults.repositories.length > 0) || (searchResults.users && searchResults.users.length > 0)) && <Separator />}
                     <div className="p-4">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2 text-sm font-medium">
@@ -329,7 +312,7 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                         </Button>
                       </div>
                       <div className="space-y-3">
-                        {searchResults.organizations.map((org: any, index: number) => (
+                        {searchResults.organizations.map((org: GitHubOrganization, index: number) => (
                           <motion.div
                             key={org.id}
                             initial={{ opacity: 0, x: -20 }}
@@ -339,26 +322,25 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                             className="flex items-center gap-4 p-4 hover:bg-muted/50 rounded-xl cursor-pointer group transition-all duration-200"
                           >
                             <Avatar className="w-12 h-12 border-2 border-muted">
-                              <AvatarImage src={org.avatar || "/placeholder.jpeg"} />
-                              <AvatarFallback>{org.name[0]}</AvatarFallback>
+                              <AvatarImage src={org.avatar_url} />
+                              <AvatarFallback>{(org.name || org.login)[0]}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-semibold text-sm group-hover:text-orange-500 transition-colors">
-                                  {org.name}
+                                  {org.name || org.login}
                                 </h4>
-                                {org.isVerified && (
+                                {org.site_admin && (
                                   <Badge variant="default" className="text-xs">
                                     Verified
                                   </Badge>
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{org.description}</p>
+                              <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{org.bio}</p>
                               <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                <span>{org.publicMembers} public members</span>
-                                <span>{org.publicRepos} repositories</span>
+                                <span>{org.public_repos} repositories</span>
                                 {org.location && <span>{org.location}</span>}
-                                <span>Since {org.createdAt}</span>
+                                <span>Since {new Date(org.created_at).getFullYear()}</span>
                               </div>
                             </div>
                             <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -389,149 +371,3 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
     </div>
   )
 }
-
-// Enhanced mock data with more realistic GitHub-like information
-const mockRepositories = [
-  {
-    id: "1",
-    name: "microsoft/vscode",
-    description: "Visual Studio Code - Open source code editor built with TypeScript and Electron",
-    primaryLanguage: "TypeScript",
-    languageColor: "bg-blue-500",
-    stars: "155k",
-    forks: "27k",
-    updatedAt: "2 hours ago",
-    topics: ["editor", "typescript", "electron", "ide"],
-    isPrivate: false,
-    isArchived: false,
-    license: "MIT",
-  },
-  {
-    id: "2",
-    name: "vercel/next.js",
-    description: "The React Framework for the Web - Production-ready React applications",
-    primaryLanguage: "JavaScript",
-    languageColor: "bg-yellow-500",
-    stars: "120k",
-    forks: "26k",
-    updatedAt: "1 hour ago",
-    topics: ["react", "nextjs", "framework", "ssr"],
-    isPrivate: false,
-    isArchived: false,
-    license: "MIT",
-  },
-  {
-    id: "3",
-    name: "facebook/react",
-    description: "The library for web and native user interfaces. Declarative, efficient, and flexible.",
-    primaryLanguage: "JavaScript",
-    languageColor: "bg-yellow-500",
-    stars: "220k",
-    forks: "45k",
-    updatedAt: "3 hours ago",
-    topics: ["react", "javascript", "library", "ui"],
-    isPrivate: false,
-    isArchived: false,
-    license: "MIT",
-  },
-  {
-    id: "4",
-    name: "tailwindlabs/tailwindcss",
-    description: "A utility-first CSS framework for rapid UI development",
-    primaryLanguage: "CSS",
-    languageColor: "bg-blue-400",
-    stars: "78k",
-    forks: "4k",
-    updatedAt: "5 hours ago",
-    topics: ["css", "framework", "utility-first", "design"],
-    isPrivate: false,
-    isArchived: false,
-    license: "MIT",
-  },
-]
-
-const mockUsers = [
-  {
-    id: "1",
-    name: "Ryan Madhuwala",
-    username: "RAWx18",
-    bio: "Working on @aifaq. Author of Beetle and Zentoro. Building developer tools.",
-    avatar: "/placeholder.jpeg?height=48&width=48",
-    followers: "125k",
-    following: "180",
-    publicRepos: "89",
-    company: "LFDT",
-    location: "Ahmedabad, IN",
-    isVerified: true,
-    hireable: true,
-  },
-  {
-    id: "2",
-    name: "Sindre Sorhus",
-    username: "sindresorhus",
-    bio: "Full-Time Open-Sourcerer. Maker of many npm packages and apps. Unicorn enthusiast.",
-    avatar: "/placeholder.jpeg?height=48&width=48",
-    followers: "45k",
-    following: "12",
-    publicRepos: "1.2k",
-    company: null,
-    location: "Norway",
-    isVerified: true,
-    hireable: false,
-  },
-  {
-    id: "3",
-    name: "Evan You",
-    username: "yyx990803",
-    bio: "Creator of Vue.js, Vite. Core team @vuejs. Previously @meteor & @google",
-    avatar: "/placeholder.jpeg?height=48&width=48",
-    followers: "95k",
-    following: "25",
-    publicRepos: "156",
-    company: "Independent",
-    location: "Singapore",
-    isVerified: true,
-    hireable: false,
-  },
-]
-
-const mockOrganizations = [
-  {
-    id: "1",
-    name: "Microsoft",
-    description:
-      "Open source projects and samples from Microsoft. Empowering every person and organization on the planet to achieve more.",
-    avatar: "/placeholder.jpeg?height=48&width=48",
-    publicMembers: "15k",
-    publicRepos: "3.2k",
-    location: "Redmond, WA",
-    createdAt: "2014",
-    isVerified: true,
-    websiteUrl: "https://microsoft.com",
-  },
-  {
-    id: "2",
-    name: "Vercel",
-    description: "Develop. Preview. Ship. For the best frontend teams. The platform for frontend developers.",
-    avatar: "/placeholder.jpeg?height=48&width=48",
-    publicMembers: "180",
-    publicRepos: "150",
-    location: "San Francisco, CA",
-    createdAt: "2015",
-    isVerified: true,
-    websiteUrl: "https://vercel.com",
-  },
-  {
-    id: "3",
-    name: "Google",
-    description:
-      "Google's mission is to organize the world's information and make it universally accessible and useful.",
-    avatar: "/placeholder.jpeg?height=48&width=48",
-    publicMembers: "2.5k",
-    publicRepos: "2.8k",
-    location: "Mountain View, CA",
-    createdAt: "2012",
-    isVerified: true,
-    websiteUrl: "https://google.com",
-  },
-]
