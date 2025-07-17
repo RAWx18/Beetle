@@ -6,7 +6,18 @@ import { Calendar, TrendingUp, Award, Target } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
-export function ContributionHeatmap() {
+interface ContributionData {
+  day: number;
+  contributions: number;
+  date: Date;
+}
+
+interface ContributionHeatmapProps {
+  contributionData?: ContributionData[];
+  loading?: boolean;
+}
+
+export function ContributionHeatmap({ contributionData: propData, loading = false }: ContributionHeatmapProps) {
   const [hoveredDay, setHoveredDay] = useState<number | null>(null)
   const [animationPhase, setAnimationPhase] = useState(0)
 
@@ -23,8 +34,13 @@ export function ContributionHeatmap() {
     return () => clearInterval(interval)
   }, [])
 
-  // Generate mock contribution data
-  const generateContributionData = () => {
+  // Generate contribution data from real activity or fallback to mock data
+  const generateContributionData = (): ContributionData[] => {
+    if (propData && propData.length > 0) {
+      return propData;
+    }
+    
+    // Fallback to mock data if no real data provided
     return Array.from({ length: 365 }, (_, i) => {
       const intensity = Math.random()
       return {
@@ -35,7 +51,7 @@ export function ContributionHeatmap() {
     })
   }
 
-  const [contributionData] = useState(generateContributionData)
+  const contributionData = generateContributionData()
 
   const getIntensityColor = (contributions: number) => {
     switch (contributions) {
@@ -57,6 +73,26 @@ export function ContributionHeatmap() {
   const totalContributions = contributionData.reduce((sum, day) => sum + day.contributions, 0)
   const currentStreak = calculateStreak(contributionData)
   const longestStreak = calculateLongestStreak(contributionData)
+
+  if (loading) {
+    return (
+      <Card className="bg-gradient-to-br from-green-500/5 to-green-600/5 border-green-500/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-white" />
+            </div>
+            Contribution Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className="bg-gradient-to-br from-green-500/5 to-green-600/5 border-green-500/20">

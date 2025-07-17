@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import { motion } from "framer-motion"
+import React, { useState } from 'react'
+import { motion } from 'framer-motion'
+import { useAuth } from '@/contexts/AuthContext'
+import { useTheme } from 'next-themes'
 import {
   User,
   Bell,
@@ -21,28 +23,55 @@ import {
   Download,
   FileText,
   AlertTriangle,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+  Gitlab,
+  CheckCircle,
+  XCircle,
+  AlertCircle
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export function SettingsPage() {
+  const { user, token } = useAuth()
+  const { theme, setTheme } = useTheme()
   const [showApiKey, setShowApiKey] = useState(false)
-  const [currentPlan, setCurrentPlan] = useState("pro")
+  const [currentPlan, setCurrentPlan] = useState("open source")
   const [connectedAccounts, setConnectedAccounts] = useState([
-    { platform: "GitHub", username: "RAWx18", connected: true },
-    { platform: "GitLab", username: "", connected: false },
-    { platform: "Bitbucket", username: "", connected: false },
+    { platform: "GitHub", username: user?.login || "", connected: !!token, icon: Github },
+    { platform: "GitLab", username: "", connected: false, icon: Gitlab },
+    { platform: "Bitbucket", username: "", connected: false, icon: Code },
   ])
+
+  // Form state for profile information
+  const [profileData, setProfileData] = useState({
+    firstName: user?.name?.split(' ')[0] || '',
+    lastName: user?.name?.split(' ').slice(1).join(' ') || '',
+    email: user?.email || '',
+    bio: user?.bio || '',
+    location: user?.location || '',
+    website: user?.blog || '',
+    company: user?.company || '',
+    twitter: user?.twitter_username || ''
+  })
+
+  const handleProfileChange = (field: string, value: string) => {
+    setProfileData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSaveProfile = () => {
+    // Here you would typically save to backend
+    console.log('Saving profile data:', profileData)
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -90,8 +119,8 @@ export function SettingsPage() {
               <CardContent className="space-y-6">
                 <div className="flex items-center gap-6">
                   <Avatar className="w-24 h-24">
-                    <AvatarImage src="/placeholder.jpeg?height=96&width=96" />
-                    <AvatarFallback>JD</AvatarFallback>
+                    <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=96&width=96"} />
+                    <AvatarFallback>{user?.login?.[0]?.toUpperCase() || "U"}</AvatarFallback>
                   </Avatar>
                   <div className="space-y-2">
                     <Button variant="outline">Change Avatar</Button>
@@ -104,17 +133,30 @@ export function SettingsPage() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name</Label>
-                    <Input id="firstName" defaultValue="Ryan" />
+                    <Input 
+                      id="firstName" 
+                      value={profileData.firstName}
+                      onChange={(e) => handleProfileChange('firstName', e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name</Label>
-                    <Input id="lastName" defaultValue="Developer" />
+                    <Input 
+                      id="lastName" 
+                      value={profileData.lastName}
+                      onChange={(e) => handleProfileChange('lastName', e.target.value)}
+                    />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue="rawx18.dev@gmail.com" />
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={profileData.email}
+                    onChange={(e) => handleProfileChange('email', e.target.value)}
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -122,22 +164,50 @@ export function SettingsPage() {
                   <Textarea
                     id="bio"
                     placeholder="Tell us about yourself..."
-                    defaultValue="Full-stack developer passionate about open source and AI-powered tools."
+                    value={profileData.bio}
+                    onChange={(e) => handleProfileChange('bio', e.target.value)}
                   />
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="location">Location</Label>
-                    <Input id="location" defaultValue="San Francisco, CA" />
+                    <Input 
+                      id="location" 
+                      value={profileData.location}
+                      onChange={(e) => handleProfileChange('location', e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="website">Website</Label>
-                    <Input id="website" defaultValue="https://rawx18.netlify.app" />
+                    <Input 
+                      id="website" 
+                      value={profileData.website}
+                      onChange={(e) => handleProfileChange('website', e.target.value)}
+                    />
                   </div>
                 </div>
 
-                <Button className="bg-orange-500 hover:bg-orange-600">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="company">Company</Label>
+                    <Input 
+                      id="company" 
+                      value={profileData.company}
+                      onChange={(e) => handleProfileChange('company', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="twitter">Twitter Username</Label>
+                    <Input 
+                      id="twitter" 
+                      value={profileData.twitter}
+                      onChange={(e) => handleProfileChange('twitter', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <Button className="bg-orange-500 hover:bg-orange-600" onClick={handleSaveProfile}>
                   <Save className="w-4 h-4 mr-2" />
                   Save Changes
                 </Button>
@@ -257,7 +327,7 @@ export function SettingsPage() {
                 {connectedAccounts.map((account, index) => (
                   <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center gap-4">
-                      <Github className="w-8 h-8" />
+                      <account.icon className="w-8 h-8" />
                       <div>
                         <div className="font-medium">{account.platform}</div>
                         <div className="text-sm text-muted-foreground">
@@ -311,7 +381,7 @@ export function SettingsPage() {
               <CardContent className="space-y-6">
                 <div className="space-y-2">
                   <Label>Theme</Label>
-                  <Select defaultValue="system">
+                  <Select value={theme} onValueChange={setTheme}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -370,33 +440,33 @@ export function SettingsPage() {
                 <CardDescription>Manage your subscription and billing information</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex items-center justify-between p-6 bg-gradient-to-r from-orange-500/10 to-orange-600/10 border border-orange-500/20 rounded-xl">
+                <div className="flex items-center justify-between p-6 bg-gradient-to-r from-green-500/10 to-green-600/10 border border-green-500/20 rounded-xl">
                   <div>
-                    <h3 className="text-xl font-bold">Pro Plan</h3>
-                    <p className="text-muted-foreground">$TBD/month • Billed monthly</p>
-                    <p className="text-sm text-muted-foreground mt-2">Next billing date: January 15, 2025</p>
+                    <h3 className="text-xl font-bold">Open Source Plan</h3>
+                    <p className="text-muted-foreground">Free • Runs locally</p>
+                    <p className="text-sm text-muted-foreground mt-2">Self-hosted solution with full control</p>
                   </div>
                   <div className="text-right">
-                    <Button variant="outline">Change Plan</Button>
+                    <Button variant="outline">Upgrade Plan</Button>
                   </div>
                 </div>
 
                 {/* Usage Stats */}
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="p-4 border rounded-lg">
-                    <div className="text-2xl font-bold text-orange-500">15</div>
+                    <div className="text-2xl font-bold text-orange-500">TBD</div>
                     <div className="text-sm text-muted-foreground">Projects</div>
                     <div className="text-xs text-muted-foreground mt-1">Unlimited available</div>
                   </div>
                   <div className="p-4 border rounded-lg">
-                    <div className="text-2xl font-bold text-blue-500">2.4k</div>
+                    <div className="text-2xl font-bold text-blue-500">TBD</div>
                     <div className="text-sm text-muted-foreground">API Calls</div>
-                    <div className="text-xs text-muted-foreground mt-1">10k limit</div>
+                    <div className="text-xs text-muted-foreground mt-1">Run locally</div>
                   </div>
                   <div className="p-4 border rounded-lg">
-                    <div className="text-2xl font-bold text-green-500">89</div>
+                    <div className="text-2xl font-bold text-green-500">TBD</div>
                     <div className="text-sm text-muted-foreground">AI Reviews</div>
-                    <div className="text-xs text-muted-foreground mt-1">500 limit</div>
+                    <div className="text-xs text-muted-foreground mt-1">Run locally</div>
                   </div>
                 </div>
               </CardContent>
@@ -414,20 +484,20 @@ export function SettingsPage() {
                     <div
                       key={plan.name}
                       className={`p-6 border rounded-xl relative ${
-                        plan.name.toLowerCase() === currentPlan
-                          ? "border-orange-500 bg-orange-500/5"
-                          : "border-border hover:border-orange-500/50"
+                        plan.name.toLowerCase().replace(/\s+/g, '') === currentPlan.replace(/\s+/g, '')
+                          ? "border-green-500 bg-green-500/5"
+                          : "border-border hover:border-green-500/50"
                       } transition-colors`}
                     >
-                      {plan.name.toLowerCase() === currentPlan && (
-                        <Badge className="absolute -top-2 left-4 bg-orange-500">Current Plan</Badge>
+                      {plan.name.toLowerCase().replace(/\s+/g, '') === currentPlan.replace(/\s+/g, '') && (
+                        <Badge className="absolute -top-2 left-4 bg-green-500">Current Plan</Badge>
                       )}
 
                       <div className="text-center mb-4">
                         <h3 className="text-xl font-bold">{plan.name}</h3>
                         <div className="mt-2">
-                          <span className="text-3xl font-bold">${plan.price}</span>
-                          <span className="text-muted-foreground">/month</span>
+                          <span className="text-3xl font-bold">{plan.price === 0 ? "Free" : `$${plan.price}`}</span>
+                          {plan.price !== 0 && <span className="text-muted-foreground">/month</span>}
                         </div>
                         <p className="text-sm text-muted-foreground mt-2">{plan.description}</p>
                       </div>
@@ -443,13 +513,13 @@ export function SettingsPage() {
 
                       <Button
                         className={`w-full ${
-                          plan.name.toLowerCase() === currentPlan
+                          plan.name.toLowerCase().replace(/\s+/g, '') === currentPlan.replace(/\s+/g, '')
                             ? "bg-muted text-muted-foreground cursor-not-allowed"
-                            : "bg-orange-500 hover:bg-orange-600 text-white"
+                            : "bg-green-500 hover:bg-green-600 text-white"
                         }`}
-                        disabled={plan.name.toLowerCase() === currentPlan}
+                        disabled={plan.name.toLowerCase().replace(/\s+/g, '') === currentPlan.replace(/\s+/g, '')}
                       >
-                        {plan.name.toLowerCase() === currentPlan ? "Current Plan" : `Upgrade to ${plan.name}`}
+                        {plan.name.toLowerCase().replace(/\s+/g, '') === currentPlan.replace(/\s+/g, '') ? "Current Plan" : `Upgrade to ${plan.name}`}
                       </Button>
                     </div>
                   ))}
@@ -573,7 +643,7 @@ export function SettingsPage() {
                     Cancel Subscription
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Cancelling will downgrade your account to the free plan at the end of your current billing period.
+                    Cancelling will downgrade your account to the Open Source plan at the end of your current billing period.
                   </p>
                 </div>
               </CardContent>
@@ -619,17 +689,17 @@ const notificationSettings = [
 
 const availablePlans = [
   {
-    name: "Free",
+    name: "Open Source",
     price: 0,
-    description: "Perfect for getting started",
-    features: ["Up to 3 projects", "Basic GitHub integration", "Community support", "Public repository search"],
+    description: "Free self-hosted solution",
+    features: ["Unlimited projects", "Full GitHub integration", "Runs locally", "Community support", "Complete control"],
   },
   {
-    name: "Pro",
+    name: "Contributor",
     price: "TBD",
-    description: "For serious developers",
+    description: "For individual contributors",
     features: [
-      "Unlimited projects",
+      "Cloud-hosted solution",
       "AI-powered reviews",
       "Advanced analytics",
       "Priority support",
@@ -637,30 +707,30 @@ const availablePlans = [
     ],
   },
   {
-    name: "Team",
+    name: "Organization",
     price: "TBD",
     description: "For development teams",
-    features: ["Everything in Pro", "Team collaboration", "Advanced security", "SSO integration", "Dedicated support"],
+    features: ["Everything in Contributor", "Team collaboration", "Advanced security", "SSO integration", "Dedicated support"],
   },
 ]
 
 const billingHistory = [
   {
-    description: "Pro Plan - Monthly",
+    description: "Contributor Plan - Monthly",
     date: "Dec 15, 2023",
-    amount: "12.00",
+    amount: "0.00",
     status: "paid",
   },
   {
-    description: "Pro Plan - Monthly",
+    description: "Contributor Plan - Monthly",
     date: "Nov 15, 2023",
-    amount: "12.00",
+    amount: "0.00",
     status: "paid",
   },
   {
-    description: "Pro Plan - Monthly",
+    description: "Contributor Plan - Monthly",
     date: "Oct 15, 2023",
-    amount: "12.00",
+    amount: "0.00",
     status: "paid",
   },
 ]

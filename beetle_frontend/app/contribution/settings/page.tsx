@@ -10,22 +10,69 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Bell, Shield, Palette, Globe, Database, Zap } from 'lucide-react';
+import { Bell, Shield, Palette, Globe, Database, Zap, GitBranch } from 'lucide-react';
+import { useBranch } from '@/contexts/BranchContext';
+import { useRepository } from '@/contexts/RepositoryContext';
 
 export default function SettingsPage() {
   const showContent = useAnimateIn(false, 300);
+  const { selectedBranch, getBranchInfo } = useBranch();
+  const { repository } = useRepository();
+  const branchInfo = getBranchInfo();
+  const projectName = repository?.name || 'Project';
 
   return (
-    <div className="max-w-4xl mx-auto px-4 pt-24 pb-16">
+    <div className="max-w-4xl mx-auto px-4 pt-10 pb-16 h-screen">
       <AnimatedTransition show={showContent} animation="slide-up">
+        <div className="h-full overflow-y-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Settings</h1>
           <p className="text-muted-foreground mt-2">
-            Customize your Beetle experience and manage your preferences
+            Customize your Beetle experience and manage your preferences for {projectName}
           </p>
+          <div className="mt-4 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted">
+              <GitBranch className="w-4 h-4" />
+              {selectedBranch} branch
+            </span>
+          </div>
         </div>
 
         <div className="space-y-6">
+          {/* Branch-specific Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="h-5 w-5" />
+                Branch Settings
+              </CardTitle>
+              <CardDescription>
+                Manage settings specific to the {selectedBranch} branch
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Branch Notifications</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive notifications for {selectedBranch} branch activity
+                  </p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Auto-sync with {selectedBranch}</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically sync changes from {selectedBranch} branch
+                  </p>
+                </div>
+                <Switch />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Notifications */}
           <Card>
             <CardHeader>
@@ -214,6 +261,7 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
         </div>
       </AnimatedTransition>
     </div>

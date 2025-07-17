@@ -36,7 +36,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 }) => {
   return (
     <div className={cn(
-      "h-full bg-muted/30 border-r transition-all duration-300",
+      "h-full bg-black/30 border-r transition-all duration-300",
       showSidebar ? "w-64" : "w-0 overflow-hidden"
     )}>
       <div className="h-full flex flex-col">

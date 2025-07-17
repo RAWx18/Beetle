@@ -33,6 +33,7 @@ interface AuthContextType {
   login: () => void;
   loginDemo: () => void;
   logout: () => void;
+  forceLogout: () => void;
   validateToken: () => Promise<boolean>;
   setUserFromCallback: (userData: User, authToken: string) => void;
   enableAutoDemo: () => void;
@@ -56,23 +57,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const storedToken = localStorage.getItem('beetle_token');
     console.log('Stored token:', storedToken ? 'Available' : 'Not available');
     
-    if (storedToken) {
-      console.log('Found stored token, validating...');
+    // Check if we're in demo mode and should skip it
+    const autoDemo = localStorage.getItem('auto_demo_mode');
+    console.log('Auto demo mode:', autoDemo);
+    
+    if (storedToken && storedToken !== 'demo-token') {
+      console.log('Found real GitHub token, validating...');
       setToken(storedToken);
       validateToken(storedToken);
+    } else if (storedToken === 'demo-token' && autoDemo === 'true') {
+      console.log('Demo token found with auto demo enabled, using demo mode');
+      loginDemo();
     } else {
-      console.log('No stored token found');
+      console.log('No valid token found');
       
-      // Auto-login with demo mode in development
-      if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-        const autoDemo = localStorage.getItem('auto_demo_mode');
-        if (autoDemo === 'true') {
-          console.log('Auto-login with demo mode enabled');
-          loginDemo();
-        } else {
-          console.log('Setting loading to false');
-          setLoading(false);
-        }
+      // Auto-login with demo mode in development only if specifically enabled
+      if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && autoDemo === 'true') {
+        console.log('Auto-login with demo mode enabled');
+        loginDemo();
       } else {
         console.log('Setting loading to false');
         setLoading(false);
@@ -245,6 +247,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Force logout and clear all demo mode settings
+  const forceLogout = () => {
+    console.log('Force logout - clearing all data including demo mode');
+    setIsAuthenticated(false);
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('beetle_token');
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('auto_demo_mode');
+    setLoading(false);
+  };
+
   // Enable auto demo mode for development
   const enableAutoDemo = () => {
     localStorage.setItem('auto_demo_mode', 'true');
@@ -267,6 +281,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       login, 
       loginDemo,
       logout, 
+      forceLogout,
       validateToken,
       setUserFromCallback,
       enableAutoDemo,

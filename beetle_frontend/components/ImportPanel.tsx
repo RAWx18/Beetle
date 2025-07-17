@@ -1,12 +1,76 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Upload, FileText, Globe, Database, Type, GitBranch, Folder, File, Check, ChevronRight, ChevronDown, Search, CheckSquare, Square, X, Filter, RefreshCw, ChevronUp, PlusCircle, GitPullRequest, Activity, Bug, Bot } from 'lucide-react';
-import { ImportSource } from '@/lib/types';
-import AnimatedTransition from './AnimatedTransition';
-import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useBranch } from '@/contexts/BranchContext';
-import { BranchType } from '@/contexts/BranchContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRepository } from '@/contexts/RepositoryContext';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { 
+  FileText, 
+  Database, 
+  Globe, 
+  Upload, 
+  Type, 
+  GitBranch, 
+  ChevronRight, 
+  ChevronDown, 
+  Folder, 
+  File, 
+  X, 
+  Check, 
+  Search, 
+  Filter, 
+  Download, 
+  Settings, 
+  Info, 
+  AlertCircle,
+  GitPullRequest,
+  GitCommit,
+  Bug,
+  Star,
+  Activity,
+  Users,
+  Calendar,
+  Clock,
+  Code2,
+  Shield,
+  Eye,
+  Zap,
+  Target,
+  MessageSquare,
+  Award,
+  Flame,
+  TrendingUp,
+  TrendingDown,
+  Plus,
+  Minus,
+  Trash2,
+  Copy,
+  ExternalLink,
+  RefreshCw,
+  Loader2,
+  CheckSquare,
+  Square,
+  ChevronUp,
+  Bot,
+  PlusCircle
+} from 'lucide-react';
+import { transformGitHubData, fallbackContributionData } from './manage/contribution-data';
+import GitHubAPI from '@/lib/github-api';
+import AnimatedTransition from './AnimatedTransition';
+import { ImportSource } from '@/lib/types';
+import { toast } from 'sonner';
 
 const importSources: ImportSource[] = [
   {
@@ -60,135 +124,45 @@ const importSources: ImportSource[] = [
   }
 ];
 
-// Add mock data for contribution panel data
-const contributionData = {
-  pullRequests: [
-    { id: 'pr-1', title: 'Add pagination to dashboard', status: 'open', sourceBranch: 'dev', targetBranch: 'main' },
-    { id: 'pr-2', title: 'Fix authentication bug', status: 'merged', sourceBranch: 'agents', targetBranch: 'dev' },
-    { id: 'pr-3', title: 'Improve data connectors', status: 'closed', sourceBranch: 'snowflake', targetBranch: 'dev' },
-    { id: 'pr-4', title: 'Add new agent types', status: 'open', sourceBranch: 'agents', targetBranch: 'main' }
-  ],
-  issues: [
-    { id: 'issue-1', title: 'Dashboard not loading on Firefox', status: 'open', branch: 'dev', labels: ['bug', 'frontend'] },
-    { id: 'issue-2', title: 'Add support for Snowflake integration', status: 'closed', branch: 'snowflake', labels: ['feature', 'integration'] },
-    { id: 'issue-3', title: 'Agent API returns 500 error', status: 'open', branch: 'agents', labels: ['bug', 'backend'] }
-  ],
-  botLogs: [
-    { id: 'log-1', timestamp: '2023-12-01T12:30:00Z', action: 'Data fetch', status: 'success', branch: 'dev' },
-    { id: 'log-2', timestamp: '2023-12-02T10:15:00Z', action: 'Agent deployment', status: 'failed', branch: 'agents' },
-    { id: 'log-3', timestamp: '2023-12-03T15:45:00Z', action: 'Snowflake integration', status: 'success', branch: 'snowflake' }
-  ],
-  activity: [
-    { id: 'activity-1', timestamp: '2023-12-04T14:22:00Z', action: 'Push commit', user: 'alice', branch: 'dev' },
-    { id: 'activity-2', timestamp: '2023-12-05T09:10:00Z', action: 'Create branch', user: 'bob', branch: 'agents' },
-    { id: 'activity-3', timestamp: '2023-12-06T11:35:00Z', action: 'Merge PR', user: 'charlie', branch: 'snowflake' }
-  ]
-};
-
-// Mock data for branch files structure
-const branchFileStructure: Record<string, any[]> = {
-  dev: [
-    {
-      name: 'src',
-      type: 'folder',
-      expanded: false,
-      selected: false,
-      children: [
-        {
-          name: 'components',
-          type: 'folder',
-          expanded: false,
-          selected: false,
-          children: [
-            { name: 'Button.tsx', type: 'file', selected: false },
-            { name: 'Card.tsx', type: 'file', selected: false },
-            { name: 'Navbar.tsx', type: 'file', selected: false }
-          ]
-        },
-        {
-          name: 'utils',
-          type: 'folder',
-          expanded: false,
-          selected: false,
-          children: [
-            { name: 'helpers.ts', type: 'file', selected: false },
-            { name: 'api.ts', type: 'file', selected: false }
-          ]
-        },
-        { name: 'App.tsx', type: 'file', selected: false },
-        { name: 'index.tsx', type: 'file', selected: false }
-      ]
-    },
-    {
-      name: 'public',
-      type: 'folder',
-      expanded: false,
-      selected: false,
-      children: [
-        { name: 'index.html', type: 'file', selected: false },
-        { name: 'favicon.ico', type: 'file', selected: false }
-      ]
-    },
-    { name: 'package.json', type: 'file', selected: false },
-    { name: 'README.md', type: 'file', selected: false }
-  ],
-  agents: [
-    {
-      name: 'src',
-      type: 'folder',
-      expanded: false,
-      selected: false,
-      children: [
-        {
-          name: 'agents',
-          type: 'folder',
-          expanded: false,
-          selected: false,
-          children: [
-            { name: 'DataAgent.ts', type: 'file', selected: false },
-            { name: 'QueryAgent.ts', type: 'file', selected: false },
-            { name: 'RetrievalAgent.ts', type: 'file', selected: false }
-          ]
-        },
-        { name: 'index.ts', type: 'file', selected: false }
-      ]
-    },
-    { name: 'requirements.txt', type: 'file', selected: false },
-    { name: 'setup.py', type: 'file', selected: false }
-  ],
-  snowflake: [
-    {
-      name: 'src',
-      type: 'folder',
-      expanded: false,
-      selected: false,
-      children: [
-        {
-          name: 'connectors',
-          type: 'folder',
-          expanded: false,
-          selected: false,
-          children: [
-            { name: 'SnowflakeConnector.ts', type: 'file', selected: false },
-            { name: 'SecurityLayer.ts', type: 'file', selected: false }
-          ]
-        },
-        { name: 'models', type: 'folder', expanded: false, selected: false, children: [
-          { name: 'QueryModel.ts', type: 'file', selected: false },
-          { name: 'ResultModel.ts', type: 'file', selected: false }
-        ]}
-      ]
-    },
-    { name: 'config.json', type: 'file', selected: false },
-    { name: 'README.md', type: 'file', selected: false }
-  ]
-};
+// Real contribution data will be fetched and transformed
+let contributionData = fallbackContributionData;
 
 interface ImportSourceCardProps {
   source: ImportSource;
   onClick: () => void;
   isActive: boolean;
 }
+
+// Get file type icon based on extension
+const getFileIcon = (fileName: string) => {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  switch (extension) {
+    case 'ts':
+    case 'tsx':
+      return <Code2 size={16} className="mr-1.5 text-blue-500" />;
+    case 'js':
+    case 'jsx':
+      return <Code2 size={16} className="mr-1.5 text-yellow-500" />;
+    case 'json':
+      return <Code2 size={16} className="mr-1.5 text-green-500" />;
+    case 'md':
+      return <FileText size={16} className="mr-1.5 text-purple-500" />;
+    case 'css':
+    case 'scss':
+      return <FileText size={16} className="mr-1.5 text-pink-500" />;
+    case 'html':
+      return <FileText size={16} className="mr-1.5 text-orange-500" />;
+    case 'py':
+      return <Code2 size={16} className="mr-1.5 text-blue-600" />;
+    case 'java':
+      return <Code2 size={16} className="mr-1.5 text-red-500" />;
+    case 'cpp':
+    case 'c':
+      return <Code2 size={16} className="mr-1.5 text-blue-700" />;
+    default:
+      return <File size={16} className="mr-1.5 text-blue-500" />;
+  }
+};
 
 const ImportSourceCard: React.FC<ImportSourceCardProps> = ({ source, onClick, isActive }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -288,6 +262,10 @@ interface FileSystemNodeProps {
   onToggle: (item: any, path: string[]) => void;
   onSelect: (item: any, path: string[]) => void;
   path: string[];
+  branch: string;
+  onFileSelect?: (branch: string, filePath: string, content: string) => void;
+  fileContent?: string;
+  isLoadingContent?: boolean;
 }
 
 const FileSystemNode: React.FC<FileSystemNodeProps> = ({ 
@@ -295,7 +273,11 @@ const FileSystemNode: React.FC<FileSystemNodeProps> = ({
   level, 
   onToggle, 
   onSelect,
-  path 
+  path,
+  branch,
+  onFileSelect,
+  fileContent,
+  isLoadingContent
 }) => {
   const isFolder = item.type === 'folder';
   
@@ -343,14 +325,35 @@ const FileSystemNode: React.FC<FileSystemNodeProps> = ({
         {/* Icon and name - clicking on name also toggles folder or selects file */}
         <div 
           className="flex items-center flex-grow"
-          onClick={() => isFolder ? onToggle(item, path) : onSelect(item, path)}
+          onClick={() => {
+            if (isFolder) {
+              onToggle(item, path);
+            } else {
+              // For files, fetch content and show preview
+              const filePath = path.join('/');
+              if (onFileSelect) {
+                onFileSelect(branch, filePath, '');
+              }
+              onSelect(item, path);
+            }
+          }}
         >
           {isFolder ? 
             <Folder size={16} className="mr-1.5 text-amber-500" /> : 
-            <File size={16} className="mr-1.5 text-blue-500" />
+            getFileIcon(item.name)
           }
           
           <span className="text-sm truncate">{item.name}</span>
+          {!isFolder && (
+            <div className="flex items-center gap-1 ml-auto">
+              {isLoadingContent && (
+                <Loader2 size={12} className="animate-spin text-muted-foreground" />
+              )}
+              <span className="text-xs text-muted-foreground">
+                {item.size ? `${(item.size / 1024).toFixed(1)}KB` : ''}
+              </span>
+            </div>
+          )}
         </div>
       </div>
       
@@ -365,6 +368,10 @@ const FileSystemNode: React.FC<FileSystemNodeProps> = ({
               onToggle={onToggle}
               onSelect={onSelect}
               path={[...path, child.name]}
+              branch={branch}
+              onFileSelect={onFileSelect}
+              fileContent={fileContent}
+              isLoadingContent={isLoadingContent}
             />
           ))}
         </div>
@@ -382,6 +389,12 @@ interface BranchContentProps {
     name: string;
     color: string;
   };
+  loadingBranches: boolean;
+  selectedFileContents: Array<{branch: string, path: string, content: string}>;
+  setSelectedFileContents: React.Dispatch<React.SetStateAction<Array<{branch: string, path: string, content: string}>>>;
+  onFileSelect: (branch: string, filePath: string, content: string) => void;
+  fileContents: Record<string, string>;
+  loadingFileContent: Record<string, boolean>;
 }
 
 const BranchContent: React.FC<BranchContentProps> = ({ 
@@ -389,7 +402,13 @@ const BranchContent: React.FC<BranchContentProps> = ({
   fileStructure, 
   setFileStructure,
   onRemove,
-  branchInfo
+  branchInfo,
+  loadingBranches,
+  selectedFileContents,
+  setSelectedFileContents,
+  onFileSelect,
+  fileContents,
+  loadingFileContent
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredStructure, setFilteredStructure] = useState<any>(null);
@@ -528,7 +547,15 @@ const BranchContent: React.FC<BranchContentProps> = ({
     let files = 0;
     let folders = 0;
     
+    if (!structure || !Array.isArray(structure)) {
+      return { files, folders };
+    }
+    
     const traverse = (items: any[]) => {
+      if (!items || !Array.isArray(items)) {
+        return;
+      }
+      
       items.forEach(item => {
         if (item.selected) {
           if (item.type === 'folder') {
@@ -550,7 +577,8 @@ const BranchContent: React.FC<BranchContentProps> = ({
 
   // Get the count of selected files and folders
   const getSelectedCounts = () => {
-    return countSelectedItems(fileStructure[branch]);
+    const structure = fileStructure[branch] || [];
+    return countSelectedItems(structure);
   };
 
   // Select all files and folders
@@ -775,28 +803,87 @@ const BranchContent: React.FC<BranchContentProps> = ({
         
         {/* File tree */}
         <div className="border border-border rounded-lg max-h-[250px] overflow-y-auto bg-card/30">
-          {(filteredStructure || fileStructure[branch]).length > 0 ? (
-            <div className="py-1">
-              {(filteredStructure || fileStructure[branch]).map((item: any, index: number) => (
-                <FileSystemNode
-                  key={`${item.name}-${index}`}
-                  item={item}
-                  level={0}
-                  onToggle={handleFolderToggle}
-                  onSelect={handleNodeSelect}
-                  path={[item.name]}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="p-4 text-center text-muted-foreground">
-              {searchQuery ? 
-                `No files or folders matching "${searchQuery}"` : 
-                "No files or folders available"
-              }
-            </div>
-          )}
+          {(() => {
+            const structure = filteredStructure || fileStructure[branch] || [];
+            
+            // Show loading state if structure is empty and we're loading
+            if (structure.length === 0 && loadingBranches) {
+              return (
+                <div className="p-4 text-center text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
+                  <p>Loading file structure...</p>
+                </div>
+              );
+            }
+            
+            return structure.length > 0 ? (
+              <div className="py-1">
+                {structure.map((item: any, index: number) => (
+                  <FileSystemNode
+                    key={`${item.name}-${index}`}
+                    item={item}
+                    level={0}
+                    onToggle={handleFolderToggle}
+                    onSelect={handleNodeSelect}
+                    path={[item.name]}
+                    branch={branch}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="p-4 text-center text-muted-foreground">
+                {searchQuery ? 
+                  `No files or folders matching "${searchQuery}"` : 
+                  "No files or folders available"
+                }
+              </div>
+            );
+          })()}
         </div>
+        
+        {/* Code Preview Section */}
+        {selectedFileContents.length > 0 && (
+          <div className="mt-4 border-t border-border pt-4">
+            <h4 className="text-sm font-medium mb-3">Selected Files Preview</h4>
+            <div className="space-y-3">
+              {selectedFileContents.map((file: any, index: number) => {
+                const contentKey = `${file.branch}:${file.path}`;
+                const isLoading = loadingFileContent[contentKey];
+                const content = fileContents[contentKey] || file.content || 'Loading...';
+                
+                return (
+                  <div key={index} className="border border-border rounded-lg overflow-hidden">
+                    <div className="bg-muted/50 px-3 py-2 border-b border-border">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {getFileIcon(file.path)}
+                          <span className="text-sm font-medium">{file.path}</span>
+                          {isLoading && <Loader2 size={12} className="animate-spin text-muted-foreground" />}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Branch: {file.branch}</span>
+                          <button 
+                            onClick={() => {
+                              setSelectedFileContents((prev: any) => prev.filter((_: any, i: number) => i !== index));
+                            }}
+                            className="text-xs text-red-500 hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      <pre className="text-xs p-3 bg-background">
+                        <code className="whitespace-pre-wrap font-mono">{content}</code>
+                      </pre>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         
         {/* Selection summary */}
         <div className="flex items-center justify-between pt-2 text-xs">
@@ -818,11 +905,308 @@ const BranchContent: React.FC<BranchContentProps> = ({
 };
 
 export const ImportPanel: React.FC = () => {
-  const [selectedSource, setSelectedSource] = useState<string | null>(null);
+  const { selectedBranch, getBranchInfo, branchList: contextBranchList } = useBranch();
+  const { repository, setRepository } = useRepository();
+  const { token, user } = useAuth();
+  const githubAPI = new GitHubAPI(token || '');
+
+  // Branches and file structure
+  const [branchList, setBranchList] = useState<string[]>([]);
+  const [branchFileStructures, setBranchFileStructures] = useState<Record<string, any[]>>({});
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
-  const [fileStructure, setFileStructure] = useState(branchFileStructure);
-  const { selectedBranch: contextBranch, getBranchInfo } = useBranch();
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [branchError, setBranchError] = useState<string | null>(null);
   
+  // Code content states
+  const [fileContents, setFileContents] = useState<Record<string, string>>({});
+  const [loadingFileContent, setLoadingFileContent] = useState<Record<string, boolean>>({});
+  const [selectedFileContents, setSelectedFileContents] = useState<Array<{branch: string, path: string, content: string}>>([]);
+
+  // Control Panel Data
+  const [controlPanelData, setControlPanelData] = useState<any>(null);
+  const [controlPanelLoading, setControlPanelLoading] = useState(false);
+  const [controlPanelError, setControlPanelError] = useState<string | null>(null);
+
+  // CSV, API, URL, File, Text states (add as needed)
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [apiEndpoint, setApiEndpoint] = useState('');
+  const [apiAuthMethod, setApiAuthMethod] = 'API Key';
+  const [url, setUrl] = useState('');
+  const [extractText, setExtractText] = useState(false);
+  const [textTitle, setTextTitle] = useState('');
+  const [textContent, setTextContent] = useState('');
+  const [fileUpload, setFileUpload] = useState<File | null>(null);
+  const [textLoading, setTextLoading] = useState(false);
+  const [csvLoading, setCsvLoading] = useState(false);
+  const [apiLoading, setApiLoading] = useState(false);
+  const [urlLoading, setUrlLoading] = useState(false);
+  const [fileLoading, setFileLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  // Fetch real branches for the selected repo
+  useEffect(() => {
+    console.log('Repository context:', repository);
+    console.log('Token available:', !!token);
+    
+    if (repository?.owner?.login && repository?.name) {
+      console.log('Fetching branches for:', repository.owner.login, repository.name);
+      setLoadingBranches(true);
+      
+      // Use the new comprehensive endpoint to get branches with their file trees
+      githubAPI.getBranchesWithTrees(repository.owner.login, repository.name)
+        .then(data => {
+          console.log('Fetched branches with trees:', data);
+          setBranchList(data.branches.map((b: any) => b.name));
+          
+          // Pre-populate file structures for all branches
+          const structures: Record<string, any[]> = {};
+          Object.entries(data.treesByBranch).forEach(([branchName, branchData]: [string, any]) => {
+            if (branchData.tree && !branchData.error) {
+              structures[branchName] = convertTreeToFileStructure(branchData.tree);
+            }
+          });
+          setBranchFileStructures(structures);
+        })
+        .catch(err => {
+          console.error('Failed to fetch branches with trees:', err);
+          // Fallback to just fetching branches
+          githubAPI.getRepositoryBranches(repository.owner.login, repository.name)
+            .then(branches => {
+              console.log('Fetched branches (fallback):', branches);
+              setBranchList(branches.map((b: any) => b.name));
+            })
+            .catch(branchErr => {
+              console.error('Failed to fetch branches (fallback):', branchErr);
+              setBranchError('Failed to fetch branches');
+              setBranchList([]);
+            });
+        })
+        .finally(() => setLoadingBranches(false));
+    } else {
+      console.log('Repository not available, setting default branches');
+      // Set some default branches for testing
+      setBranchList(['main', 'develop', 'feature/new-ui', 'bugfix/auth-fix']);
+    }
+  }, [repository, token]);
+
+  // Set up demo repository if no repository is set and we're in demo mode
+  useEffect(() => {
+    if (!repository && token === 'demo-token') {
+      console.log('Setting up demo repository for ImportPanel');
+      const demoRepository = {
+        name: 'beetle-app',
+        full_name: 'demo-user/beetle-app',
+        description: 'A demo repository for testing Beetle features',
+        owner: {
+          login: 'demo-user',
+          avatar_url: 'https://github.com/github.png',
+          type: 'User'
+        },
+        language: 'TypeScript',
+        stargazers_count: 42,
+        forks_count: 8,
+        html_url: 'https://github.com/demo-user/beetle-app',
+        clone_url: 'https://github.com/demo-user/beetle-app.git',
+        default_branch: 'main',
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: new Date().toISOString(),
+        private: false,
+        type: 'owned' as const
+      };
+      setRepository(demoRepository);
+    }
+  }, [repository, token, setRepository]);
+
+  // Fetch file tree for a branch (updated to use comprehensive endpoint)
+  const fetchBranchFileStructure = async (branch: string) => {
+    if (!repository?.owner?.login || !repository?.name) return;
+    
+    // Check if we already have the structure for this branch
+    if (branchFileStructures[branch]) {
+      console.log(`File structure for branch ${branch} already loaded`);
+      return;
+    }
+    
+    setLoadingBranches(true);
+    try {
+      // Try to get the comprehensive data first
+      const data = await githubAPI.getBranchesWithTrees(repository.owner.login, repository.name);
+      const branchData = data.treesByBranch[branch];
+      
+      if (branchData && branchData.tree && !branchData.error) {
+        setBranchFileStructures(prev => ({
+          ...prev,
+          [branch]: convertTreeToFileStructure(branchData.tree)
+        }));
+      } else {
+        // Fallback to individual tree fetch
+        const tree = await githubAPI.getRepositoryTree(repository.owner.login, repository.name, branch);
+        setBranchFileStructures(prev => ({
+          ...prev,
+          [branch]: convertTreeToFileStructure(tree)
+        }));
+      }
+    } catch (err) {
+      console.error(`Failed to fetch file tree for branch ${branch}:`, err);
+      setBranchError(`Failed to fetch file tree for branch ${branch}`);
+    }
+    setLoadingBranches(false);
+  };
+
+  // When a branch is selected, fetch its file tree if not already loaded
+  const handleBranchSelect = (branch: string) => {
+    console.log('Branch selected:', branch);
+    console.log('Current branchFileStructures:', branchFileStructures);
+    
+    // Check if we already have the file structure for this branch
+    if (!branchFileStructures[branch]) {
+      console.log(`File structure for branch ${branch} not found, fetching...`);
+      fetchBranchFileStructure(branch);
+    } else {
+      console.log(`File structure for branch ${branch} already available`);
+    }
+    
+    setSelectedBranches(prev => {
+      if (prev.includes(branch)) {
+        return prev; // Already selected
+      } else {
+        console.log('Adding branch to selection:', branch);
+        return [...prev, branch];
+      }
+    });
+  };
+
+  // Remove a branch from selection
+  const handleBranchRemove = (branch: string) => {
+    setSelectedBranches(prev => prev.filter(b => b !== branch));
+  };
+
+  // Fetch file content
+  const fetchFileContent = async (branch: string, filePath: string) => {
+    if (!repository?.owner?.login || !repository?.name) return;
+    
+    const contentKey = `${branch}:${filePath}`;
+    setLoadingFileContent(prev => ({ ...prev, [contentKey]: true }));
+    
+    try {
+      const content = await githubAPI.getFileContent(
+        repository.owner.login, 
+        repository.name, 
+        filePath, 
+        branch
+      );
+      
+      setFileContents(prev => ({ ...prev, [contentKey]: content }));
+      
+      // Update the selectedFileContents with the fetched content
+      setSelectedFileContents(prev => 
+        prev.map(file => 
+          file.branch === branch && file.path === filePath 
+            ? { ...file, content: content }
+            : file
+        )
+      );
+      
+      console.log(`Fetched content for ${filePath} in ${branch}:`, content.substring(0, 100) + '...');
+    } catch (err) {
+      console.error(`Failed to fetch content for ${filePath} in ${branch}:`, err);
+      const errorMessage = 'Error loading file content';
+      setFileContents(prev => ({ ...prev, [contentKey]: errorMessage }));
+      
+      // Update the selectedFileContents with error message
+      setSelectedFileContents(prev => 
+        prev.map(file => 
+          file.branch === branch && file.path === filePath 
+            ? { ...file, content: errorMessage }
+            : file
+        )
+      );
+    } finally {
+      setLoadingFileContent(prev => ({ ...prev, [contentKey]: false }));
+    }
+  };
+
+  // Fetch real control panel data (PRs, issues, etc.)
+  useEffect(() => {
+    if (repository?.owner?.login && repository?.name && selectedBranch) {
+      setControlPanelLoading(true);
+      Promise.all([
+        githubAPI.getRepositoryPullRequests(repository.owner.login, repository.name, 'all', 1, 20),
+        githubAPI.getRepositoryIssues(repository.owner.login, repository.name, 'all', 1, 20),
+        githubAPI.getRepositoryCommits(repository.owner.login, repository.name, selectedBranch, 1, 20),
+        githubAPI.getUserActivity(user?.login, 1, 100)
+      ]).then(([prs, issues, commits, activity]) => {
+        setControlPanelData({ prs, issues, commits, activity });
+      }).catch(err => {
+        setControlPanelError('Failed to fetch control panel data');
+        setControlPanelData(null);
+      }).finally(() => setControlPanelLoading(false));
+    }
+  }, [repository, selectedBranch, token, user]);
+
+  // Helper function to convert GitHub tree to file structure
+  const convertTreeToFileStructure = (treeData: any[]): any[] => {
+    const structure: any[] = [];
+    const folderMap = new Map<string, any>();
+
+    if (!treeData || !Array.isArray(treeData)) {
+      return structure;
+    }
+
+    // First pass: create all items
+    treeData.forEach((item: any) => {
+      const pathParts = item.path.split('/');
+      const fileName = pathParts[pathParts.length - 1];
+      
+      if (item.type === 'tree') {
+        // It's a folder
+        const folderItem = {
+          name: fileName,
+          type: 'folder' as const,
+          expanded: false,
+          selected: false,
+          children: []
+        };
+        
+        if (pathParts.length === 1) {
+          // Root level folder
+          structure.push(folderItem);
+        } else {
+          // Nested folder
+          const parentPath = pathParts.slice(0, -1).join('/');
+          if (!folderMap.has(parentPath)) {
+            folderMap.set(parentPath, { children: [] });
+          }
+          folderMap.get(parentPath).children.push(folderItem);
+        }
+        folderMap.set(item.path, folderItem);
+      } else {
+        // It's a file
+        const fileItem = {
+          name: fileName,
+          type: 'file' as const,
+          selected: false
+        };
+        
+        if (pathParts.length === 1) {
+          // Root level file
+          structure.push(fileItem);
+        } else {
+          // Nested file
+          const parentPath = pathParts.slice(0, -1).join('/');
+          if (!folderMap.has(parentPath)) {
+            folderMap.set(parentPath, { children: [] });
+          }
+          folderMap.get(parentPath).children.push(fileItem);
+        }
+      }
+    });
+
+    return structure;
+  };
+
   // Add these state declarations inside the component
   const [selectedDataTypes, setSelectedDataTypes] = useState<{
     pullRequests: boolean;
@@ -909,36 +1293,37 @@ export const ImportPanel: React.FC = () => {
   // Function to get the branch color
   const getBranchColorClass = (branch: string): string => {
     switch(branch) {
+      case 'main': return 'text-green-600';
+      case 'master': return 'text-green-600';
       case 'dev': return 'text-blue-600';
+      case 'develop': return 'text-blue-600';
       case 'agents': return 'text-emerald-600';
       case 'snowflake': return 'text-cyan-600';
-      default: return 'text-blue-600';
+      case 'feature': return 'text-purple-600';
+      case 'hotfix': return 'text-red-600';
+      case 'release': return 'text-orange-600';
+      default: return 'text-gray-600';
     }
   };
 
-  // Handle branch selection
-  const handleBranchSelect = (branch: string) => {
-    setSelectedBranches(prev => {
-      if (prev.includes(branch)) {
-        return prev.filter(b => b !== branch);
-      } else {
-        return [...prev, branch];
-      }
-    });
-  };
 
-  // Handle branch removal
-  const handleBranchRemove = (branch: string) => {
-    setSelectedBranches(prev => prev.filter(b => b !== branch));
-  };
 
   // Check if any branches have selections
   const hasAnySelections = () => {
     return selectedBranches.some(branch => {
-      const structure = fileStructure[branch];
+      const structure = branchFileStructures[branch];
+      
+      if (!structure || !Array.isArray(structure)) {
+        return false; // No selections if structure is not loaded
+      }
+      
       let hasSelection = false;
 
       const checkSelections = (items: any[]) => {
+        if (!items || !Array.isArray(items)) {
+          return; // Skip if items is not valid
+        }
+        
         for (const item of items) {
           if (item.selected) {
             hasSelection = true;
@@ -961,10 +1346,22 @@ export const ImportPanel: React.FC = () => {
     let files = 0;
     let folders = 0;
 
+    if (!selectedBranches || !Array.isArray(selectedBranches)) {
+      return { files, folders };
+    }
+
     selectedBranches.forEach(branch => {
-      const structure = fileStructure[branch];
+      const structure = branchFileStructures[branch];
+      
+      if (!structure || !Array.isArray(structure)) {
+        return; // Skip if structure is not loaded or invalid
+      }
       
       const countItems = (items: any[]) => {
+        if (!items || !Array.isArray(items)) {
+          return; // Skip if items is not valid
+        }
+        
         items.forEach(item => {
           if (item.selected) {
             if (item.type === 'folder') {
@@ -991,10 +1388,23 @@ export const ImportPanel: React.FC = () => {
     // Get all selected items from all branches
     const selectedItems: {branch: string, paths: string[]}[] = [];
     
+    if (!selectedBranches || !Array.isArray(selectedBranches)) {
+      return;
+    }
+    
     selectedBranches.forEach(branch => {
       const branchItems: string[] = [];
+      const structure = branchFileStructures[branch];
+      
+      if (!structure || !Array.isArray(structure)) {
+        return; // Skip if structure is not loaded or invalid
+      }
       
       const findSelectedItems = (items: any[], path: string[] = []) => {
+        if (!items || !Array.isArray(items)) {
+          return; // Skip if items is not valid
+        }
+        
         items.forEach(item => {
           const currentPath = [...path, item.name];
           
@@ -1008,7 +1418,7 @@ export const ImportPanel: React.FC = () => {
         });
       };
       
-      findSelectedItems(fileStructure[branch]);
+      findSelectedItems(structure);
       
       if (branchItems.length > 0) {
         selectedItems.push({
@@ -1078,7 +1488,7 @@ export const ImportPanel: React.FC = () => {
             <div>
               <label className="block text-sm font-medium mb-2">Select Branch</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {['all', 'dev', 'agents', 'snowflake'].map(branch => (
+                {['all', ...branchList].map(branch => (
                   <button
                     key={branch}
                     className={cn(
@@ -1398,26 +1808,44 @@ export const ImportPanel: React.FC = () => {
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {Object.keys(fileStructure).map((branch) => {
-                  const branchInfo = {
-                    name: `${branch} Branch`,
-                    color: getBranchColorClass(branch),
-                    description: '',
-                    maintainer: '',
-                    githubUrl: ''
-                  };
-                  
-                  return (
-                    <BranchCard
-                      key={branch}
-                      branch={branch}
-                      isContextBranch={branch === contextBranch}
-                      isSelected={selectedBranches.includes(branch)}
-                      onSelect={handleBranchSelect}
-                      branchInfo={branchInfo}
-                    />
-                  );
-                })}
+                {loadingBranches ? (
+                  <div className="col-span-full flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="ml-2 text-muted-foreground">Loading branches...</span>
+                  </div>
+                ) : branchError ? (
+                  <div className="col-span-full text-center py-8 text-red-500">
+                    <AlertCircle size={40} className="mx-auto mb-2" />
+                    <p>{branchError}</p>
+                  </div>
+                ) : branchList.length === 0 ? (
+                  <div className="col-span-full text-center py-8 text-muted-foreground">
+                    <GitBranch className="h-8 w-8 mx-auto mb-2" />
+                    <p>No branches available</p>
+                    <p className="text-xs mt-1">Debug: branchList length = {branchList.length}</p>
+                  </div>
+                ) : (
+                  branchList.map((branch) => {
+                    const branchInfo = {
+                      name: `${branch} Branch`,
+                      color: getBranchColorClass(branch),
+                      description: branch === selectedBranch ? 'Current branch' : '',
+                      maintainer: '',
+                      githubUrl: ''
+                    };
+                    
+                    return (
+                      <BranchCard
+                        key={branch}
+                        branch={branch}
+                        isContextBranch={branch === selectedBranch}
+                        isSelected={selectedBranches.includes(branch)}
+                        onSelect={handleBranchSelect}
+                        branchInfo={branchInfo}
+                      />
+                    );
+                  })
+                )}
               </div>
             </div>
             
@@ -1430,24 +1858,42 @@ export const ImportPanel: React.FC = () => {
                   <BranchContent
                     key={branch}
                     branch={branch}
-                    fileStructure={fileStructure}
-                    setFileStructure={setFileStructure}
+                    fileStructure={branchFileStructures}
+                    setFileStructure={setBranchFileStructures}
                     onRemove={() => handleBranchRemove(branch)}
                     branchInfo={{
                       name: `${branch} Branch`,
                       color: getBranchColorClass(branch)
                     }}
+                    loadingBranches={loadingBranches}
+                    selectedFileContents={selectedFileContents}
+                    setSelectedFileContents={setSelectedFileContents}
+                    onFileSelect={(branch, filePath, content) => {
+                      // Fetch file content when a file is selected
+                      fetchFileContent(branch, filePath);
+                      // Add to selected files with loading state
+                      setSelectedFileContents(prev => {
+                        // Check if file is already selected
+                        const existingIndex = prev.findIndex(f => f.branch === branch && f.path === filePath);
+                        if (existingIndex >= 0) {
+                          return prev; // Already selected
+                        }
+                        return [...prev, { branch, path: filePath, content: 'Loading...' }];
+                      });
+                    }}
+                    fileContents={fileContents}
+                    loadingFileContent={loadingFileContent}
                   />
                 ))}
                 
                 {/* Select another branch button */}
-                {selectedBranches.length < Object.keys(fileStructure).length && (
+                {selectedBranches.length < branchList.length && (
                   <div className="flex justify-center">
                     <button 
                       className="flex items-center gap-1 text-sm text-primary hover:underline"
                       onClick={() => {
                         // Show branches selection UI
-                        const availableBranches = Object.keys(fileStructure).filter(
+                        const availableBranches = branchList.filter(
                           branch => !selectedBranches.includes(branch)
                         );
                         
@@ -1471,6 +1917,11 @@ export const ImportPanel: React.FC = () => {
                         {totalFiles > 0 && totalFolders > 0 && ', '}
                         {totalFolders > 0 && `${totalFolders} folder${totalFolders !== 1 ? 's' : ''}`}
                         {` from ${selectedBranches.length} branch${selectedBranches.length > 1 ? 'es' : ''}`}
+                        {selectedFileContents.length > 0 && (
+                          <span className="text-muted-foreground ml-2">
+                            • {selectedFileContents.length} file{selectedFileContents.length !== 1 ? 's' : ''} with content
+                          </span>
+                        )}
                       </span>
                     ) : (
                       <span>No items selected from any branch</span>
@@ -1491,7 +1942,10 @@ export const ImportPanel: React.FC = () => {
               <div className="p-8 text-center border border-dashed border-border rounded-lg">
                 <GitBranch size={40} className="mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">
-                  Select one or more branches to view and import their files
+                  {branchList.length > 0 
+                    ? "Select one or more branches to view and import their files"
+                    : "No branches available for import"
+                  }
                 </p>
               </div>
             )}

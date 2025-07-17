@@ -85,9 +85,11 @@ export interface UserActivity {
 
 class GitHubAPI {
   private token: string;
+  private lastUpdateTimestamp: string;
 
   constructor(token: string) {
     this.token = token;
+    this.lastUpdateTimestamp = new Date().toISOString();
   }
 
   // Check if the backend is accessible
@@ -159,6 +161,24 @@ class GitHubAPI {
     return response.commits;
   }
 
+  // Get aggregated pull requests from all user repositories
+  async getAggregatedPullRequests(state = 'all', limit = 10): Promise<PullRequest[]> {
+    const response = await this.request(`/aggregated/pull-requests?state=${state}&limit=${limit}`);
+    return response.pullRequests;
+  }
+
+  // Get aggregated issues from all user repositories
+  async getAggregatedIssues(state = 'all', limit = 10): Promise<Issue[]> {
+    const response = await this.request(`/aggregated/issues?state=${state}&limit=${limit}`);
+    return response.issues;
+  }
+
+  // Get aggregated summary of all user repositories
+  async getAggregatedSummary(limit = 10) {
+    const response = await this.request(`/aggregated/summary?limit=${limit}`);
+    return response;
+  }
+
   // Get repository pull requests
   async getRepositoryPullRequests(owner: string, repo: string, state = 'open', page = 1, per_page = 100): Promise<PullRequest[]> {
     const response = await this.request(`/github/repositories/${owner}/${repo}/pulls?state=${state}&page=${page}&per_page=${per_page}`);
@@ -206,6 +226,88 @@ class GitHubAPI {
   async getRepositoryLanguages(owner: string, repo: string) {
     const response = await this.request(`/github/repositories/${owner}/${repo}/languages`);
     return response.languages;
+  }
+
+  // Get current user profile
+  async getCurrentUserProfile() {
+    const response = await this.request('/auth/profile');
+    return response.user;
+  }
+
+  // Update current user profile
+  async updateCurrentUserProfile(updateData: any) {
+    const response = await this.request('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(updateData)
+    });
+    return response.user;
+  }
+
+  // Get repository tree structure
+  async getRepositoryTree(owner: string, repo: string, branch: string = 'main') {
+    const response = await this.request(`/github/repositories/${owner}/${repo}/tree?branch=${branch}`);
+    return response.tree;
+  }
+
+  // Get file trees from all branches
+  async getRepositoryTreesForAllBranches(owner: string, repo: string) {
+    const response = await this.request(`/github/repositories/${owner}/${repo}/trees`);
+    return response.treesByBranch;
+  }
+
+  // Get all branches with their file trees (comprehensive data)
+  async getBranchesWithTrees(owner: string, repo: string) {
+    const response = await this.request(`/github/repositories/${owner}/${repo}/branches-with-trees`);
+    return response;
+  }
+
+  // Get file content
+  async getFileContent(owner: string, repo: string, path: string, branch: string = 'main') {
+    const response = await this.request(`/github/repositories/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${branch}`);
+    return response.content;
+  }
+
+  // Get user starred repositories
+  async getUserStarredRepositories(page = 1, per_page = 100): Promise<Repository[]> {
+    const response = await this.request(`/github/starred?page=${page}&per_page=${per_page}`);
+    return response.repositories;
+  }
+
+  // Get trending repositories
+  async getTrendingRepositories(since = 'daily', language?: string): Promise<Repository[]> {
+    const params = new URLSearchParams({
+      since: since,
+    });
+    if (language) {
+      params.append('language', language);
+    }
+    const response = await this.request(`/github/trending?${params}`);
+    return response.repositories;
+  }
+
+  // Get recent changes since last update
+  async getRecentChanges(): Promise<{
+    commits: Commit[];
+    prs: PullRequest[];
+    issues: Issue[];
+    stats: {
+      newStars: number;
+      newForks: number;
+    };
+  }> {
+    try {
+      const response = await this.request(`/github/recent-changes?since=${this.lastUpdateTimestamp}`);
+      this.lastUpdateTimestamp = new Date().toISOString();
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch recent changes:', error);
+      throw error;
+    }
+  }
+
+  // Update last fetch timestamp
+  updateLastFetchTime() {
+    this.lastUpdateTimestamp = new Date().toISOString();
   }
 }
 

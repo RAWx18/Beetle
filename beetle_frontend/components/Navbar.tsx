@@ -1,12 +1,12 @@
 "use client";
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Brain, Search, Upload, User, Settings, LogOut, Moon, Sun, Table, Info, HelpCircle, Code, Github, GitBranch, GitPullRequest } from 'lucide-react';
 import { useRippleEffect } from '@/lib/animations';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useTheme } from 'next-themes';
 import { useBranch } from '@/contexts/BranchContext';
 import AuthModal from '@/components/AuthModal';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { useRepository } from '@/contexts/RepositoryContext';
 
 interface NavItemProps {
   to: string;
@@ -130,35 +131,38 @@ export const Navbar = () => {
   const [active, setActive] = useState('what');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { isAuthenticated, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { selectedBranch, setSelectedBranch, getBranchInfo } = useBranch();
   const pathname = usePathname();
   const isOnContributionPage = pathname?.startsWith('/contribution');
+  const { repository } = useRepository();
+  const { branchList } = useBranch();
+  const projectName = repository?.name || 'Project';
   
-  const handleOpenAuthModal = () => {
+  // Debug logging
+  console.log('🧭 Navbar - repository:', repository?.full_name);
+  console.log('🧭 Navbar - branchList:', branchList);
+  console.log('🧭 Navbar - selectedBranch:', selectedBranch);
+  console.log('🧭 Navbar - branchList.length:', branchList.length);
+  
+  const handleOpenAuthModal = useCallback(() => {
     setIsAuthModalOpen(true);
-  };
+  }, []);
 
-  const handleCloseAuthModal = () => {
+  const handleCloseAuthModal = useCallback(() => {
     setIsAuthModalOpen(false);
-  };
+  }, []);
 
-  const handleNavItemClick = (id: string) => {
+  const handleNavItemClick = useCallback((id: string) => {
     setActive(id);
-  };
+  }, []);
 
-  const branches = [
-    { id: 'dev' as const, name: 'Dev Branch', color: 'text-blue-600', description: 'Integration layer' },
-    { id: 'agents' as const, name: 'Agents Branch', color: 'text-emerald-600', description: 'Multi-agent AI systems' },
-    { id: 'snowflake' as const, name: 'Snowflake Branch', color: 'text-cyan-600', description: 'Enterprise data integrations' }
-  ];
-
-  const cortexSubmenu = [
-    { to: '/contribution', icon: <Info size={18} />, label: 'About AIFAQ', id: 'what' },
-    { to: '/contribution/why', icon: <HelpCircle size={18} />, label: 'Why AIFAQ', id: 'why' },
+  const cortexSubmenu = useMemo(() => [
+    { to: '/contribution', icon: <Info size={18} />, label: `About`, id: 'what' },
+    { to: '/contribution/why', icon: <HelpCircle size={18} />, label: `Why`, id: 'why' },
     { to: '/contribution/how', icon: <Code size={18} />, label: 'How It Works', id: 'how' },
     { to: '/contribution/contribute', icon: <Github size={18} />, label: 'Contribute', id: 'contribute' },
-  ];
+  ], [projectName]);
   
   const authNavItems = [
     { to: '/contribution/manage', icon: <Table size={20} />, label: 'Manage', id: 'manage' },
@@ -173,12 +177,12 @@ export const Navbar = () => {
   return (
     <>
       <TooltipProvider>
-        <header className="glass-panel fixed top-6 left-1/2 transform -translate-x-1/2 z-40 rounded-lg px-1 py-1">
+        <header className="glass-panel fixed top-4 left-1/2 transform -translate-x-1/2 z-40 rounded-lg px-1 py-1">
           <nav className="flex items-center">
             <NavItem
               to="#"
               icon={<Brain size={20} />}
-              label="AIFAQ"
+              label={projectName}
               active={['what', 'why', 'how', 'contribute'].includes(active)}
               onClick={() => {}}
               hasSubmenu={true}
@@ -195,43 +199,54 @@ export const Navbar = () => {
               ))}
             </NavItem>
 
-            {/* Branch Dropdown */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-primary/10 hover:text-primary"
-                    >
-                      <GitBranch size={20} />
-                      <span className="font-medium">{branches.find(b => b.id === selectedBranch)?.name}</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="bg-background border border-border shadow-lg">
-                    {branches.map((branch) => (
-                      <DropdownMenuItem
-                        key={branch.id}
-                        onClick={() => setSelectedBranch(branch.id)}
-                        className={cn(
-                          "flex flex-col items-start gap-1 cursor-pointer hover:bg-accent p-3",
-                          selectedBranch === branch.id && "bg-accent"
-                        )}
+            {/* Branch Dropdown - Always show for any project */}
+            {branchList.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-primary/10 hover:text-primary"
                       >
-                        <div className="flex items-center gap-2 w-full">
-                          <div className={cn("w-2 h-2 rounded-full bg-primary")}></div>
-                          <span className="text-primary font-medium">{branch.name}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground pl-4">{branch.description}</p>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Select Branch</p>
-              </TooltipContent>
-            </Tooltip>
+                        <GitBranch size={20} />
+                        <span className="font-medium">{selectedBranch}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="bg-background border border-border shadow-lg">
+                      {branchList.map((branch) => (
+                        <DropdownMenuItem
+                          key={branch}
+                          onClick={() => setSelectedBranch(branch)}
+                          className={cn(
+                            "flex flex-col items-start gap-1 cursor-pointer hover:bg-accent p-3",
+                            selectedBranch === branch && "bg-accent"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            <div className={cn("w-2 h-2 rounded-full", 
+                              branch === 'main' || branch === 'dev' ? 'bg-blue-500' : 
+                              branch === 'agents' ? 'bg-emerald-500' : 
+                              branch === 'snowflake' ? 'bg-cyan-500' : 'bg-gray-500'
+                            )}></div>
+                            <span className="text-primary font-medium">{branch}</span>
+                            {branch === repository?.default_branch && (
+                              <span className="text-xs text-muted-foreground ml-auto">Default</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground pl-4">
+                            {branch === repository?.default_branch ? 'Default branch' : ''}
+                          </p>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Select Branch ({branchList.length} available)</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
 
             {/* Contribution Button - Only show when not on contribution pages */}
             {!isOnContributionPage && (
@@ -263,7 +278,7 @@ export const Navbar = () => {
                   variant="ghost"
                   size="icon"
                   className="rounded-lg ml-1"
-                  onClick={toggleTheme}
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                 >
                   {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                 </Button>

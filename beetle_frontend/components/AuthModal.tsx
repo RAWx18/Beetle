@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Github, Loader2 } from 'lucide-react';
+import { Github, Loader2, PlayCircle } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -17,7 +17,7 @@ interface AuthModalProps {
 }
 
 const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
-  const { login, loading } = useAuth();
+  const { login, loginDemo, loading } = useAuth();
   const [isLoggingIn, setIsLoggingIn] = React.useState(false);
 
   const handleLogin = async () => {
@@ -32,16 +32,21 @@ const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
     }
   };
 
+  const handleDemoLogin = () => {
+    loginDemo();
+    onClose();
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold flex items-center gap-2">
             <Github className="w-5 h-5" />
-            Login with GitHub
+            Login to Beetle
           </DialogTitle>
           <DialogDescription>
-            Connect your GitHub account to access Beetle's branch-level intelligence features.
+            Connect your GitHub account or try the demo to access Beetle's branch-level intelligence features.
           </DialogDescription>
         </DialogHeader>
         
@@ -85,7 +90,26 @@ const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
               </>
             )}
           </Button>
-          <Button variant="outline" onClick={onClose} className="w-full">
+          
+          <div className="relative w-full">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+          
+          <Button 
+            variant="outline" 
+            onClick={handleDemoLogin}
+            className="w-full"
+          >
+            <PlayCircle className="w-4 h-4 mr-2" />
+            Try Demo Mode
+          </Button>
+          
+          <Button variant="ghost" onClick={onClose} className="w-full">
             Cancel
           </Button>
         </DialogFooter>

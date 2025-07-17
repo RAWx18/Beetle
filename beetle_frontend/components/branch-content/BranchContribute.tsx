@@ -148,7 +148,62 @@ Has this been reviewed for security implications?`,
     }
   };
 
-  const currentContent = content[selectedBranch];
+  // Get content for the selected branch, with fallback for unknown branches
+  const getBranchContent = (branch: string) => {
+    if (content[branch as keyof typeof content]) {
+      return content[branch as keyof typeof content];
+    }
+    
+    // Fallback for unknown branches
+    return {
+      icon: <Code className="w-6 h-6" />,
+      title: `Contribute to ${branch}`,
+      description: `Help improve and enhance the ${branch} branch`,
+      areas: [
+        {
+          title: "Feature Development",
+          description: "Build new features and improvements",
+          skills: ["JavaScript", "TypeScript", "React", "Testing"]
+        },
+        {
+          title: "Bug Fixes",
+          description: "Identify and fix issues in the codebase",
+          skills: ["Debugging", "Problem Solving", "Code Review"]
+        },
+        {
+          title: "Documentation",
+          description: "Improve documentation and guides",
+          skills: ["Technical Writing", "Markdown", "User Experience"]
+        }
+      ],
+      quickStart: [
+        `Fork the repository and checkout the ${branch} branch`,
+        "Review the codebase and understand the project structure",
+        "Pick an open issue or create a new feature request",
+        "Submit a PR with clear descriptions and tests"
+      ],
+      maintainers: ["Core Team"],
+      mentors: ["Senior Developers"],
+      guide: `The ${branch} branch is where active development happens. Your contributions should follow the project's coding standards and best practices.`,
+      bestPractices: [
+        "Write clear, readable code with proper documentation",
+        "Include tests for new features and bug fixes",
+        "Follow the project's coding style and conventions",
+        "Create small, focused PRs with clear purposes"
+      ],
+      pullRequestTemplate: `## Description
+What does this PR do?
+
+## Changes
+What changes were made?
+
+## Testing
+How has this been tested?`,
+      meetingTimes: "Weekly team meetings"
+    };
+  };
+
+  const currentContent = getBranchContent(selectedBranch);
 
   return (
     <div className="space-y-8">

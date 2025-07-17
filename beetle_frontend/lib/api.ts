@@ -82,7 +82,7 @@ class ApiService {
   }
 
   async getRepositoryBranches(owner: string, repo: string): Promise<ApiResponse<{ branches: any[]; total: number }>> {
-    return this.request(`/github/repositories/${owner}/${repo}/branches`);
+    return this.request<{ branches: any[]; total: number }>(`/github/repositories/${owner}/${repo}/branches`);
   }
 
   async getRepositoryIssues(owner: string, repo: string, state = 'open', page = 1): Promise<ApiResponse<{ issues: any[]; pagination: any }>> {

@@ -124,7 +124,7 @@ const CortexSidebar = ({
 
   return (
     <div className={cn(
-      "border-r border-border/50 overflow-y-auto shrink-0 transition-all duration-300 bg-background",
+      "border-r border-border/50 overflow-y-auto shrink-0 transition-all duration-300 bg-background h-full flex flex-col",
       isCollapsed ? "w-16" : "w-64"
     )}>
       {/* Header with collapse toggle */}
@@ -158,7 +158,7 @@ const CortexSidebar = ({
       )}
 
       {/* Navigation Sections */}
-      <div className="p-2">
+      <div className="p-2 flex-1">
         {filteredSections.map((section) => (
           <Tooltip key={section.id}>
             <TooltipTrigger asChild>
@@ -200,7 +200,7 @@ const CortexSidebar = ({
 
       {/* Quick Stats (collapsed view) */}
       {isCollapsed && (
-        <div className="p-2 border-t border-border/50 mt-auto">
+        <div className="p-2 border-t border-border/50 mt-auto pb-0">
           <div className="text-xs text-muted-foreground text-center">
             <div className="mb-1">PRs: 12</div>
             <div>Notes: 7</div>

@@ -7,7 +7,10 @@
     "start": "node src/index.cjs",
     "dev": "nodemon src/index.cjs",
     "dev:stable": "node src/index.cjs",
-    "test": "jest"
+    "setup": "node setup-env.js",
+    "setup:quick": "./create-env.sh",
+    "test": "jest",
+    "test:ai": "node test-ai-pipeline.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
@@ -23,7 +26,9 @@
     "lowdb": "^6.1.1",
     "morgan": "^1.10.0",
     "node-cache": "^5.1.2",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "@octokit/rest": "^20.0.2",
+    "playwright": "^1.40.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",

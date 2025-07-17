@@ -1,16 +1,23 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { SearchIcon } from 'lucide-react';
+import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Chat, ChatMessage } from '@/types/chat';
 import { generateId, createNewChat as createNewChatUtil } from '@/utils/chatUtils';
+import { useBranch } from '@/contexts/BranchContext';
+import { useRepository } from '@/contexts/RepositoryContext';
 import ChatSidebar from './ChatSidebar';
 import ChatMessages from './ChatMessages';
 import ChatInput from './ChatInput';
 import { cn } from '@/lib/utils';
 
 export const Search: React.FC = () => {
+  const { selectedBranch, getBranchInfo } = useBranch();
+  const { repository } = useRepository();
+  const branchInfo = getBranchInfo();
+  const projectName = repository?.name || 'Project';
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -114,12 +121,12 @@ export const Search: React.FC = () => {
       if (updatedActiveChat) {
         setActiveChat(updatedActiveChat);
         
-        // Add AI response after a short delay
+        // Add AI response after a short delay with branch-specific context
         setTimeout(() => {
           const aiMessage: ChatMessage = {
             id: generateId(),
             type: 'assistant',
-            content: `Based on your search for "${userMessage.content}", I found several relevant notes in your second brain. Would you like me to summarize the key insights?`,
+            content: `Based on your search for "${userMessage.content}" in the ${selectedBranch} branch of ${projectName}, I found several relevant notes in your second brain. Would you like me to summarize the key insights specific to this branch?`,
             timestamp: new Date()
           };
           
@@ -168,19 +175,24 @@ export const Search: React.FC = () => {
       
       {/* Main chat area */}
       <div className="flex-1 flex flex-col">
-        {/* Header with toggle */}
-        <div className="border-b py-2 px-4 flex items-center">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={toggleSidebar}
-            className="mr-2"
-          >
-            <SearchIcon size={18} />
-          </Button>
-          <h2 className="font-medium">
-            {activeChat?.title || 'Universal Search'}
-          </h2>
+        {/* Header with toggle and branch info */}
+        <div className="border-b py-2 px-4 flex items-center justify-between">
+          <div className="flex items-center">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={toggleSidebar}
+              className="mr-2"
+            >
+              {showSidebar ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+            </Button>
+            <h2 className="font-medium">
+              {activeChat?.title || 'Universal Search'}
+            </h2>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Searching in {projectName} ({selectedBranch})
+          </div>
         </div>
         
         {/* Chat messages area */}

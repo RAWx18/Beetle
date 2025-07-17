@@ -10,6 +10,7 @@
 [![Contributors](https://img.shields.io/github/contributors/RAWx18/Beetle.svg?style=for-the-badge&logo=git)](https://github.com/RAWx18/Beetle/graphs/contributors)
 [![Under Development](https://img.shields.io/badge/Status-Under%20Development-yellow.svg?style=for-the-badge)](#)
 [![Join Discord](https://img.shields.io/badge/Join%20us%20on-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/FkrWfGtZn3)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10871/badge)](https://www.bestpractices.dev/projects/10871)
 
 [🚀 **Try Demo**](https://beetle-demo.vercel.app/) • [📖 **Documentation**](https://github.com/RAWx18/Beetle/README.md) • [💬 **Join Community**](https://discord.gg/FkrWfGtZn3)
 
@@ -204,12 +205,9 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 Our mascot is excited to see what amazing contributions you'll bring to the Beetle community!
 
-### Our major contributors:
-<div align="center">
-
-[![Contributors](https://contrib.rocks/image?repo=RAWx18/beetle)](https://github.com/RAWx18/beetle/graphs/contributors)
-
-</div>
+<p align="center">
+<img src="https://readme-contribs.as93.net/contributors/RAWx18/beetle?avatarSize=100&perRow=5&shape=circle&title=Our+Awesome+Contributors&fontSize=14&textColor=ffffff&backgroundColor=000000&outerBorderWidth=2&outerBorderColor=ffcc00&outerBorderRadius=8&hideLabel=true" alt="Contributors"/>
+</p>
 
 ---
 

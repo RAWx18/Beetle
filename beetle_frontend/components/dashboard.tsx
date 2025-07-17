@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
 import {
   Star,
   GitBranch,
@@ -37,11 +38,21 @@ import {
   ExternalLink,
   RefreshCw,
   Play,
+  Check,
+  Edit,
+  Trash2,
+  HelpCircle,
+  Heart,
+  Clock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +72,36 @@ import { OrganizationProfilePage } from "@/components/organization-profile-page"
 import { Progress } from "@/components/ui/progress"
 import { useGitHubData } from "@/hooks/useGitHubData"
 import { useAuth } from "@/contexts/AuthContext"
+import { toast } from "sonner"
+import { formatDistanceToNow } from "date-fns"
+
+// Mock data definitions
+const mockNotifications = [
+  {
+    icon: GitBranch,
+    title: "PR Review Request",
+    message: "Gaurav requested your review on PR #247",
+    time: "5 minutes ago",
+    read: false,
+    type: "pr"
+  },
+  {
+    icon: Star,
+    title: "Repository Starred",
+    message: "Your repository 'awesome-ui' received 5 new stars",
+    time: "1 hour ago",
+    read: false,
+    type: "star"
+  },
+  {
+    icon: Shield,
+    title: "Security Alert",
+    message: "Vulnerability detected in lodash dependency",
+    time: "2 hours ago",
+    read: false,
+    type: "security"
+  },
+]
 
 interface DashboardProps {
   onSignOut: () => void
@@ -75,23 +116,151 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   const [currentView, setCurrentView] = useState<"dashboard" | "repository" | "user" | "organization">("dashboard")
   const [selectedData, setSelectedData] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<"overview" | "projects" | "activity" | "insights">("overview")
-  const [notifications, setNotifications] = useState(mockNotifications)
+  const [notifications, setNotifications] = useState<any[]>([])
+  
+  // New states for editable features
+  const [editableUsername, setEditableUsername] = useState("GitHub User")
+  const [isEditingUsername, setIsEditingUsername] = useState(false)
+  const [showProjectSelector, setShowProjectSelector] = useState(false)
+  const [selectedAction, setSelectedAction] = useState<string | null>(null)
+  const [projectSearchQuery, setProjectSearchQuery] = useState("")
+  
+  // Project filtering and creation states
+  const [showProjectFilter, setShowProjectFilter] = useState(false)
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false)
+  const [projectFilter, setProjectFilter] = useState({
+    language: 'all',
+    sortBy: 'updated',
+    visibility: 'all'
+  })
+  
+  // Editable monthly goals
+  const [monthlyGoals, setMonthlyGoals] = useState([
+    { 
+      id: 1,
+      title: "Repositories", 
+      current: 0, 
+      target: 10,
+      description: "Your repositories",
+      type: "repositories"
+    },
+    { 
+      id: 2,
+      title: "Commits", 
+      current: 0, 
+      target: 20,
+      description: "Commits across all projects",
+      type: "commits"
+    },
+    { 
+      id: 3,
+      title: "Pull Requests", 
+      current: 0, 
+      target: 5,
+      description: "PRs created or merged",
+      type: "prs"
+    },
+  ])
+  const [isEditingGoals, setIsEditingGoals] = useState(false)
+  const [newGoal, setNewGoal] = useState({ title: "", target: 0, description: "", type: "custom" })
+  
+  // Replace showMore states with counts
+  const PROJECTS_BATCH = 6;
+  const ACTIVITY_BATCH = 8;
+  const COMMITS_BATCH = 8;
+  const PRS_BATCH = 8;
+  const ISSUES_BATCH = 8;
+  const USER_ACTIVITY_BATCH = 8;
+
+  const [shownProjectsCount, setShownProjectsCount] = useState(PROJECTS_BATCH);
+  const [shownActivityCount, setShownActivityCount] = useState(ACTIVITY_BATCH);
+  const [shownCommitsCount, setShownCommitsCount] = useState(COMMITS_BATCH);
+  const [shownPRsCount, setShownPRsCount] = useState(PRS_BATCH);
+  const [shownIssuesCount, setShownIssuesCount] = useState(ISSUES_BATCH);
+  const [shownUserActivityCount, setShownUserActivityCount] = useState(USER_ACTIVITY_BATCH);
+  
+  // Smooth refresh states
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [refreshingStats, setRefreshingStats] = useState({
+    commits: false,
+    prs: false,
+    issues: false,
+    activity: false,
+    repositories: false
+  })
+  
+  // Notification and profile management states
+  const [unreadNotifications, setUnreadNotifications] = useState(notifications.length)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+
+
   
   // Use real GitHub data and auth
   const {
     loading: dataLoading,
+    updating,
     error: dataError,
     repositories,
+    starredRepositories,
+    trendingRepositories,
     recentCommits,
     openPRs,
     openIssues,
     userActivity,
     dashboardStats,
     quickStats,
+    lastUpdated,
     refreshData,
   } = useGitHubData()
   
-  const { user, isAuthenticated, login, loginDemo, enableAutoDemo, disableAutoDemo } = useAuth()
+  // Debug logging
+  useEffect(() => {
+    console.log('Dashboard data:', {
+      repositories: repositories.length,
+      starredRepositories: starredRepositories.length,
+      trendingRepositories: trendingRepositories.length,
+      dataLoading,
+      dataError
+    });
+  }, [repositories, starredRepositories, trendingRepositories, dataLoading, dataError]);
+  
+  const { user, isAuthenticated, login, loginDemo, enableAutoDemo, disableAutoDemo, forceLogout, token } = useAuth()
+
+  // Initialize editable username when user data is available
+  useEffect(() => {
+    if (user?.login) {
+      setEditableUsername(user.login)
+    }
+  }, [user])
+
+  // Update monthly goals with real data
+  useEffect(() => {
+    setMonthlyGoals(prev => prev.map(goal => {
+      switch (goal.type) {
+        case "repositories":
+          return { ...goal, current: dashboardStats.totalRepos }
+        case "commits":
+          return { ...goal, current: dashboardStats.totalCommits }
+        case "prs":
+          return { ...goal, current: dashboardStats.totalPRs }
+        default:
+          return goal
+      }
+    }))
+  }, [dashboardStats])
+
+  // Handle tab switching with better state management
+  const [debouncedActiveTab, setDebouncedActiveTab] = useState(activeTab);
+  
+  useEffect(() => {
+    // Debounce tab switching to prevent rapid changes
+    const timer = setTimeout(() => {
+      setDebouncedActiveTab(activeTab);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [activeTab]);
 
   // Get time-based greeting
   const getGreeting = () => {
@@ -113,29 +282,402 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   }
 
   const handleNewPullRequest = () => {
-    if (repositories.length > 0) {
-      const repo = repositories[0]
-      window.open(`https://github.com/${repo.full_name}/compare`, '_blank')
-    } else {
-      window.open('https://github.com', '_blank')
-    }
+    setSelectedAction('pull-request')
+    setShowProjectSelector(true)
   }
 
   const handleCreateIssue = () => {
-    if (repositories.length > 0) {
-      const repo = repositories[0]
-      window.open(`https://github.com/${repo.full_name}/issues/new`, '_blank')
-    } else {
-      window.open('https://github.com', '_blank')
-    }
+    setSelectedAction('issue')
+    setShowProjectSelector(true)
   }
 
   const handleDeployProject = () => {
-    // This would typically open a deployment modal or redirect to deployment service
-    console.log('Deploy project - would open deployment options')
-    // For now, just show an alert
-    alert('Deploy functionality would open deployment options for your projects')
+    setSelectedAction('deploy')
+    setShowProjectSelector(true)
   }
+
+  const handleProjectFilter = () => {
+    setShowProjectFilter(!showProjectFilter)
+  }
+
+  const handleNewProject = () => {
+    setShowNewProjectModal(true)
+  }
+
+  // Filter repositories based on selected filters
+  const getFilteredRepositories = (repos: any[]) => {
+    return repos.filter(repo => {
+      // Language filter
+      if (projectFilter.language !== 'all' && repo.language !== projectFilter.language) {
+        return false;
+      }
+      
+      // Visibility filter
+      if (projectFilter.visibility !== 'all') {
+        const isPublic = !repo.private;
+        if (projectFilter.visibility === 'public' && !isPublic) return false;
+        if (projectFilter.visibility === 'private' && isPublic) return false;
+      }
+      
+      return true;
+    }).sort((a, b) => {
+      // Sort by selected criteria
+      switch (projectFilter.sortBy) {
+        case 'stars':
+          return b.stargazers_count - a.stargazers_count;
+        case 'forks':
+          return b.forks_count - a.forks_count;
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'updated':
+        default:
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      }
+    });
+  };
+
+  // Generate real contribution data from user activity
+  const generateContributionData = () => {
+    const contributionMap = new Map<string, number>();
+    
+    // Initialize last 365 days with 0 contributions
+    for (let i = 0; i < 365; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateKey = date.toISOString().split('T')[0];
+      contributionMap.set(dateKey, 0);
+    }
+
+    // Count contributions from user activity
+    userActivity.forEach(activity => {
+      const activityDate = new Date(activity.created_at).toISOString().split('T')[0];
+      const currentCount = contributionMap.get(activityDate) || 0;
+      contributionMap.set(activityDate, currentCount + 1);
+    });
+
+    // Count contributions from commits
+    recentCommits.forEach(commit => {
+      const commitDate = new Date(commit.commit.author.date).toISOString().split('T')[0];
+      const currentCount = contributionMap.get(commitDate) || 0;
+      contributionMap.set(commitDate, currentCount + 1);
+    });
+
+    // Convert to array format expected by ContributionHeatmap
+    const sortedDates = Array.from(contributionMap.keys()).sort();
+    return sortedDates.map((dateKey, index) => ({
+      day: index,
+      contributions: contributionMap.get(dateKey) || 0,
+      date: new Date(dateKey)
+    }));
+  };
+
+
+
+  // New handlers for editable features
+  const handleUsernameEdit = () => {
+    setIsEditingUsername(true)
+  }
+
+  const handleUsernameSave = () => {
+    setIsEditingUsername(false)
+    // Here you could save to backend/localStorage
+    localStorage.setItem('customUsername', editableUsername)
+  }
+
+  const handleUsernameCancel = () => {
+    setEditableUsername(user?.login || "GitHub User")
+    setIsEditingUsername(false)
+  }
+
+  const handleGoalEdit = () => {
+    setIsEditingGoals(true)
+  }
+
+  const handleGoalSave = () => {
+    setIsEditingGoals(false)
+    // Save goals to localStorage
+    localStorage.setItem('monthlyGoals', JSON.stringify(monthlyGoals))
+  }
+
+  const handleGoalCancel = () => {
+    setIsEditingGoals(false)
+    // Reset to original values
+    setMonthlyGoals(prev => prev.map(goal => {
+      switch (goal.type) {
+        case "repositories":
+          return { ...goal, current: dashboardStats.totalRepos }
+        case "commits":
+          return { ...goal, current: dashboardStats.totalCommits }
+        case "prs":
+          return { ...goal, current: dashboardStats.totalPRs }
+        default:
+          return goal
+      }
+    }))
+  }
+
+  const addNewGoal = () => {
+    if (newGoal.title && newGoal.target > 0) {
+      setMonthlyGoals(prev => [...prev, {
+        id: Date.now(),
+        title: newGoal.title,
+        current: 0,
+        target: newGoal.target,
+        description: newGoal.description,
+        type: "custom"
+      }])
+      setNewGoal({ title: "", target: 0, description: "", type: "custom" })
+    }
+  }
+
+  const removeGoal = (id: number) => {
+    setMonthlyGoals(prev => prev.filter(goal => goal.id !== id))
+  }
+
+  const updateGoalTarget = (id: number, newTarget: number) => {
+    setMonthlyGoals(prev => prev.map(goal => 
+      goal.id === id ? { ...goal, target: newTarget } : goal
+    ))
+  }
+
+  const handleProjectSelect = (repo: any) => {
+    setSelectedProject(repo.full_name)
+    setShowProjectSelector(false)
+    
+    // Execute the selected action
+    switch (selectedAction) {
+      case 'pull-request':
+        window.open(`https://github.com/${repo.full_name}/compare`, '_blank')
+        break
+      case 'issue':
+        window.open(`https://github.com/${repo.full_name}/issues/new`, '_blank')
+        break
+      case 'deploy':
+        handleVercelDeploy(repo)
+        break
+    }
+    
+    setSelectedAction(null)
+  }
+
+  const handleVercelDeploy = async (repo: any) => {
+    try {
+      // Check if it's user's own repo or forked
+      const isOwnRepo = repo.owner.login === user?.login
+      
+      if (isOwnRepo) {
+        // Deploy original repo
+        window.open(`https://vercel.com/new/git/external?repository-url=https://github.com/${repo.full_name}`, '_blank')
+      } else {
+        // Fork and deploy
+        const forkUrl = `https://github.com/${repo.full_name}/fork`
+        window.open(forkUrl, '_blank')
+        
+        // Show instructions for forked deployment
+        setTimeout(() => {
+          alert(`Repository forked! Now you can deploy your fork at: https://vercel.com/new/git/external?repository-url=https://github.com/${user?.login}/${repo.name}`)
+        }, 2000)
+      }
+    } catch (error) {
+      console.error('Deployment error:', error)
+      alert('Failed to initiate deployment. Please try manually.')
+    }
+  }
+
+  // Notification management functions
+  const markNotificationAsRead = (index: number) => {
+    setNotifications(prev => prev.map((notif, i) => 
+      i === index ? { ...notif, read: true } : notif
+    ))
+    setUnreadNotifications(prev => Math.max(0, prev - 1))
+  }
+
+
+
+
+
+  // Profile and settings functions
+  const handleProfileClick = () => {
+    // Navigate to user profile or open profile modal
+    setCurrentView("user")
+    setSelectedData(user)
+    setShowProfileMenu(false)
+  }
+
+  const handleSettingsClick = () => {
+    setShowSettings(true)
+    setShowProfileMenu(false)
+  }
+
+  const handleThemeToggle = () => {
+    setTheme(theme === "dark" ? "light" : "dark")
+  }
+
+
+
+  // Generate dynamic notifications based on real GitHub data
+  const generateDynamicNotifications = useCallback(() => {
+    const dynamicNotifications = [];
+
+    // Add PR review requests if there are open PRs
+    if (openPRs.length > 0) {
+      const recentPR = openPRs[0];
+      dynamicNotifications.push({
+        icon: GitBranch,
+        title: "PR Review Request",
+        message: `${recentPR.user.login} opened PR #${recentPR.number}`,
+        time: getRelativeTime(recentPR.created_at),
+        read: false,
+        type: "pr"
+      });
+    }
+
+    // Add repository starred notifications
+    if (starredRepositories.length > 0) {
+      const recentStarred = starredRepositories[0];
+      dynamicNotifications.push({
+        icon: Star,
+        title: "Repository Starred",
+        message: `You starred ${recentStarred.full_name}`,
+        time: getRelativeTime(recentStarred.updated_at),
+        read: false,
+        type: "star"
+      });
+    }
+
+    // Add commit notifications
+    if (recentCommits.length > 0) {
+      const recentCommit = recentCommits[0];
+      dynamicNotifications.push({
+        icon: GitCommit,
+        title: "New Commit",
+        message: `Commit: ${recentCommit.commit.message.split('\n')[0].substring(0, 50)}...`,
+        time: getRelativeTime(recentCommit.commit.author.date),
+        read: false,
+        type: "commit"
+      });
+    }
+
+    // Add issue notifications
+    if (openIssues.length > 0) {
+      const recentIssue = openIssues[0];
+      dynamicNotifications.push({
+        icon: MessageSquare,
+        title: "New Issue",
+        message: `Issue #${recentIssue.number}: ${recentIssue.title.substring(0, 50)}...`,
+        time: getRelativeTime(recentIssue.created_at),
+        read: false,
+        type: "issue"
+      });
+    }
+
+    // Add activity notifications
+    if (userActivity.length > 0) {
+      const recentActivity = userActivity[0];
+      dynamicNotifications.push({
+        icon: Activity,
+        title: "Recent Activity",
+        message: `${recentActivity.type} in ${recentActivity.repo.name}`,
+        time: getRelativeTime(recentActivity.created_at),
+        read: false,
+        type: "activity"
+      });
+    }
+
+    // Fallback to mock notifications if no real data
+    if (dynamicNotifications.length === 0) {
+      return mockNotifications;
+    }
+
+    return dynamicNotifications.slice(0, 5); // Limit to 5 notifications
+  }, [openPRs, starredRepositories, recentCommits, openIssues, userActivity]);
+
+  // Initialize notifications with dynamic data
+  useEffect(() => {
+    if (!dataLoading && (repositories.length > 0 || recentCommits.length > 0 || openPRs.length > 0)) {
+      const initialNotifications = generateDynamicNotifications()
+      setNotifications(initialNotifications)
+      setUnreadNotifications(initialNotifications.length)
+    }
+  }, [dataLoading, repositories, recentCommits, openPRs, generateDynamicNotifications])
+
+  // Update notifications periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newNotifications = generateDynamicNotifications()
+      if (newNotifications.length > 0) {
+        setNotifications(prev => [...newNotifications, ...prev.slice(0, 3)])
+        setUnreadNotifications(prev => prev + newNotifications.length)
+      }
+    }, 60000) // Update every minute
+    
+    return () => clearInterval(interval)
+  }, [generateDynamicNotifications])
+
+  const filteredRepositories = repositories.filter(repo =>
+    repo.name.toLowerCase().includes(projectSearchQuery.toLowerCase()) ||
+    repo.full_name.toLowerCase().includes(projectSearchQuery.toLowerCase())
+  )
+
+
+
+  // Smooth refresh function
+  const smoothRefresh = useCallback(async () => {
+    if (isRefreshing) return // Prevent multiple simultaneous refreshes
+    
+    setIsRefreshing(true)
+    setRefreshingStats({
+      commits: true,
+      prs: true,
+      issues: true,
+      activity: true,
+      repositories: true
+    })
+
+    try {
+      // Use the existing refreshData from useGitHubData hook
+      await refreshData()
+      
+      // Stagger the refresh indicators for smooth visual feedback
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, activity: false })), 200)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, commits: false })), 400)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, prs: false })), 600)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, issues: false })), 800)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, repositories: false })), 1000)
+      
+    } catch (error) {
+      console.error('Smooth refresh failed:', error)
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 1200)
+    }
+  }, [isRefreshing, refreshData])
+
+  // Enhanced refresh function that uses smooth refresh
+  const handleSmoothRefresh = () => {
+    smoothRefresh()
+  }
+
+  // Trigger smooth refresh indicators when data is being fetched
+  useEffect(() => {
+    if (dataLoading) {
+      setIsRefreshing(true)
+      setRefreshingStats({
+        commits: true,
+        prs: true,
+        issues: true,
+        activity: true,
+        repositories: true
+      })
+    } else {
+      // Stagger the refresh indicators for smooth visual feedback
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, activity: false })), 200)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, commits: false })), 400)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, prs: false })), 600)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, issues: false })), 800)
+      setTimeout(() => setRefreshingStats(prev => ({ ...prev, repositories: false })), 1000)
+      setTimeout(() => setIsRefreshing(false), 1200)
+    }
+  }, [dataLoading])
 
   // Helper function to get relative time
   const getRelativeTime = (dateString: string) => {
@@ -150,6 +692,11 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)}mo ago`;
     return `${Math.floor(diffInSeconds / 31536000)}y ago`;
   }
+
+  // Helper functions for show more functionality
+  const getDisplayLimit = (showMore: boolean, defaultLimit: number = 5) => {
+    return showMore ? 50 : defaultLimit;
+  };
 
   // Navigation items for the four main sections
   const navigationItems = [
@@ -360,211 +907,190 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Error Banner */}
-      {dataError && (
-        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-6 py-4 rounded-lg relative mb-6 max-w-4xl mx-auto mt-4">
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                Unable to fetch GitHub data
-              </h3>
-              <div className="mt-2 text-sm text-red-700 dark:text-red-300">
-                <p>{dataError}</p>
-                {dataError.includes('Authentication required') && (
-                  <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 rounded-md">
-                    <p className="font-medium mb-2">To fix this:</p>
-                    <ul className="text-xs space-y-1">
-                      <li>• Click "Connect with GitHub" to authorize access to your repositories</li>
-                      <li>• Or use "Try Demo Mode" to explore with sample data</li>
-                      <li>• Make sure you're logged into GitHub in your browser</li>
-                    </ul>
-                    <div className="mt-3 flex gap-2">
-                      <Button 
-                        size="sm" 
-                        onClick={login}
-                        className="text-xs"
-                      >
-                        <Github className="w-3 h-3 mr-1" />
-                        Connect with GitHub
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={loginDemo}
-                        className="text-xs"
-                      >
-                        <Play className="w-3 h-3 mr-1" />
-                        Try Demo Mode
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {(dataError.includes('Failed to fetch') || dataError.includes('Backend server is not accessible')) && (
-                  <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 rounded-md">
-                    <p className="font-medium mb-2">Possible solutions:</p>
-                    <ul className="text-xs space-y-1">
-                      <li>• Check your internet connection</li>
-                      <li>• Try refreshing the page</li>
-                      <li>• Use demo mode if the issue persists</li>
-                    </ul>
-                    <div className="mt-3 flex gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={refreshData}
-                        className="text-xs"
-                      >
-                        <RefreshCw className="w-3 h-3 mr-1" />
-                        Retry
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        onClick={() => {
-                          localStorage.setItem('beetle_token', 'demo-token');
-                          localStorage.setItem('isAuthenticated', 'true');
-                          window.location.reload();
-                        }}
-                        className="text-xs"
-                      >
-                        <Play className="w-3 h-3 mr-1" />
-                        Switch to Demo Mode
-                      </Button>
-                    </div>
-                  </div>
-                )}
+      {/* Demo Mode Banner */}
+      {token === 'demo-token' && (
+        <div className="bg-orange-100 border-b border-orange-200 py-3 px-4">
+          <div className="container mx-auto flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">!</span>
               </div>
+              <div>
+                <p className="text-orange-800 font-medium">Demo Mode Active</p>
+                <p className="text-orange-700 text-sm">You're viewing sample data. Connect your GitHub account to see real data.</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={login}
+                className="bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 transition-colors"
+              >
+                Connect GitHub
+              </button>
+              <button
+                onClick={forceLogout}
+                className="text-orange-600 text-sm font-medium hover:text-orange-700 transition-colors"
+              >
+                Exit Demo
+              </button>
             </div>
           </div>
         </div>
       )}
-      {/* Enhanced Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            {/* Logo & Navigation */}
-            <div className="flex items-center space-x-8">
-              <motion.div
-                className="flex items-center space-x-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-              >
-                <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
-                  <Code className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-xl font-bold">Beetle</span>
-              </motion.div>
-
-              {/* Quick Navigation */}
-              <nav className="hidden md:flex items-center space-x-1">
-                {[
-                  { name: "Overview", id: "overview", icon: BarChart3 },
-                  { name: "Projects", id: "projects", icon: Folder },
-                  { name: "Activity", id: "activity", icon: Activity },
-                  { name: "Insights", id: "insights", icon: TrendingUp },
-                ].map((item) => (
-                  <Button
-                    key={item.id}
-                    variant={activeTab === item.id ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setActiveTab(item.id as "overview" | "projects" | "activity" | "insights")}
-                    className="flex items-center gap-2"
-                  >
-                    <item.icon className="w-4 h-4" />
-                    {item.name}
-                  </Button>
-                ))}
-              </nav>
-            </div>
-
-            {/* Enhanced Search */}
+      
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 items-center">
+          {/* Logo & Navigation */}
+          <div className="flex items-center space-x-8">
             <motion.div
-              className="flex-1 max-w-2xl mx-8"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+              className="flex items-center space-x-2"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
             >
-              <EnhancedSearch onResultSelect={handleSearchResultSelect} onViewAllResults={handleViewAllResults} />
+              <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+                <Code className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-xl font-bold">Beetle</span>
             </motion.div>
 
-            {/* Actions & User Menu */}
-            <div className="flex items-center space-x-3">
-              {/* Notifications */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="relative">
-                    <Bell className="w-4 h-4" />
-                    {notifications.length > 0 && (
-                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full" />
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-80" align="end">
-                  <div className="p-3 border-b">
-                    <h4 className="font-semibold">Notifications</h4>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {notifications.map((notification, index) => (
-                      <div key={index} className="p-3 border-b last:border-b-0 hover:bg-muted/50">
+            {/* Quick Navigation */}
+            <nav className="hidden md:flex items-center space-x-1">
+              {[
+                { name: "Overview", id: "overview", icon: BarChart3 },
+                { name: "Projects", id: "projects", icon: Folder },
+                { name: "Activity", id: "activity", icon: Activity },
+                { name: "Insights", id: "insights", icon: TrendingUp },
+              ].map((item) => (
+                <Button
+                  key={item.id}
+                  variant={activeTab === item.id ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveTab(item.id as "overview" | "projects" | "activity" | "insights")}
+                  className="flex items-center gap-2"
+                >
+                  <item.icon className="w-4 h-4" />
+                  {item.name}
+                </Button>
+              ))}
+            </nav>
+          </div>
+
+          {/* Enhanced Search */}
+          <motion.div
+            className="flex-1 max-w-2xl mx-8"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <EnhancedSearch onResultSelect={handleSearchResultSelect} onViewAllResults={handleViewAllResults} />
+          </motion.div>
+
+          {/* Actions & User Menu */}
+          <div className="flex items-center space-x-3">
+            {/* Notifications */}
+            <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="relative" data-notification-button>
+                  <Bell className="w-4 h-4" />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-72" align="end">
+                <div className="p-3 border-b">
+                  <h4 className="font-semibold">Notifications</h4>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.length > 0 ? (
+                    notifications.map((notification, index) => (
+                      <div
+                        key={index} 
+                        className={`p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors ${!notification.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}
+                        onClick={() => markNotificationAsRead(index)}
+                      >
                         <div className="flex items-start gap-3">
                           <notification.icon className="w-4 h-4 mt-1 text-muted-foreground" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium">{notification.title}</p>
-                            <p className="text-xs text-muted-foreground">{notification.message}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
                             <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center text-muted-foreground">
+                      <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No notifications</p>
+                    </div>
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-              {/* User Menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=36&width=36"} alt="User" />
+            {/* User Menu */}
+            <DropdownMenu open={showProfileMenu} onOpenChange={setShowProfileMenu}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=36&width=36"} alt="User" />
+                    <AvatarFallback>{user?.login?.[0]?.toUpperCase() || "U"}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end">
+                <div className="p-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=32&width=32"} />
                       <AvatarFallback>{user?.login?.[0]?.toUpperCase() || "U"}</AvatarFallback>
                     </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end">
-                  <div className="p-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={user?.avatar_url || "/placeholder.jpeg?height=32&width=32"} />
-                        <AvatarFallback>{user?.login?.[0]?.toUpperCase() || "U"}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-medium">{getUserDisplayName()}</p>
-                        <p className="text-xs text-muted-foreground">{user?.email || user?.login || "user@example.com"}</p>
-                      </div>
+                    <div>
+                      <p className="text-sm font-medium">{getUserDisplayName()}</p>
+                      <p className="text-xs text-muted-foreground">{user?.email || user?.login || "user@example.com"}</p>
                     </div>
                   </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowSettings(true)}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-                    {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-                    {theme === "dark" ? "Light Mode" : "Dark Mode"}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleProfileClick}>
+                  <User className="mr-2 h-4 w-4" />
+                  View Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSettingsClick}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.open('https://github.com/settings/profile', '_blank')}>
+                  <Github className="mr-2 h-4 w-4" />
+                  GitHub Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleThemeToggle}>
+                  {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+                  {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.open('https://github.com/notifications', '_blank')}>
+                  <Bell className="mr-2 h-4 w-4" />
+                  GitHub Notifications
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => window.open('https://github.com/support', '_blank')}>
+                  <HelpCircle className="mr-2 h-4 w-4" />
+                  Help & Support
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.open('https://github.com/Beetle', '_blank')}>
+                  <Heart className="mr-2 h-4 w-4" />
+                  About Beetle
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="text-red-600 hover:text-red-700">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -572,9 +1098,9 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <AnimatePresence mode="wait">
-          {activeTab === "overview" && (
+          {debouncedActiveTab === "overview" && (
             <motion.div
-              key="overview"
+              key={`overview-${dataLoading ? 'loading' : 'loaded'}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -583,17 +1109,56 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
               {/* Welcome Section */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold">{getGreeting()}, {getUserDisplayName()} 👋</h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-3xl font-bold">{getGreeting()}, </h1>
+                    {isEditingUsername ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editableUsername}
+                          onChange={(e) => setEditableUsername(e.target.value)}
+                          className="text-3xl font-bold w-48"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleUsernameSave()
+                            if (e.key === 'Escape') handleUsernameCancel()
+                          }}
+                          autoFocus
+                        />
+                        <Button size="sm" onClick={handleUsernameSave}>
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={handleUsernameCancel}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-3xl font-bold">{editableUsername} 👋</h1>
+                        <Button size="sm" variant="ghost" onClick={handleUsernameEdit}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   <p className="text-muted-foreground mt-1">Here's what's happening with your projects today.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Button variant="outline" size="sm" onClick={refreshData}>
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Refresh Data
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={refreshData}
+                    disabled={isRefreshing}
+                    className="relative"
+                  >
+                    {isRefreshing ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                    )}
+                    {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
                   </Button>
                   <Badge variant="outline" className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    All systems operational
+                    <div className={`w-2 h-2 rounded-full ${isRefreshing ? 'bg-orange-500 animate-pulse' : 'bg-green-500'}`} />
+                    {isRefreshing ? 'Updating...' : 'All systems operational'}
                   </Badge>
                 </div>
               </div>
@@ -601,27 +1166,38 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
               {/* Quick Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { icon: GitCommit, label: "Commits Today", value: quickStats.commitsToday.toString(), color: "text-green-500" },
-                  { icon: GitBranch, label: "Active PRs", value: quickStats.activePRs.toString(), color: "text-blue-500" },
-                  { icon: Star, label: "Stars Earned", value: quickStats.starsEarned.toString(), color: "text-yellow-500" },
-                  { icon: Users, label: "Collaborators", value: quickStats.collaborators.toString(), color: "text-purple-500" },
+                  { icon: GitCommit, label: "Commits Today", value: quickStats.commitsToday.toString(), color: "text-green-500", refreshing: refreshingStats.commits },
+                  { icon: GitBranch, label: "Active PRs", value: quickStats.activePRs.toString(), color: "text-blue-500", refreshing: refreshingStats.prs },
+                  { icon: Star, label: "Stars Earned", value: quickStats.starsEarned.toString(), color: "text-yellow-500", refreshing: refreshingStats.repositories },
+                  { icon: Users, label: "Collaborators", value: quickStats.collaborators.toString(), color: "text-purple-500", refreshing: false },
                 ].map((stat, index) => (
-                  <motion.div
-                    key={stat.label}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                        </div>
-                        <div className="text-2xl font-bold mb-1">{stat.value}</div>
-                        <div className="text-xs text-muted-foreground">{stat.label}</div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                                      <motion.div
+                      key={stat.label}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <Card className={`hover:shadow-md transition-all duration-300 cursor-pointer ${stat.refreshing ? 'ring-2 ring-orange-500/50 bg-orange-50/50' : ''}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <stat.icon className={`w-5 h-5 ${stat.color} ${stat.refreshing ? 'animate-pulse' : ''}`} />
+                            {stat.refreshing && (
+                              <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                            )}
+                          </div>
+                          <motion.div 
+                            key={stat.value}
+                            initial={{ scale: 1 }}
+                            animate={{ scale: stat.refreshing ? 1.05 : 1 }}
+                            transition={{ duration: 0.2 }}
+                            className="text-2xl font-bold mb-1"
+                          >
+                            {stat.value}
+                          </motion.div>
+                          <div className="text-xs text-muted-foreground">{stat.label}</div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
                 ))}
               </div>
 
@@ -676,7 +1252,8 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
                         </div>
                       ) : userActivity.length > 0 ? (
-                        userActivity.slice(0, 20).map((activity, index) => {
+                        <>
+                          {userActivity.slice(0, shownActivityCount).map((activity, index) => {
                           const getActivityIcon = (type: string) => {
                             switch (type) {
                               case 'PushEvent': return GitCommit;
@@ -764,7 +1341,27 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                               <IconComponent className="w-4 h-4 text-muted-foreground" />
                             </div>
                           );
-                        })
+                        })}
+                        
+                        {/* Show More Button */}
+                        {userActivity.length > shownActivityCount ? (
+                          <Button
+                            variant="ghost"
+                            className="w-full mt-4"
+                            onClick={() => setShownActivityCount(c => Math.min(c + ACTIVITY_BATCH, userActivity.length))}
+                          >
+                            Show More
+                          </Button>
+                        ) : userActivity.length > ACTIVITY_BATCH && shownActivityCount > ACTIVITY_BATCH ? (
+                          <Button
+                            variant="ghost"
+                            className="w-full mt-4"
+                            onClick={() => setShownActivityCount(ACTIVITY_BATCH)}
+                          >
+                            Show Less
+                          </Button>
+                        ) : null}
+                      </>
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">
                           No recent activity
@@ -804,36 +1401,56 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                   {/* Goals Progress */}
                   <Card className="mt-6">
                     <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2">
-                        <Target className="w-5 h-5" />
-                        Monthly Goals
-                      </CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                          <Target className="w-5 h-5" />
+                          Monthly Goals
+                        </CardTitle>
+                        {isEditingGoals ? (
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={handleGoalSave}>
+                              <Check className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={handleGoalCancel}>
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="ghost" onClick={handleGoalEdit}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {[
-                        { 
-                          title: "Repositories", 
-                          current: dashboardStats.totalRepos, 
-                          target: Math.max(dashboardStats.totalRepos + 5, 10),
-                          description: "Your repositories"
-                        },
-                        { 
-                          title: "Commits", 
-                          current: dashboardStats.totalCommits, 
-                          target: Math.max(dashboardStats.totalCommits + 10, 20),
-                          description: "Commits across all projects"
-                        },
-                        { 
-                          title: "Pull Requests", 
-                          current: dashboardStats.totalPRs, 
-                          target: Math.max(dashboardStats.totalPRs + 3, 5),
-                          description: "PRs created or merged"
-                        },
-                      ].map((goal, index) => (
-                        <div key={index} className="space-y-2">
+                      {monthlyGoals.map((goal) => (
+                        <div key={goal.id} className="space-y-2">
                           <div className="flex items-center justify-between text-sm">
-                            <div>
-                              <span className="font-medium">{goal.title}</span>
+                            <div className="flex-1">
+                              {isEditingGoals ? (
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    value={goal.title}
+                                    onChange={(e) => {
+                                      setMonthlyGoals(prev => prev.map(g => 
+                                        g.id === goal.id ? { ...g, title: e.target.value } : g
+                                      ))
+                                    }}
+                                    className="w-32 text-sm"
+                                  />
+                                  <Input
+                                    type="number"
+                                    value={goal.target}
+                                    onChange={(e) => updateGoalTarget(goal.id, parseInt(e.target.value) || 0)}
+                                    className="w-16 text-sm"
+                                  />
+                                  <Button size="sm" variant="ghost" onClick={() => removeGoal(goal.id)}>
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="font-medium">{goal.title}</span>
+                              )}
                               <p className="text-xs text-muted-foreground">{goal.description}</p>
                             </div>
                             <span className="font-medium">
@@ -843,6 +1460,30 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                           <Progress value={(goal.current / goal.target) * 100} className="h-2" />
                         </div>
                       ))}
+                      
+                      {/* Add new goal */}
+                      {isEditingGoals && (
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              placeholder="Goal title"
+                              value={newGoal.title}
+                              onChange={(e) => setNewGoal(prev => ({ ...prev, title: e.target.value }))}
+                              className="flex-1"
+                            />
+                            <Input
+                              type="number"
+                              placeholder="Target"
+                              value={newGoal.target || ""}
+                              onChange={(e) => setNewGoal(prev => ({ ...prev, target: parseInt(e.target.value) || 0 }))}
+                              className="w-20"
+                            />
+                            <Button size="sm" onClick={addNewGoal}>
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -861,16 +1502,98 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold">Projects</h2>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleProjectFilter}
+                  >
                     <Filter className="w-4 h-4 mr-2" />
                     Filter
                   </Button>
-                  <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
+                  <Button 
+                    size="sm" 
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                    onClick={handleNewProject}
+                  >
                     <Plus className="w-4 h-4 mr-2" />
                     New Project
                   </Button>
                 </div>
               </div>
+
+              {/* Project Filter */}
+              {showProjectFilter && (
+                <Card className="p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="language">Language</Label>
+                      <Select 
+                        value={projectFilter.language} 
+                        onValueChange={(value) => setProjectFilter(prev => ({ ...prev, language: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All languages" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All languages</SelectItem>
+                          <SelectItem value="JavaScript">JavaScript</SelectItem>
+                          <SelectItem value="TypeScript">TypeScript</SelectItem>
+                          <SelectItem value="Python">Python</SelectItem>
+                          <SelectItem value="Java">Java</SelectItem>
+                          <SelectItem value="Go">Go</SelectItem>
+                          <SelectItem value="Rust">Rust</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="sortBy">Sort By</Label>
+                      <Select 
+                        value={projectFilter.sortBy} 
+                        onValueChange={(value) => setProjectFilter(prev => ({ ...prev, sortBy: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="updated">Last Updated</SelectItem>
+                          <SelectItem value="stars">Stars</SelectItem>
+                          <SelectItem value="forks">Forks</SelectItem>
+                          <SelectItem value="name">Name</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="visibility">Visibility</Label>
+                      <Select 
+                        value={projectFilter.visibility} 
+                        onValueChange={(value) => setProjectFilter(prev => ({ ...prev, visibility: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="public">Public</SelectItem>
+                          <SelectItem value="private">Private</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end mt-4">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setProjectFilter({
+                        language: 'all',
+                        sortBy: 'updated',
+                        visibility: 'all'
+                      })}
+                    >
+                      Reset Filters
+                    </Button>
+                  </div>
+                </Card>
+              )}
 
               {/* Trending Featured Projects */}
               <motion.section
@@ -878,7 +1601,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
               >
-                <FeaturedProjectsCarousel />
+                <FeaturedProjectsCarousel trendingRepositories={trendingRepositories} />
               </motion.section>
 
               <Tabs defaultValue="my-projects" className="w-full">
@@ -903,198 +1626,126 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       Error loading repositories: {dataError}
                     </div>
                   ) : (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {repositories.map((repo) => (
-                        <ProjectCard 
-                          key={repo.id} 
-                          project={{
-                            name: repo.full_name,
-                            description: repo.description || 'No description available',
-                            languages: [repo.language].filter(Boolean),
-                            stars: repo.stargazers_count.toString(),
-                            forks: repo.forks_count.toString(),
-                            updated: new Date(repo.updated_at).toLocaleDateString(),
-                          }} 
-                          type="owned" 
-                        />
-                      ))}
-                    </div>
+                    <>
+                      {(() => {
+                        const filteredRepos = getFilteredRepositories(repositories);
+                        return (
+                          <>
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {filteredRepos.slice(0, shownProjectsCount).map((repo) => (
+                                <ProjectCard 
+                                  key={repo.id} 
+                                  project={{
+                                    name: repo.name,
+                                    full_name: repo.full_name,
+                                    description: repo.description || 'No description available',
+                                    owner: repo.owner,
+                                    language: repo.language,
+                                    languages: [repo.language].filter(Boolean),
+                                    stars: repo.stargazers_count.toString(),
+                                    forks: repo.forks_count.toString(),
+                                    stargazers_count: repo.stargazers_count,
+                                    forks_count: repo.forks_count,
+                                    html_url: repo.html_url,
+                                    clone_url: repo.clone_url,
+                                    default_branch: repo.default_branch,
+                                    created_at: repo.created_at,
+                                    updated_at: repo.updated_at,
+                                    private: repo.private,
+                                    updated: new Date(repo.updated_at).toLocaleDateString(),
+                                  }} 
+                                  type="owned" 
+                                />
+                              ))}
+                            </div>
+                            {/* Show More Button for Projects */}
+                            {filteredRepos.length > shownProjectsCount ? (
+                              <Button onClick={() => setShownProjectsCount(c => Math.min(c + PROJECTS_BATCH, filteredRepos.length))}>
+                                Show More
+                              </Button>
+                            ) : filteredRepos.length > PROJECTS_BATCH && shownProjectsCount > PROJECTS_BATCH ? (
+                              <Button onClick={() => setShownProjectsCount(PROJECTS_BATCH)}>
+                                Show Less
+                              </Button>
+                            ) : null}
+                          </>
+                        );
+                      })()}
+                    </>
                   )}
                 </TabsContent>
 
                 <TabsContent value="starred" className="mt-6">
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {starredProjects.map((project, index) => (
-                      <ProjectCard key={index} project={project} type="starred" />
-                    ))}
-                  </div>
+                  {dataLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                    </div>
+                  ) : dataError ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      Error loading starred repositories: {dataError}
+                    </div>
+                  ) : starredRepositories.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Star className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No starred repositories found</p>
+                      <p className="text-xs">Star some repositories on GitHub to see them here</p>
+                    </div>
+                  ) : (
+                    <>
+                      {(() => {
+                        const filteredStarredRepos = getFilteredRepositories(starredRepositories);
+                        return (
+                          <>
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {filteredStarredRepos.slice(0, shownProjectsCount).map((repo) => (
+                                <ProjectCard 
+                                  key={repo.id} 
+                                  project={{
+                                    name: repo.name,
+                                    full_name: repo.full_name,
+                                    description: repo.description || 'No description available',
+                                    owner: repo.owner,
+                                    language: repo.language,
+                                    languages: [repo.language].filter(Boolean),
+                                    stars: repo.stargazers_count.toString(),
+                                    forks: repo.forks_count.toString(),
+                                    stargazers_count: repo.stargazers_count,
+                                    forks_count: repo.forks_count,
+                                    html_url: repo.html_url,
+                                    clone_url: repo.clone_url,
+                                    default_branch: repo.default_branch,
+                                    created_at: repo.created_at,
+                                    updated_at: repo.updated_at,
+                                    private: repo.private,
+                                    updated: new Date(repo.updated_at).toLocaleDateString(),
+                                  }} 
+                                  type="starred" 
+                                />
+                              ))}
+                            </div>
+                            {/* Show More Button for Starred Projects */}
+                            {filteredStarredRepos.length > shownProjectsCount ? (
+                              <Button onClick={() => setShownProjectsCount(c => Math.min(c + PROJECTS_BATCH, filteredStarredRepos.length))}>
+                                Show More
+                              </Button>
+                            ) : filteredStarredRepos.length > PROJECTS_BATCH && shownProjectsCount > PROJECTS_BATCH ? (
+                              <Button onClick={() => setShownProjectsCount(PROJECTS_BATCH)}>
+                                Show Less
+                              </Button>
+                            ) : null}
+                          </>
+                        );
+                      })()}
+                    </>
+                  )}
                 </TabsContent>
               </Tabs>
             </motion.div>
           )}
 
-          {activeTab === "activity" && (
+          {debouncedActiveTab === "activity" && (
             <motion.div
-              key="activity"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <h2 className="text-2xl font-bold">Activity</h2>
-              <ContributionHeatmap />
-            </motion.div>
-          )}
-
-          {activeTab === "projects" && (
-            <motion.div
-              key="projects"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              {/* Projects Header */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-bold">Your Projects</h1>
-                  <p className="text-muted-foreground mt-1">
-                    {repositories.length} repositories • {repositories.filter(r => !r.private).length} public, {repositories.filter(r => r.private).length} private
-                  </p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="outline" size="sm" onClick={refreshData}>
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Refresh
-                  </Button>
-                  <Button onClick={handleCreateRepository} className="flex items-center space-x-2">
-                    <Plus className="h-4 w-4" />
-                    <span>New Repository</span>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Repository Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {repositories.map((repo, index) => (
-                  <motion.div
-                    key={repo.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <Card className="h-full hover:shadow-lg transition-shadow">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <CardTitle className="text-lg truncate">
-                              <a
-                                href={repo.html_url || `https://github.com/${repo.full_name}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:text-primary transition-colors"
-                              >
-                                {repo.name}
-                              </a>
-                            </CardTitle>
-                            <CardDescription className="truncate">
-                              {repo.full_name}
-                            </CardDescription>
-                          </div>
-                          <div className="flex items-center space-x-1 ml-2">
-                            {repo.private && (
-                              <Badge variant="secondary" className="text-xs">
-                                Private
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {/* Description */}
-                        {repo.description && (
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {repo.description}
-                          </p>
-                        )}
-
-                        {/* Language */}
-                        {repo.language && (
-                          <div className="flex items-center space-x-2">
-                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                            <span className="text-sm text-muted-foreground">{repo.language}</span>
-                          </div>
-                        )}
-
-                        {/* Stats */}
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-1">
-                              <Star className="h-4 w-4 text-yellow-500" />
-                              <span>{repo.stargazers_count}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <GitBranch className="h-4 w-4 text-blue-500" />
-                              <span>{repo.forks_count}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-1 text-muted-foreground">
-                            <Calendar className="h-4 w-4" />
-                            <span>{getRelativeTime(repo.updated_at)}</span>
-                          </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center space-x-2 pt-2">
-                          <Button variant="outline" size="sm" className="flex-1" asChild>
-                            <a href={repo.html_url || `https://github.com/${repo.full_name}`} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4 mr-1" />
-                              View
-                            </a>
-                          </Button>
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={`${repo.html_url || `https://github.com/${repo.full_name}`}/issues`} target="_blank" rel="noopener noreferrer">
-                              <MessageSquare className="h-4 w-4" />
-                            </a>
-                          </Button>
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={`${repo.html_url || `https://github.com/${repo.full_name}`}/pulls`} target="_blank" rel="noopener noreferrer">
-                              <GitBranch className="h-4 w-4" />
-                            </a>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-              </div>
-
-              {/* Empty State */}
-              {repositories.length === 0 && (
-                <Card className="text-center py-12">
-                  <CardContent>
-                    <div className="flex flex-col items-center space-y-4">
-                      <Code className="h-12 w-12 text-muted-foreground" />
-                      <div>
-                        <h3 className="text-lg font-semibold">No repositories found</h3>
-                        <p className="text-muted-foreground">
-                          Get started by creating your first repository
-                        </p>
-                      </div>
-                      <Button onClick={handleCreateRepository}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Repository
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </motion.div>
-          )}
-
-          {activeTab === "activity" && (
-            <motion.div
-              key="activity"
+              key={`activity-${dataLoading ? 'loading' : 'loaded'}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -1108,10 +1759,27 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                     Recent activity across your repositories
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={refreshData}>
-                  <Activity className="h-4 w-4 mr-2" />
-                  Refresh
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={refreshData}
+                  disabled={isRefreshing}
+                >
+                  {isRefreshing ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Activity className="h-4 w-4 mr-2" />
+                  )}
+                  {isRefreshing ? 'Refreshing...' : 'Refresh'}
                 </Button>
+              </div>
+
+              {/* Contribution Heatmap */}
+              <div className="mb-8">
+                <ContributionHeatmap 
+                  contributionData={generateContributionData()}
+                  loading={dataLoading}
+                />
               </div>
 
               {/* Activity Tabs */}
@@ -1132,7 +1800,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {recentCommits.slice(0, 10).map((commit) => (
+                      {recentCommits.slice(0, shownCommitsCount).map((commit) => (
                         <div key={commit.sha} className="flex items-center space-x-3 p-3 rounded-lg border">
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={commit.author?.avatar_url} alt={commit.author?.login} />
@@ -1151,6 +1819,26 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                           </Badge>
                         </div>
                       ))}
+                      
+                      {/* Show More Button for Commits */}
+                      {recentCommits.length > shownCommitsCount ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownCommitsCount(c => Math.min(c + COMMITS_BATCH, recentCommits.length))}
+                        >
+                          Show More
+                        </Button>
+                      ) : recentCommits.length > COMMITS_BATCH && shownCommitsCount > COMMITS_BATCH ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownCommitsCount(COMMITS_BATCH)}
+                        >
+                          Show Less
+                        </Button>
+                      ) : null}
+                      
                       {recentCommits.length === 0 && (
                         <p className="text-sm text-muted-foreground text-center py-4">
                           No recent commits found
@@ -1166,30 +1854,73 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       <CardTitle className="flex items-center space-x-2">
                         <GitBranch className="h-5 w-5" />
                         <span>Pull Requests</span>
+                        {updating && <div className="h-4 w-4 animate-spin border-2 border-current border-t-transparent rounded-full" />}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {openPRs.slice(0, 10).map((pr) => (
-                        <div key={pr.id} className="flex items-center space-x-3 p-3 rounded-lg border">
-                          <div className="flex items-center space-x-2">
-                            <GitBranch className="h-4 w-4 text-blue-500" />
+                      {openPRs.slice(0, shownPRsCount).map((pr) => (
+                        <div key={pr.id} className="flex items-start space-x-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center space-x-2 mt-1">
+                            <GitBranch className={`h-4 w-4 ${pr.state === 'open' ? 'text-green-500' : pr.state === 'merged' ? 'text-purple-500' : 'text-gray-500'}`} />
                             <span className="text-sm font-medium">#{pr.number}</span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{pr.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {pr.user.login} • {getRelativeTime(pr.created_at)}
-                            </p>
+                            <p className="text-sm font-medium leading-tight mb-1">{pr.title}</p>
+                            <div className="flex items-center space-x-2 text-xs text-muted-foreground mb-2">
+                              <span>{pr.user.login}</span>
+                              <span>•</span>
+                              <span>{getRelativeTime(pr.created_at)}</span>
+                              {pr.head && pr.base && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-blue-600">{pr.head.ref}</span>
+                                  <span>→</span>
+                                  <span className="text-green-600">{pr.base.ref}</span>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-3 text-xs text-muted-foreground">
+                              {(pr as any).additions !== undefined && (
+                                <span className="text-green-600">+{(pr as any).additions}</span>
+                              )}
+                              {(pr as any).deletions !== undefined && (
+                                <span className="text-red-600">-{(pr as any).deletions}</span>
+                              )}
+                              {(pr as any).comments !== undefined && (
+                                <span>💬 {(pr as any).comments}</span>
+                              )}
+                            </div>
                           </div>
-                          <Badge variant={pr.state === 'open' ? 'default' : 'secondary'}>
-                            {pr.state}
-                          </Badge>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={pr.state === 'open' ? 'default' : pr.state === 'merged' ? 'secondary' : 'outline'}>
+                              {pr.state}
+                            </Badge>
+                          </div>
                         </div>
                       ))}
+                      {/* Show More Button for PRs */}
+                      {openPRs.length > shownPRsCount ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownPRsCount(c => Math.min(c + PRS_BATCH, openPRs.length))}
+                        >
+                          Show More ({openPRs.length - shownPRsCount} remaining)
+                        </Button>
+                      ) : openPRs.length > PRS_BATCH && shownPRsCount > PRS_BATCH ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownPRsCount(PRS_BATCH)}
+                        >
+                          Show Less
+                        </Button>
+                      ) : null}
                       {openPRs.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          No pull requests found
-                        </p>
+                        <div className="text-center py-8">
+                          <GitBranch className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-sm text-muted-foreground">No pull requests found</p>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -1201,34 +1932,79 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       <CardTitle className="flex items-center space-x-2">
                         <MessageSquare className="h-5 w-5" />
                         <span>Issues</span>
+                        {updating && <div className="h-4 w-4 animate-spin border-2 border-current border-t-transparent rounded-full" />}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {openIssues.slice(0, 10).map((issue) => (
-                        <div key={issue.id} className="flex items-center space-x-3 p-3 rounded-lg border">
-                          <div className="flex items-center space-x-2">
-                            <MessageSquare className="h-4 w-4 text-green-500" />
+                      {openIssues.slice(0, shownIssuesCount).map((issue) => (
+                        <div key={issue.id} className="flex items-start space-x-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center space-x-2 mt-1">
+                            <MessageSquare className={`h-4 w-4 ${issue.state === 'open' ? 'text-green-500' : 'text-purple-500'}`} />
                             <span className="text-sm font-medium">#{issue.number}</span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{issue.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {issue.user.login} • {getRelativeTime(issue.created_at)}
-                            </p>
+                            <p className="text-sm font-medium leading-tight mb-1">{issue.title}</p>
+                            <div className="flex items-center space-x-2 text-xs text-muted-foreground mb-2">
+                              <span>{issue.user.login}</span>
+                              <span>•</span>
+                              <span>{getRelativeTime(issue.created_at)}</span>
+                              {(issue as any).comments !== undefined && (
+                                <>
+                                  <span>•</span>
+                                  <span>💬 {(issue as any).comments}</span>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {issue.labels.slice(0, 3).map((label) => (
+                                <Badge 
+                                  key={label.name} 
+                                  variant="outline" 
+                                  className="text-xs"
+                                  style={{ 
+                                    backgroundColor: `#${label.color}20`, 
+                                    borderColor: `#${label.color}`, 
+                                    color: `#${label.color}` 
+                                  }}
+                                >
+                                  {label.name}
+                                </Badge>
+                              ))}
+                              {issue.labels.length > 3 && (
+                                <span className="text-xs text-muted-foreground">+{issue.labels.length - 3} more</span>
+                              )}
+                            </div>
                           </div>
                           <div className="flex items-center space-x-2">
-                            {issue.labels.slice(0, 2).map((label) => (
-                              <Badge key={label.name} variant="outline" className="text-xs">
-                                {label.name}
-                              </Badge>
-                            ))}
+                            <Badge variant={issue.state === 'open' ? 'default' : 'secondary'}>
+                              {issue.state}
+                            </Badge>
                           </div>
                         </div>
                       ))}
+                      {/* Show More Button for Issues */}
+                      {openIssues.length > shownIssuesCount ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownIssuesCount(c => Math.min(c + ISSUES_BATCH, openIssues.length))}
+                        >
+                          Show More ({openIssues.length - shownIssuesCount} remaining)
+                        </Button>
+                      ) : openIssues.length > ISSUES_BATCH && shownIssuesCount > ISSUES_BATCH ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full mt-4"
+                          onClick={() => setShownIssuesCount(ISSUES_BATCH)}
+                        >
+                          Show Less
+                        </Button>
+                      ) : null}
                       {openIssues.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          No issues found
-                        </p>
+                        <div className="text-center py-8">
+                          <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-sm text-muted-foreground">No issues found</p>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -1243,7 +2019,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {userActivity.slice(0, 10).map((activity) => (
+                      {userActivity.slice(0, shownUserActivityCount).map((activity) => (
                         <div key={activity.id} className="flex items-center space-x-3 p-3 rounded-lg border">
                           <div className="flex items-center space-x-2">
                             <Activity className="h-4 w-4 text-gray-500" />
@@ -1274,9 +2050,9 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
             </motion.div>
           )}
 
-          {activeTab === "insights" && (
+          {debouncedActiveTab === "insights" && (
             <motion.div
-              key="insights"
+              key={`insights-${dataLoading ? 'loading' : 'loaded'}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -1290,7 +2066,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                     Performance metrics and recommendations
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={refreshData}>
+                <Button variant="outline" size="sm" onClick={handleSmoothRefresh}>
                   <TrendingUp className="h-4 w-4 mr-2" />
                   Refresh Data
                 </Button>
@@ -1532,26 +2308,146 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
           <SettingsPage />
         </div>
       )}
+
+      {/* New Project Modal */}
+      <Dialog open={showNewProjectModal} onOpenChange={setShowNewProjectModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Repository</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="repoName">Repository Name</Label>
+              <Input id="repoName" placeholder="my-awesome-project" />
+            </div>
+            <div>
+              <Label htmlFor="repoDescription">Description (optional)</Label>
+              <Input id="repoDescription" placeholder="A brief description of your project" />
+            </div>
+            <div>
+              <Label htmlFor="repoVisibility">Visibility</Label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose visibility" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="private">Private</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button 
+                className="flex-1 bg-orange-500 hover:bg-orange-600"
+                onClick={() => {
+                  // Handle repository creation
+                  setShowNewProjectModal(false)
+                }}
+              >
+                Create Repository
+              </Button>
+              <Button 
+                variant="outline" 
+                className="flex-1"
+                onClick={() => setShowNewProjectModal(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Project Selector Modal */}
+      <Dialog open={showProjectSelector} onOpenChange={setShowProjectSelector}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedAction === 'pull-request' && 'Select Repository for Pull Request'}
+              {selectedAction === 'issue' && 'Select Repository for Issue'}
+              {selectedAction === 'deploy' && 'Select Repository to Deploy'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <Input
+                placeholder="Search repositories..."
+                value={projectSearchQuery}
+                onChange={(e) => setProjectSearchQuery(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {dataLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                </div>
+              ) : filteredRepositories.length > 0 ? (
+                filteredRepositories.map((repo) => (
+                  <div
+                    key={repo.id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                    onClick={() => handleProjectSelect(repo)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+                        <Code className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">{repo.name}</h4>
+                        <p className="text-sm text-muted-foreground">{repo.full_name}</p>
+                        {repo.description && (
+                          <p className="text-xs text-muted-foreground mt-1">{repo.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Star className="w-4 h-4" />
+                      {repo.stargazers_count}
+                      <GitBranch className="w-4 h-4" />
+                      {repo.forks_count}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  {projectSearchQuery ? 'No repositories found matching your search.' : 'No repositories available.'}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function FeaturedProjectsCarousel() {
+function FeaturedProjectsCarousel({ trendingRepositories }: { trendingRepositories: any[] }) {
   const [currentProject, setCurrentProject] = useState(0)
 
   useEffect(() => {
+    if (trendingRepositories.length === 0) return
     const interval = setInterval(() => {
-      setCurrentProject((prev) => (prev + 1) % featuredProjects.length)
+      setCurrentProject((prev) => (prev + 1) % trendingRepositories.length)
     }, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [trendingRepositories.length])
 
   const nextProject = () => {
-    setCurrentProject((prev) => (prev + 1) % featuredProjects.length)
+    setCurrentProject((prev) => (prev + 1) % trendingRepositories.length)
   }
 
   const prevProject = () => {
-    setCurrentProject((prev) => (prev - 1 + featuredProjects.length) % featuredProjects.length)
+    setCurrentProject((prev) => (prev - 1 + trendingRepositories.length) % trendingRepositories.length)
+  }
+
+  if (trendingRepositories.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No trending projects available</p>
+      </div>
+    )
   }
 
   return (
@@ -1576,7 +2472,7 @@ function FeaturedProjectsCarousel() {
           className="flex transition-transform duration-500 ease-in-out"
           style={{ transform: `translateX(-${currentProject * 100}%)` }}
         >
-          {featuredProjects.map((project, index) => (
+          {trendingRepositories.map((repo, index) => (
             <div key={index} className="w-full flex-shrink-0">
               <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
                 <CardContent className="p-0">
@@ -1584,54 +2480,40 @@ function FeaturedProjectsCarousel() {
                     <div className="flex-1 p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div>
-                          <h4 className="text-xl font-bold mb-2">{project.name}</h4>
-                          <p className="text-muted-foreground mb-4">{project.description}</p>
+                          <h4 className="text-xl font-bold mb-2">{repo.full_name}</h4>
+                          <p className="text-muted-foreground mb-4">{repo.description || 'No description available'}</p>
                         </div>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => window.open(repo.html_url, '_blank')}>
                           <ExternalLink className="w-4 h-4 mr-2" />
                           View on GitHub
                         </Button>
                       </div>
 
                       <div className="flex flex-wrap gap-2 mb-4">
-                        {project.languages.map((lang: string) => (
-                          <Badge key={lang} variant="secondary">
-                            {lang}
+                        {repo.language && (
+                          <Badge variant="secondary">
+                            {repo.language}
                           </Badge>
-                        ))}
+                        )}
                       </div>
 
                       <div className="flex items-center gap-6 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Star className="w-4 h-4" />
-                          {project.stars}
+                          {repo.stargazers_count}
                         </div>
                         <div className="flex items-center gap-1">
                           <GitBranch className="w-4 h-4" />
-                          {project.forks}
+                          {repo.forks_count}
                         </div>
                         <div className="flex items-center gap-1">
-                          <Users className="w-4 h-4" />
-                          {project.contributors}
+                          <Calendar className="w-4 h-4" />
+                          {new Date(repo.updated_at).toLocaleDateString()}
                         </div>
                       </div>
                     </div>
 
-                    <div className="w-full md:w-80 p-6 bg-muted/30">
-                      <h5 className="font-semibold mb-3">Recent Activity</h5>
-                      <div className="space-y-3">
-                        {project.recentActivity.map((activity: any, actIndex: number) => (
-                          <div key={actIndex} className="flex items-start gap-3">
-                            <div className="w-2 h-2 bg-orange-500 rounded-full mt-2 flex-shrink-0" />
-                            <div className="text-sm">
-                              <span className="font-medium">{activity.user}</span>
-                              <span className="text-muted-foreground"> {activity.action}</span>
-                              <div className="text-xs text-muted-foreground mt-1">{activity.time}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+
                   </div>
                 </CardContent>
               </Card>
@@ -1642,7 +2524,7 @@ function FeaturedProjectsCarousel() {
 
       {/* Dots indicator */}
       <div className="flex justify-center gap-2 mt-4">
-        {featuredProjects.map((_, index) => (
+        {trendingRepositories.map((_, index) => (
           <button
             key={index}
             className={`w-2 h-2 rounded-full transition-colors ${
@@ -1657,6 +2539,52 @@ function FeaturedProjectsCarousel() {
 }
 
 function ProjectCard({ project, type }: { project: any; type: "starred" | "owned" }) {
+  const router = useRouter()
+
+  const handleOpenInBeetle = () => {
+    try {
+      // Extract owner information from full_name if not available
+      const [ownerLogin, repoName] = project.full_name.split('/');
+      
+      // Create properly structured repository data
+      const repoData = {
+        name: repoName || project.name,
+        full_name: project.full_name,
+        description: project.description || 'No description available',
+        owner: {
+          login: ownerLogin,
+          avatar_url: project.owner?.avatar_url || 'https://github.com/github.png',
+          type: project.owner?.type || 'User'
+        },
+        language: project.language || 'Unknown',
+        stargazers_count: parseInt(project.stars) || 0,
+        forks_count: parseInt(project.forks) || 0,
+        html_url: project.html_url,
+        clone_url: project.html_url ? `${project.html_url}.git` : '',
+        default_branch: project.default_branch || 'main',
+        created_at: project.created_at || new Date().toISOString(),
+        updated_at: project.updated_at || new Date().toISOString(),
+        private: project.private || false,
+        type: type as "starred" | "owned"
+      };
+      
+      // Encode repository data as URL parameters
+      const encodedRepoData = encodeURIComponent(JSON.stringify(repoData));
+      
+      // Navigate to contribution page with repository data
+      router.push(`/contribution?repo=${encodedRepoData}`);
+      
+      console.log('🔍 Opening repository in Beetle:', repoData.full_name);
+    } catch (error) {
+      console.error('Error preparing repository data:', error);
+      toast.error('Failed to open repository in Beetle');
+    }
+  }
+
+  const handleViewOnGitHub = () => {
+    window.open(project.html_url, '_blank')
+  }
+
   return (
     <motion.div whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
       <Card className="h-full hover:shadow-lg transition-all duration-300 group cursor-pointer">
@@ -1673,11 +2601,11 @@ function ProjectCard({ project, type }: { project: any; type: "starred" | "owned
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleOpenInBeetle}>
                   <Zap className="w-4 h-4 mr-2" />
                   Open in Beetle
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleViewOnGitHub}>
                   <Github className="w-4 h-4 mr-2" />
                   View on GitHub
                 </DropdownMenuItem>
@@ -1721,11 +2649,11 @@ function ProjectCard({ project, type }: { project: any; type: "starred" | "owned
 
             {type === "owned" && (
               <div className="flex gap-2 pt-2">
-                <Button size="sm" variant="outline" className="flex-1">
+                <Button size="sm" variant="outline" className="flex-1" onClick={handleOpenInBeetle}>
                   <Zap className="w-3 h-3 mr-1" />
                   Open
                 </Button>
-                <Button size="sm" variant="outline" className="flex-1">
+                <Button size="sm" variant="outline" className="flex-1" onClick={handleViewOnGitHub}>
                   <Github className="w-3 h-3 mr-1" />
                   GitHub
                 </Button>
@@ -1869,27 +2797,6 @@ const monthlyGoals = [
   { title: "Commits", current: 47, target: 60 },
   { title: "PRs Merged", current: 8, target: 12 },
   { title: "Issues Closed", current: 15, target: 20 },
-]
-
-const mockNotifications = [
-  {
-    icon: GitBranch,
-    title: "PR Review Request",
-    message: "Gaurav requested your review on PR #247",
-    time: "5 minutes ago",
-  },
-  {
-    icon: Star,
-    title: "Repository Starred",
-    message: "Your repository 'awesome-ui' received 5 new stars",
-    time: "1 hour ago",
-  },
-  {
-    icon: Shield,
-    title: "Security Alert",
-    message: "Vulnerability detected in lodash dependency",
-    time: "2 hours ago",
-  },
 ]
 
 const starredProjects = [

@@ -17,6 +17,12 @@ const createGitHubClient = (accessToken) => {
   });
 };
 
+// Validate owner parameter
+const isValidOwner = (owner) => {
+  const ownerRegex = /^[a-zA-Z0-9_-]+$/; // Allow alphanumeric, underscores, and hyphens
+  return ownerRegex.test(owner);
+};
+
 // Create GraphQL client
 const createGraphQLClient = (accessToken) => {
   return axios.create({
@@ -255,29 +261,137 @@ const getRepositoryDetails = async (accessToken, owner, repo) => {
 // Get repository branches
 const getRepositoryBranches = async (accessToken, owner, repo) => {
   try {
+    // Demo mode support
+    if (accessToken === 'demo-github-token') {
+      return [
+        {
+          name: 'main',
+          commit: {
+            sha: 'abc123def456',
+            url: 'https://api.github.com/repos/demo-user/beetle-app/commits/abc123def456',
+            html_url: 'https://github.com/demo-user/beetle-app/commit/abc123def456',
+            author: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            committer: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            message: 'Initial commit',
+            tree: {
+              sha: 'tree123',
+              url: 'https://api.github.com/repos/demo-user/beetle-app/git/trees/tree123'
+            },
+            parents: []
+          },
+          protected: false,
+          protection: null
+        },
+        {
+          name: 'dev',
+          commit: {
+            sha: 'def456ghi789',
+            url: 'https://api.github.com/repos/demo-user/beetle-app/commits/def456ghi789',
+            html_url: 'https://github.com/demo-user/beetle-app/commit/def456ghi789',
+            author: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            committer: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            message: 'Add development features',
+            tree: {
+              sha: 'tree456',
+              url: 'https://api.github.com/repos/demo-user/beetle-app/git/trees/tree456'
+            },
+            parents: [{ sha: 'abc123def456' }]
+          },
+          protected: false,
+          protection: null
+        },
+        {
+          name: 'feature/new-ui',
+          commit: {
+            sha: 'ghi789jkl012',
+            url: 'https://api.github.com/repos/demo-user/beetle-app/commits/ghi789jkl012',
+            html_url: 'https://github.com/demo-user/beetle-app/commit/ghi789jkl012',
+            author: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            committer: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            message: 'Implement new UI components',
+            tree: {
+              sha: 'tree789',
+              url: 'https://api.github.com/repos/demo-user/beetle-app/git/trees/tree789'
+            },
+            parents: [{ sha: 'def456ghi789' }]
+          },
+          protected: false,
+          protection: null
+        },
+        {
+          name: 'hotfix/auth-bug',
+          commit: {
+            sha: 'jkl012mno345',
+            url: 'https://api.github.com/repos/demo-user/beetle-app/commits/jkl012mno345',
+            html_url: 'https://github.com/demo-user/beetle-app/commit/jkl012mno345',
+            author: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            committer: {
+              login: 'demo-user',
+              avatar_url: 'https://github.com/github.png'
+            },
+            message: 'Fix authentication bug',
+            tree: {
+              sha: 'tree012',
+              url: 'https://api.github.com/repos/demo-user/beetle-app/git/trees/tree012'
+            },
+            parents: [{ sha: 'abc123def456' }]
+          },
+          protected: false,
+          protection: null
+        }
+      ];
+    }
+
     const cacheKey = `repo_branches_${owner}_${repo}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
 
     const client = createGitHubClient(accessToken);
     const response = await client.get(`/repos/${owner}/${repo}/branches`);
-
-    const branches = response.data.map(branch => ({
-      name: branch.name,
-      commit: {
-        sha: branch.commit.sha,
-        url: branch.commit.url,
-        html_url: branch.commit.html_url,
-        author: branch.commit.author,
-        committer: branch.commit.committer,
-        message: branch.commit.message,
-        tree: branch.commit.tree,
-        parents: branch.commit.parents
-      },
-      protected: branch.protected,
-      protection: branch.protection
+    const branches = await Promise.all(response.data.map(async branch => {
+      let fullCommit = branch.commit;
+      // Try to get the full commit from cache first
+      const commitCacheKey = `repo_commit_${owner}_${repo}_${branch.commit.sha}`;
+      let cachedCommit = await getCache(commitCacheKey);
+      if (cachedCommit) {
+        fullCommit = cachedCommit;
+      } else if (!fullCommit.commit || !fullCommit.commit.tree) {
+        try {
+          const commitResp = await client.get(`/repos/${owner}/${repo}/commits/${branch.commit.sha}`);
+          fullCommit = commitResp.data;
+          await setCache(commitCacheKey, fullCommit, 900); // Cache for 15 minutes
+        } catch (e) {
+          // If fetching full commit fails, keep the original minimal commit
+        }
+      }
+      return {
+        name: branch.name,
+        commit: fullCommit,
+        protected: branch.protected,
+        protection: branch.protection
+      };
     }));
-
     await setCache(cacheKey, branches, 900); // Cache for 15 minutes
     return branches;
   } catch (error) {
@@ -286,7 +400,10 @@ const getRepositoryBranches = async (accessToken, owner, repo) => {
   }
 };
 
-// Get repository issues
+// Add a delay utility to avoid rate limiting
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// Get repository issues (cache per repo, state, page)
 const getRepositoryIssues = async (accessToken, owner, repo, state = 'open', page = 1, perPage = 100) => {
   try {
     const cacheKey = `repo_issues_${owner}_${repo}_${state}_${page}`;
@@ -335,109 +452,9 @@ const getRepositoryIssues = async (accessToken, owner, repo, state = 'open', pag
   }
 };
 
-// Get repository pull requests
+// Get repository pull requests (cache per repo, state, page)
 const getRepositoryPullRequests = async (accessToken, owner, repo, state = 'open', page = 1, perPage = 100) => {
   try {
-    // Demo mode support
-    if (accessToken === 'demo-github-token') {
-      return [
-        {
-          id: 1,
-          number: 15,
-          title: "Implement real-time updates",
-          body: "Add real-time updates to the dashboard for better user experience",
-          state: "open",
-          locked: false,
-          draft: false,
-          merged: false,
-          mergeable: true,
-          mergeable_state: "clean",
-          merged_at: null,
-          closed_at: null,
-          user: {
-            login: "demo-user",
-            avatar_url: "https://github.com/github.png"
-          },
-          assignees: [],
-          requested_reviewers: [],
-          labels: [
-            { name: "enhancement", color: "a2eeef" },
-            { name: "frontend", color: "0e8a16" }
-          ],
-          head: {
-            label: "demo-user:feature/realtime-updates",
-            ref: "feature/realtime-updates",
-            sha: "abc123",
-            user: { login: "demo-user" },
-            repo: { name: "beetle-app" }
-          },
-          base: {
-            label: "demo-user:main",
-            ref: "main",
-            sha: "def456",
-            user: { login: "demo-user" },
-            repo: { name: "beetle-app" }
-          },
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-          updated_at: new Date().toISOString(),
-          html_url: "https://github.com/demo-user/beetle-app/pull/15",
-          comments: 2,
-          review_comments: 1,
-          commits: 3,
-          additions: 45,
-          deletions: 12,
-          changed_files: 5
-        },
-        {
-          id: 2,
-          number: 14,
-          title: "Fix authentication flow",
-          body: "Resolve issues with GitHub OAuth authentication",
-          state: "open",
-          locked: false,
-          draft: false,
-          merged: false,
-          mergeable: true,
-          mergeable_state: "clean",
-          merged_at: null,
-          closed_at: null,
-          user: {
-            login: "demo-user",
-            avatar_url: "https://github.com/github.png"
-          },
-          assignees: [],
-          requested_reviewers: [],
-          labels: [
-            { name: "bug", color: "d73a4a" },
-            { name: "auth", color: "fef2c0" }
-          ],
-          head: {
-            label: "demo-user:fix/auth-flow",
-            ref: "fix/auth-flow",
-            sha: "ghi789",
-            user: { login: "demo-user" },
-            repo: { name: "beetle-app" }
-          },
-          base: {
-            label: "demo-user:main",
-            ref: "main",
-            sha: "def456",
-            user: { login: "demo-user" },
-            repo: { name: "beetle-app" }
-          },
-          created_at: new Date(Date.now() - 7200000).toISOString(),
-          updated_at: new Date(Date.now() - 1800000).toISOString(),
-          html_url: "https://github.com/demo-user/beetle-app/pull/14",
-          comments: 1,
-          review_comments: 0,
-          commits: 2,
-          additions: 23,
-          deletions: 8,
-          changed_files: 3
-        }
-      ];
-    }
-
     const cacheKey = `repo_prs_${owner}_${repo}_${state}_${page}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
@@ -473,20 +490,8 @@ const getRepositoryPullRequests = async (accessToken, owner, repo, state = 'open
       assignees: pr.assignees,
       requested_reviewers: pr.requested_reviewers,
       labels: pr.labels,
-      head: {
-        label: pr.head.label,
-        ref: pr.head.ref,
-        sha: pr.head.sha,
-        user: pr.head.user,
-        repo: pr.head.repo
-      },
-      base: {
-        label: pr.base.label,
-        ref: pr.base.ref,
-        sha: pr.base.sha,
-        user: pr.base.user,
-        repo: pr.base.repo
-      },
+      head: pr.head,
+      base: pr.base,
       created_at: pr.created_at,
       updated_at: pr.updated_at,
       html_url: pr.html_url,
@@ -506,7 +511,7 @@ const getRepositoryPullRequests = async (accessToken, owner, repo, state = 'open
   }
 };
 
-// Get repository commits
+// Get repository commits (cache per repo, branch, page)
 const getRepositoryCommits = async (accessToken, owner, repo, branch = 'main', page = 1, perPage = 100) => {
   try {
     const cacheKey = `repo_commits_${owner}_${repo}_${branch}_${page}`;
@@ -525,15 +530,7 @@ const getRepositoryCommits = async (accessToken, owner, repo, branch = 'main', p
     const commits = response.data.map(commit => ({
       sha: commit.sha,
       node_id: commit.node_id,
-      commit: {
-        author: commit.commit.author,
-        committer: commit.commit.committer,
-        message: commit.commit.message,
-        tree: commit.commit.tree,
-        url: commit.commit.url,
-        comment_count: commit.commit.comment_count,
-        verification: commit.commit.verification
-      },
+      commit: commit.commit,
       url: commit.url,
       html_url: commit.html_url,
       comments_url: commit.comments_url,
@@ -693,39 +690,9 @@ const getUserActivity = async (accessToken, username, page = 1, perPage = 100) =
   }
 };
 
-// Get repository contributors
+// Get repository contributors (cache per repo)
 const getRepositoryContributors = async (accessToken, owner, repo) => {
   try {
-    // Demo mode support
-    if (accessToken === 'demo-github-token') {
-      return [
-        {
-          login: "demo-user",
-          id: 1,
-          avatar_url: "https://github.com/github.png",
-          contributions: 45,
-          type: "User",
-          site_admin: false
-        },
-        {
-          login: "john-doe",
-          id: 2,
-          avatar_url: "https://github.com/github.png",
-          contributions: 23,
-          type: "User",
-          site_admin: false
-        },
-        {
-          login: "jane-smith",
-          id: 3,
-          avatar_url: "https://github.com/github.png",
-          contributions: 12,
-          type: "User",
-          site_admin: false
-        }
-      ];
-    }
-
     const cacheKey = `repo_contributors_${owner}_${repo}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
@@ -750,7 +717,7 @@ const getRepositoryContributors = async (accessToken, owner, repo) => {
   }
 };
 
-// Get repository languages
+// Get repository languages (cache per repo)
 const getRepositoryLanguages = async (accessToken, owner, repo) => {
   try {
     const cacheKey = `repo_languages_${owner}_${repo}`;
@@ -828,6 +795,140 @@ const searchRepositories = async (accessToken, query, sort = 'stars', order = 'd
   }
 };
 
+// Fetch repository tree (file/folder structure)
+const getRepositoryTree = async (accessToken, owner, repo, branch = 'main') => {
+  try {
+    const cacheKey = `repo_tree_${owner}_${repo}_${branch}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return cached;
+
+    const client = createGitHubClient(accessToken);
+    // Get the SHA of the branch
+    const branchResp = await client.get(`/repos/${owner}/${repo}/branches/${branch}`);
+    const treeSha = branchResp.data.commit.commit.tree.sha;
+    // Get the tree recursively
+    const treeResp = await client.get(`/repos/${owner}/${repo}/git/trees/${treeSha}`, {
+      params: { recursive: 1 }
+    });
+    await setCache(cacheKey, treeResp.data.tree, 900); // Cache for 15 minutes
+    return treeResp.data.tree;
+  } catch (error) {
+    console.error('Error fetching repository tree:', error.message);
+    throw new Error('Failed to fetch repository tree');
+  }
+};
+
+// Fetch file content from a repo
+const getFileContent = async (accessToken, owner, repo, path, branch = 'main') => {
+  try {
+    const cacheKey = `repo_file_content_${owner}_${repo}_${branch}_${path}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return cached;
+
+    const client = createGitHubClient(accessToken);
+    const resp = await client.get(`/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, {
+      params: { ref: branch }
+    });
+    // If file is encoded in base64, decode it
+    let content = resp.data.content;
+    if (resp.data.encoding === 'base64') {
+      content = Buffer.from(content, 'base64').toString('utf-8');
+    }
+    await setCache(cacheKey, content, 600); // Cache for 10 minutes
+    return content;
+  } catch (error) {
+    console.error('Error fetching file content:', error.message);
+    throw new Error('Failed to fetch file content');
+  }
+};
+
+// Fetch file trees from all branches for a repository
+const getRepositoryTreesForAllBranches = async (accessToken, owner, repo) => {
+  try {
+    // Validate owner parameter
+    if (!isValidOwner(owner)) {
+      throw new Error('Invalid owner parameter');
+    }
+
+    const cacheKey = `repo_trees_all_branches_${owner}_${repo}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return cached;
+
+    const client = createGitHubClient(accessToken);
+    // First, get all branches
+    let branchesResp;
+    try {
+      branchesResp = await client.get(`/repos/${owner}/${repo}/branches`);
+    } catch (error) {
+      console.error('Error fetching branches:', error.message, error.response?.data);
+      throw new Error(`Failed to fetch branches: ${error.response?.data?.message || error.message}`);
+    }
+    const branches = branchesResp.data;
+    if (!Array.isArray(branches) || branches.length === 0) {
+      throw new Error('No branches found in repository');
+    }
+    // Fetch tree for each branch
+    const treesByBranch = {};
+    let allFailed = true;
+    for (const [i, branch] of branches.entries()) {
+      try {
+        // Try to get the full commit from cache first
+        const commitCacheKey = `repo_commit_${owner}_${repo}_${branch.commit.sha}`;
+        let fullCommit = await getCache(commitCacheKey);
+        if (!fullCommit) {
+          // Fetch full commit if not cached
+          const commitResp = await client.get(`/repos/${owner}/${repo}/commits/${branch.commit.sha}`);
+          fullCommit = commitResp.data;
+          await setCache(commitCacheKey, fullCommit, 900); // Cache for 15 minutes
+          // Add a small delay to avoid rate limiting if many branches
+          if (branches.length > 5) await delay(200);
+        }
+        if (!fullCommit.commit || !fullCommit.commit.tree || !fullCommit.commit.tree.sha) {
+          throw new Error('Branch commit or tree SHA missing');
+        }
+        const branchName = branch.name;
+        const treeSha = fullCommit.commit.tree.sha;
+        // Get the tree recursively for this branch
+        let treeResp;
+        try {
+          treeResp = await client.get(`/repos/${owner}/${repo}/git/trees/${treeSha}`, {
+            params: { recursive: 1 }
+          });
+        } catch (treeError) {
+          throw new Error(`Failed to fetch tree: ${treeError.response?.data?.message || treeError.message}`);
+        }
+        treesByBranch[branchName] = {
+          branch: branchName,
+          tree: treeResp.data.tree,
+          lastCommit: {
+            sha: fullCommit.sha,
+            message: fullCommit.commit.message,
+            author: fullCommit.commit.author,
+            committer: fullCommit.commit.committer
+          }
+        };
+        allFailed = false;
+      } catch (branchError) {
+        console.error(`Error fetching tree for branch ${branch.name}:`, branchError.message);
+        treesByBranch[branch.name] = {
+          branch: branch.name,
+          tree: [],
+          error: branchError.message,
+          lastCommit: null
+        };
+      }
+    }
+    if (allFailed) {
+      throw new Error('Failed to fetch repository trees for all branches (all branches failed)');
+    }
+    await setCache(cacheKey, treesByBranch, 900); // Cache for 15 minutes
+    return treesByBranch;
+  } catch (error) {
+    console.error('Error fetching repository trees for all branches:', error.message, error.stack);
+    throw new Error(error.message || 'Failed to fetch repository trees for all branches');
+  }
+};
+
 // Export all functions
 module.exports = {
   getUserProfile,
@@ -840,5 +941,8 @@ module.exports = {
   getUserActivity,
   getRepositoryContributors,
   getRepositoryLanguages,
-  searchRepositories
+  searchRepositories,
+  getRepositoryTree,
+  getFileContent,
+  getRepositoryTreesForAllBranches
 }; 

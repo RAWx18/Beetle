@@ -12,6 +12,11 @@ const authRoutes = require('./routes/auth.cjs');
 const githubRoutes = require('./routes/github.cjs');
 const analyticsRoutes = require('./routes/analytics.cjs');
 const projectsRoutes = require('./routes/projects.cjs');
+const aiRoutes = require('./routes/ai.cjs');
+const aggregatedRoutes = require('./routes/aggregated.cjs');
+
+// Import environment utilities
+const { printEnvStatus } = require('./utils/env.cjs');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler.cjs');
@@ -88,11 +93,20 @@ app.get('/health', (req, res) => {
   });
 });
 
+// GitHub OAuth callback route (direct mount for GitHub OAuth compatibility)
+app.use('/auth/github/callback', (req, res, next) => {
+  // Forward to the actual auth route handler
+  req.url = '/github/callback' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '');
+  authRoutes(req, res, next);
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/github', authMiddleware, githubRoutes);
+app.use('/api/aggregated', authMiddleware, aggregatedRoutes);
 app.use('/api/analytics', authMiddleware, analyticsRoutes);
 app.use('/api/projects', authMiddleware, projectsRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -103,8 +117,10 @@ app.get('/', (req, res) => {
     endpoints: {
       auth: '/api/auth',
       github: '/api/github',
+      aggregated: '/api/aggregated',
       analytics: '/api/analytics',
-      projects: '/api/projects'
+      projects: '/api/projects',
+      ai: '/api/ai'
     }
   });
 });
@@ -126,10 +142,14 @@ const startServer = async () => {
     await initDatabase();
     console.log('✅ Database initialized successfully');
     
+    // Print environment configuration status
+    printEnvStatus();
+    
     app.listen(PORT, () => {
       console.log(`🚀 Beetle Backend server running on port ${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/health`);
       console.log(`🔗 API Base URL: http://localhost:${PORT}/api`);
+      console.log(`🤖 AI Pipeline: http://localhost:${PORT}/api/ai/health`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
