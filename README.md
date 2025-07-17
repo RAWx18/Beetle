@@ -205,12 +205,9 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 Our mascot is excited to see what amazing contributions you'll bring to the Beetle community!
 
-### Our major contributors:
-<div align="center">
-
-[![Contributors](https://contrib.rocks/image?repo=RAWx18/beetle)](https://github.com/RAWx18/beetle/graphs/contributors)
-
-</div>
+<p align="center">
+<img src="https://readme-contribs.as93.net/contributors/RAWx18/beetle?avatarSize=100&perRow=5&shape=circle&title=Our+Awesome+Contributors&fontSize=14&textColor=ffffff&backgroundColor=000000&outerBorderWidth=2&outerBorderColor=ffcc00&outerBorderRadius=8&hideLabel=true" alt="Contributors"/>
+</p>
 
 ---
 
