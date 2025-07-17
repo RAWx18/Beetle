@@ -123,7 +123,23 @@ class GitHubAPI {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('API Error Response:', errorText);
-        throw new Error(`GitHub API error: ${response.status} ${response.statusText} - ${errorText}`);
+        
+        // Parse error response
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: errorText };
+        }
+
+        // Enhanced error handling for rate limits
+        if (response.status === 403 && this.isRateLimitError(errorData)) {
+          throw new Error(
+            `GitHub API rate limit exceeded. ${errorData.message || 'Please try again later or use demo mode.'}`
+          );
+        }
+
+        throw new Error(`GitHub API error: ${response.status} ${response.statusText} - ${errorData.message || errorText}`);
       }
 
       const data = await response.json();
@@ -136,11 +152,30 @@ class GitHubAPI {
       if (error instanceof TypeError && error.message.includes('fetch')) {
         throw new Error('Network error: Unable to connect to the server. Please check your connection and try again.');
       } else if (error instanceof Error) {
+        // Check if it's a rate limit error and provide helpful message
+        if (this.isRateLimitError(error)) {
+          throw new Error(
+            'GitHub API rate limit exceeded. The application has made too many requests to GitHub. ' +
+            'This is temporary and will reset automatically. You can:\n' +
+            '• Try again in a few minutes\n' +
+            '• Use demo mode to explore the application\n' +
+            '• The rate limit typically resets every hour'
+          );
+        }
         throw error;
       } else {
         throw new Error(`Request failed: ${String(error)}`);
       }
     }
+  }
+
+  private isRateLimitError(errorData: any): boolean {
+    if (!errorData) return false;
+    
+    const message = errorData.message || errorData.error || '';
+    return message.includes('rate limit') || 
+           message.includes('API rate limit exceeded') || 
+           message.includes('Too many requests');
   }
 
   // Get user repositories
@@ -308,6 +343,17 @@ class GitHubAPI {
   // Update last fetch timestamp
   updateLastFetchTime() {
     this.lastUpdateTimestamp = new Date().toISOString();
+  }
+
+  // Get GitHub API rate limit status
+  async getRateLimitStatus() {
+    try {
+      const response = await this.request('/github/rate-limit');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch rate limit status:', error);
+      throw error;
+    }
   }
 }
 

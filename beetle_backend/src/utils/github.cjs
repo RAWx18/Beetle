@@ -1,13 +1,15 @@
 const axios = require('axios');
 const { getCache, setCache } = require('./database.cjs');
+const { rateLimitManager } = require('./github-rate-limit.cjs');
+const { cacheManager } = require('./github-cache.cjs');
 
 // GitHub API configuration
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
 
-// Create GitHub API client with authentication
+// Create GitHub API client with authentication and rate limit handling
 const createGitHubClient = (accessToken) => {
-  return axios.create({
+  const client = axios.create({
     baseURL: GITHUB_API_BASE,
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -15,6 +17,37 @@ const createGitHubClient = (accessToken) => {
       'User-Agent': 'Beetle-App/1.0.0'
     }
   });
+
+  // Add request interceptor for rate limit handling
+  client.interceptors.request.use(async (config) => {
+    // Add conditional request headers if cached data exists
+    const rateLimitStatus = rateLimitManager.getRateLimitStatus(accessToken);
+    
+    // Log rate limit status for debugging
+    if (rateLimitStatus.remaining < 100) {
+      console.log(`⚠️ Low rate limit: ${rateLimitStatus.remaining}/${rateLimitStatus.limit} remaining, reset at ${rateLimitStatus.resetDate}`);
+    }
+
+    return config;
+  });
+
+  // Add response interceptor for rate limit tracking
+  client.interceptors.response.use(
+    (response) => {
+      // Update rate limit information from response headers
+      rateLimitManager.updateRateLimit(accessToken, response.headers);
+      return response;
+    },
+    (error) => {
+      // Update rate limit information from error response headers
+      if (error.response && error.response.headers) {
+        rateLimitManager.updateRateLimit(accessToken, error.response.headers);
+      }
+      return Promise.reject(error);
+    }
+  );
+
+  return client;
 };
 
 // Validate owner parameter
@@ -34,15 +67,29 @@ const createGraphQLClient = (accessToken) => {
   });
 };
 
-// Get user profile
+// Get user profile with enhanced rate limit handling
 const getUserProfile = async (accessToken) => {
   try {
-    const cacheKey = `user_profile_${accessToken.substring(0, 10)}`;
-    const cached = await getCache(cacheKey);
+    // Check cache first
+    const cached = cacheManager.get('user_profile', accessToken.substring(0, 10));
     if (cached) return cached;
 
     const client = createGitHubClient(accessToken);
-    const response = await client.get('/user');
+    
+    // Execute with rate limit handling
+    const response = await rateLimitManager.executeWithRateLimit(
+      accessToken,
+      async () => {
+        const conditionalHeaders = cacheManager.getConditionalHeaders('user_profile', accessToken.substring(0, 10));
+        return await client.get('/user', { headers: conditionalHeaders });
+      },
+      { priority: 'high', operation: 'getUserProfile' }
+    );
+
+    // Handle 304 Not Modified
+    if (response.status === 304) {
+      return cacheManager.handleNotModified('user_profile', accessToken.substring(0, 10));
+    }
     
     const userData = {
       id: response.data.id,
@@ -62,7 +109,13 @@ const getUserProfile = async (accessToken) => {
       updated_at: response.data.updated_at
     };
 
-    await setCache(cacheKey, userData, 1800); // Cache for 30 minutes
+    // Cache with ETag
+    const etag = response.headers.etag;
+    cacheManager.set('user_profile', userData, etag, accessToken.substring(0, 10));
+    
+    // Also use legacy cache for backward compatibility
+    await setCache(`user_profile_${accessToken.substring(0, 10)}`, userData, 1800);
+    
     return userData;
   } catch (error) {
     console.error('Error fetching user profile:', error.message);
@@ -74,11 +127,17 @@ const getUserProfile = async (accessToken) => {
         headers: error.response.headers
       });
     }
+    
+    // Enhanced error handling for rate limits
+    if (rateLimitManager.isRateLimitError(error)) {
+      throw rateLimitManager.enhanceError(error, 0);
+    }
+    
     throw new Error(`Failed to fetch user profile: ${error.message}`);
   }
 };
 
-// Get user repositories
+// Get user repositories with enhanced rate limit handling
 const getUserRepositories = async (accessToken, page = 1, perPage = 100) => {
   try {
     // Demo mode support
@@ -145,20 +204,35 @@ const getUserRepositories = async (accessToken, page = 1, perPage = 100) => {
       ];
     }
 
-    const cacheKey = `user_repos_${accessToken.substring(0, 10)}_${page}`;
-    const cached = await getCache(cacheKey);
+    // Check cache first
+    const cached = cacheManager.get('user_repos', accessToken.substring(0, 10), page);
     if (cached) return cached;
 
     const client = createGitHubClient(accessToken);
-    const response = await client.get('/user/repos', {
-      params: {
-        sort: 'updated',
-        direction: 'desc',
-        per_page: perPage,
-        page: page,
-        affiliation: 'owner,collaborator,organization_member'
-      }
-    });
+    
+    // Execute with rate limit handling
+    const response = await rateLimitManager.executeWithRateLimit(
+      accessToken,
+      async () => {
+        const conditionalHeaders = cacheManager.getConditionalHeaders('user_repos', accessToken.substring(0, 10), page);
+        return await client.get('/user/repos', {
+          params: {
+            sort: 'updated',
+            direction: 'desc',
+            per_page: perPage,
+            page: page,
+            affiliation: 'owner,collaborator,organization_member'
+          },
+          headers: conditionalHeaders
+        });
+      },
+      { priority: 'high', operation: 'getUserRepositories' }
+    );
+
+    // Handle 304 Not Modified
+    if (response.status === 304) {
+      return cacheManager.handleNotModified('user_repos', accessToken.substring(0, 10), page);
+    }
 
     const repositories = response.data.map(repo => ({
       id: repo.id,
@@ -190,7 +264,13 @@ const getUserRepositories = async (accessToken, page = 1, perPage = 100) => {
       ssh_url: repo.ssh_url
     }));
 
-    await setCache(cacheKey, repositories, 900); // Cache for 15 minutes
+    // Cache with ETag
+    const etag = response.headers.etag;
+    cacheManager.set('user_repos', repositories, etag, accessToken.substring(0, 10), page);
+    
+    // Also use legacy cache for backward compatibility
+    await setCache(`user_repos_${accessToken.substring(0, 10)}_${page}`, repositories, 900);
+    
     return repositories;
   } catch (error) {
     console.error('Error fetching user repositories:', error.message);
@@ -202,6 +282,12 @@ const getUserRepositories = async (accessToken, page = 1, perPage = 100) => {
         headers: error.response.headers
       });
     }
+    
+    // Enhanced error handling for rate limits
+    if (rateLimitManager.isRateLimitError(error)) {
+      throw rateLimitManager.enhanceError(error, 0);
+    }
+    
     throw new Error(`Failed to fetch user repositories: ${error.message}`);
   }
 };
@@ -547,7 +633,7 @@ const getRepositoryCommits = async (accessToken, owner, repo, branch = 'main', p
   }
 };
 
-// Get user activity (recent events)
+// Get user activity with enhanced rate limit handling
 const getUserActivity = async (accessToken, username, page = 1, perPage = 100) => {
   try {
     // Demo mode support
@@ -655,17 +741,32 @@ const getUserActivity = async (accessToken, username, page = 1, perPage = 100) =
       ];
     }
 
-    const cacheKey = `user_activity_${username}_${page}`;
-    const cached = await getCache(cacheKey);
+    // Check cache first
+    const cached = cacheManager.get('user_activity', username, page);
     if (cached) return cached;
 
     const client = createGitHubClient(accessToken);
-    const response = await client.get(`/users/${username}/events`, {
-      params: {
-        per_page: perPage,
-        page: page
-      }
-    });
+    
+    // Execute with rate limit handling - lower priority for activity as it's frequently requested
+    const response = await rateLimitManager.executeWithRateLimit(
+      accessToken,
+      async () => {
+        const conditionalHeaders = cacheManager.getConditionalHeaders('user_activity', username, page);
+        return await client.get(`/users/${username}/events`, {
+          params: {
+            per_page: perPage,
+            page: page
+          },
+          headers: conditionalHeaders
+        });
+      },
+      { priority: 'medium', operation: 'getUserActivity' }
+    );
+
+    // Handle 304 Not Modified
+    if (response.status === 304) {
+      return cacheManager.handleNotModified('user_activity', username, page);
+    }
 
     const events = response.data.map(event => ({
       id: event.id,
@@ -682,11 +783,23 @@ const getUserActivity = async (accessToken, username, page = 1, perPage = 100) =
       org: event.org
     }));
 
-    await setCache(cacheKey, events, 300); // Cache for 5 minutes
+    // Cache with ETag - shorter TTL for activity data
+    const etag = response.headers.etag;
+    cacheManager.set('user_activity', events, etag, username, page);
+    
+    // Also use legacy cache for backward compatibility
+    await setCache(`user_activity_${username}_${page}`, events, 300);
+    
     return events;
   } catch (error) {
     console.error('Error fetching user activity:', error.message);
-    throw new Error('Failed to fetch user activity');
+    
+    // Enhanced error handling for rate limits
+    if (rateLimitManager.isRateLimitError(error)) {
+      throw rateLimitManager.enhanceError(error, 0);
+    }
+    
+    throw new Error(`Failed to fetch user activity: ${error.message}`);
   }
 };
 
@@ -944,5 +1057,9 @@ module.exports = {
   searchRepositories,
   getRepositoryTree,
   getFileContent,
-  getRepositoryTreesForAllBranches
+  getRepositoryTreesForAllBranches,
+  isValidOwner,
+  // Export rate limit and cache utilities
+  rateLimitManager,
+  cacheManager
 }; 
