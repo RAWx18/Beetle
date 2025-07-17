@@ -64,6 +64,7 @@ import { useTheme } from "next-themes"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EnhancedSearch } from "@/components/enhanced-search"
 import { SettingsPage } from "@/components/settings-page"
+import { EnhancedNotifications } from "@/components/enhanced-notifications"
 import { DashboardStats } from "@/components/dashboard-stats"
 import { RepositoryDetailPage } from "@/components/repository-detail-page"
 import { UserProfilePage } from "@/components/user-profile-page"
@@ -194,8 +195,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   })
   
   // Notification and profile management states
-  const [unreadNotifications, setUnreadNotifications] = useState(notifications.length)
-  const [showNotifications, setShowNotifications] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
 
 
@@ -405,7 +404,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     setNotifications(prev => prev.map((notif, i) => 
       i === index ? { ...notif, read: true } : notif
     ))
-    setUnreadNotifications(prev => Math.max(0, prev - 1))
   }
 
 
@@ -513,7 +511,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     if (!dataLoading && (repositories.length > 0 || recentCommits.length > 0 || openPRs.length > 0)) {
       const initialNotifications = generateDynamicNotifications()
       setNotifications(initialNotifications)
-      setUnreadNotifications(initialNotifications.length)
     }
   }, [dataLoading, repositories, recentCommits, openPRs, generateDynamicNotifications])
 
@@ -523,7 +520,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
       const newNotifications = generateDynamicNotifications()
       if (newNotifications.length > 0) {
         setNotifications(prev => [...newNotifications, ...prev.slice(0, 3)])
-        setUnreadNotifications(prev => prev + newNotifications.length)
       }
     }, 60000) // Update every minute
     
@@ -903,47 +899,17 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
           {/* Actions & User Menu */}
           <div className="flex items-center space-x-3">
-            {/* Notifications */}
-            <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="relative" data-notification-button>
-                  <Bell className="w-4 h-4" />
-                  {unreadNotifications > 0 && (
-                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-72" align="end">
-                <div className="p-3 border-b">
-                  <h4 className="font-semibold">Notifications</h4>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  {notifications.length > 0 ? (
-                    notifications.map((notification, index) => (
-                      <div
-                        key={index} 
-                        className={`p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors ${!notification.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}
-                        onClick={() => markNotificationAsRead(index)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <notification.icon className="w-4 h-4 mt-1 text-muted-foreground" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{notification.title}</p>
-                            <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
-                            <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-6 text-center text-muted-foreground">
-                      <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No notifications</p>
-                    </div>
-                  )}
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Enhanced Notifications */}
+            <EnhancedNotifications
+              notifications={notifications}
+              onMarkAsRead={markNotificationAsRead}
+              onRefresh={refreshData}
+              repositories={repositories}
+              openPRs={openPRs}
+              openIssues={openIssues}
+              recentCommits={recentCommits}
+              userActivity={userActivity}
+            />
 
             {/* User Menu */}
             <DropdownMenu open={showProfileMenu} onOpenChange={setShowProfileMenu}>
