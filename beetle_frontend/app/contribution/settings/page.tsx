@@ -1,7 +1,7 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatedTransition } from '@/components/AnimatedTransition';
 import { useAnimateIn } from '@/lib/animations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,16 +10,108 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Bell, Shield, Palette, Globe, Database, Zap, GitBranch } from 'lucide-react';
+import { Bell, Shield, Palette, Globe, Database, Zap, GitBranch, Save, RefreshCw } from 'lucide-react';
 import { useBranch } from '@/contexts/BranchContext';
 import { useRepository } from '@/contexts/RepositoryContext';
+import { useSettings } from '@/hooks/useSettings';
+import { toast } from 'sonner';
 
 export default function SettingsPage() {
   const showContent = useAnimateIn(false, 300);
   const { selectedBranch, getBranchInfo } = useBranch();
   const { repository } = useRepository();
+  const { settings, loading, saving, updateSettings, resetSettings } = useSettings();
   const branchInfo = getBranchInfo();
   const projectName = repository?.name || 'Project';
+
+  // Local state for form fields
+  const [formData, setFormData] = useState({
+    branchNotifications: true,
+    autoSync: false,
+    emailNotifications: true,
+    pushNotifications: false,
+    weeklyDigest: true,
+    publicProfile: true,
+    twoFactorEnabled: false,
+    theme: 'system',
+    language: 'en',
+    autoSave: true,
+    hardwareAcceleration: true
+  });
+
+  // Update form data when settings load
+  useEffect(() => {
+    if (settings) {
+      setFormData({
+        branchNotifications: settings.preferences?.branchNotifications ?? true,
+        autoSync: settings.preferences?.autoSync ?? false,
+        emailNotifications: settings.notifications?.emailNotifications ?? true,
+        pushNotifications: settings.notifications?.pushNotifications ?? false,
+        weeklyDigest: settings.notifications?.weeklyDigest ?? true,
+        publicProfile: true, // This could be added to settings schema later
+        twoFactorEnabled: settings.security?.twoFactorEnabled ?? false,
+        theme: settings.appearance?.theme ?? 'system',
+        language: settings.appearance?.language ?? 'en',
+        autoSave: settings.preferences?.autoSave ?? true,
+        hardwareAcceleration: settings.appearance?.showAnimations ?? true
+      });
+    }
+  }, [settings]);
+
+  const handleSwitchChange = (field: string, value: boolean) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSelectChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveSettings = async () => {
+    const settingsUpdate = {
+      preferences: {
+        branchNotifications: formData.branchNotifications,
+        autoSync: formData.autoSync,
+        autoSave: formData.autoSave,
+        defaultBranch: selectedBranch || 'main'
+      },
+      notifications: {
+        emailNotifications: formData.emailNotifications,
+        pushNotifications: formData.pushNotifications,
+        weeklyDigest: formData.weeklyDigest
+      },
+      security: {
+        twoFactorEnabled: formData.twoFactorEnabled
+      },
+      appearance: {
+        theme: formData.theme,
+        language: formData.language,
+        showAnimations: formData.hardwareAcceleration
+      }
+    };
+
+    const success = await updateSettings(settingsUpdate);
+    if (success) {
+      toast.success('Settings saved successfully!');
+    }
+  };
+
+  const handleResetSettings = async () => {
+    const success = await resetSettings();
+    if (success) {
+      toast.success('Settings reset to defaults!');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 pt-10 pb-16 h-screen flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <RefreshCw className="w-5 h-5 animate-spin" />
+          <span>Loading settings...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 pt-10 pb-16 h-screen">
@@ -58,7 +150,10 @@ export default function SettingsPage() {
                     Receive notifications for {selectedBranch} branch activity
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={formData.branchNotifications}
+                  onCheckedChange={(checked) => handleSwitchChange('branchNotifications', checked)}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -68,7 +163,10 @@ export default function SettingsPage() {
                     Automatically sync changes from {selectedBranch} branch
                   </p>
                 </div>
-                <Switch />
+                <Switch 
+                  checked={formData.autoSync}
+                  onCheckedChange={(checked) => handleSwitchChange('autoSync', checked)}
+                />
               </div>
             </CardContent>
           </Card>
@@ -92,7 +190,10 @@ export default function SettingsPage() {
                     Receive updates about your contributions and projects
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={formData.emailNotifications}
+                  onCheckedChange={(checked) => handleSwitchChange('emailNotifications', checked)}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -102,7 +203,10 @@ export default function SettingsPage() {
                     Get real-time notifications in your browser
                   </p>
                 </div>
-                <Switch />
+                <Switch 
+                  checked={formData.pushNotifications}
+                  onCheckedChange={(checked) => handleSwitchChange('pushNotifications', checked)}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -112,7 +216,10 @@ export default function SettingsPage() {
                     Receive a weekly summary of your activity
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={formData.weeklyDigest}
+                  onCheckedChange={(checked) => handleSwitchChange('weeklyDigest', checked)}
+                />
               </div>
             </CardContent>
           </Card>
@@ -136,7 +243,10 @@ export default function SettingsPage() {
                     Allow others to see your public contributions
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={formData.publicProfile}
+                  onCheckedChange={(checked) => handleSwitchChange('publicProfile', checked)}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -146,7 +256,9 @@ export default function SettingsPage() {
                     Add an extra layer of security to your account
                   </p>
                 </div>
-                <Button variant="outline" size="sm">Enable</Button>
+                <Button variant="outline" size="sm">
+                  {formData.twoFactorEnabled ? 'Enabled' : 'Enable'}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -165,7 +277,7 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Theme</Label>
-                <Select defaultValue="system">
+                <Select value={formData.theme} onValueChange={(value) => handleSelectChange('theme', value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -179,7 +291,7 @@ export default function SettingsPage() {
               <Separator />
               <div className="space-y-2">
                 <Label>Language</Label>
-                <Select defaultValue="en">
+                <Select value={formData.language} onValueChange={(value) => handleSelectChange('language', value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -213,7 +325,10 @@ export default function SettingsPage() {
                     Automatically save your work as you type
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={formData.autoSave}
+                  onCheckedChange={(checked) => handleSwitchChange('autoSave', checked)}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -247,7 +362,10 @@ export default function SettingsPage() {
                     Use GPU acceleration for better performance
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={formData.hardwareAcceleration}
+                  onCheckedChange={(checked) => handleSwitchChange('hardwareAcceleration', checked)}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -258,6 +376,38 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <Button variant="outline" size="sm">Clear Cache</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Save Actions */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex gap-4">
+                <Button 
+                  onClick={handleSaveSettings} 
+                  disabled={saving}
+                  className="bg-orange-500 hover:bg-orange-600"
+                >
+                  {saving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Settings
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleResetSettings} 
+                  disabled={saving}
+                >
+                  Reset to Defaults
+                </Button>
               </div>
             </CardContent>
           </Card>

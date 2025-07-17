@@ -11,7 +11,8 @@ const {
   deleteSession,
   getUserNotes, addUserNote, updateUserNote, deleteUserNote,
   getUserSavedFilters, addUserSavedFilter, updateUserSavedFilter, deleteUserSavedFilter,
-  getUserPinnedItems, addUserPinnedItem, removeUserPinnedItem
+  getUserPinnedItems, addUserPinnedItem, removeUserPinnedItem,
+  getUserSettings, updateUserSettings, resetUserSettings
 } = require('../utils/database.cjs');
 const { getUserProfile } = require('../utils/github.cjs');
 const { asyncHandler } = require('../middleware/errorHandler.cjs');
@@ -795,6 +796,72 @@ router.delete('/pins/:id', asyncHandler(async (req, res) => {
     res.json({ pins });
   } catch (error) {
     res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+
+// User Settings CRUD
+router.get('/settings', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const settings = await getUserSettings(decoded.githubId);
+    res.json({ settings });
+  } catch (error) {
+    console.error('Error fetching user settings:', error);
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+
+router.put('/settings', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const settingsUpdate = req.body;
+    
+    if (!settingsUpdate || typeof settingsUpdate !== 'object') {
+      return res.status(400).json({ error: 'Settings data required' });
+    }
+    
+    const updatedSettings = await updateUserSettings(decoded.githubId, settingsUpdate);
+    res.json({ settings: updatedSettings, message: 'Settings updated successfully' });
+  } catch (error) {
+    console.error('Error updating user settings:', error);
+    if (error.message === 'User not found') {
+      res.status(404).json({ error: 'User not found' });
+    } else {
+      res.status(401).json({ error: 'Invalid token' });
+    }
+  }
+}));
+
+router.post('/settings/reset', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const defaultSettings = await resetUserSettings(decoded.githubId);
+    res.json({ settings: defaultSettings, message: 'Settings reset to default values' });
+  } catch (error) {
+    console.error('Error resetting user settings:', error);
+    if (error.message === 'User not found') {
+      res.status(404).json({ error: 'User not found' });
+    } else {
+      res.status(401).json({ error: 'Invalid token' });
+    }
   }
 }));
 
