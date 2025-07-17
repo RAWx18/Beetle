@@ -1080,7 +1080,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                   <HelpCircle className="mr-2 h-4 w-4" />
                   Help & Support
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => window.open('https://github.com/Beetle', '_blank')}>
+                <DropdownMenuItem onClick={() => window.open('https://github.com/RAWx18/Beetle/', '_blank')}>
                   <Heart className="mr-2 h-4 w-4" />
                   About Beetle
                 </DropdownMenuItem>
