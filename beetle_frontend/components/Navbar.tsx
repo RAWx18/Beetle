@@ -2,7 +2,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Brain, Search, Upload, User, Settings, LogOut, Moon, Sun, Table, Info, HelpCircle, Code, Github, GitBranch, GitPullRequest } from 'lucide-react';
+import { Brain, Search, Upload, User, Settings, LogOut, Moon, Sun, Table, Info, HelpCircle, Code, Github, GitBranch, GitPullRequest, Home } from 'lucide-react';
 import { useRippleEffect } from '@/lib/animations';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -289,21 +289,39 @@ export const Navbar = () => {
             </Tooltip>
             
             {isAuthenticated ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-primary hover:text-primary-foreground"
-                    onClick={logout}
-                  >
-                    <LogOut size={20} />
-                    {active === 'logout' && <span className="font-medium">Logout</span>}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Logout</p>
-                </TooltipContent>
-              </Tooltip>
+              isOnContributionPage ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-primary/10 hover:text-primary transition-all duration-300"
+                      onClick={() => window.location.href = '/'}
+                    >
+                      <Home size={20} />
+                      <span className="font-medium">Back to Hub</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Back to Hub</p>
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-primary hover:text-primary-foreground"
+                      onClick={logout}
+                    >
+                      <LogOut size={20} />
+                      {active === 'logout' && <span className="font-medium">Logout</span>}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Logout</p>
+                  </TooltipContent>
+                </Tooltip>
+              )
             ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
