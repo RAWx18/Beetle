@@ -62,7 +62,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "next-themes"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ContributionHeatmap } from "@/components/contribution-heatmap"
 import { EnhancedSearch } from "@/components/enhanced-search"
 import { SettingsPage } from "@/components/settings-page"
 import { DashboardStats } from "@/components/dashboard-stats"
@@ -361,14 +360,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
       const currentCount = contributionMap.get(commitDate) || 0;
       contributionMap.set(commitDate, currentCount + 1);
     });
-
-    // Convert to array format expected by ContributionHeatmap
-    const sortedDates = Array.from(contributionMap.keys()).sort();
-    return sortedDates.map((dateKey, index) => ({
-      day: index,
-      contributions: contributionMap.get(dateKey) || 0,
-      date: new Date(dateKey)
-    }));
   };
 
 
@@ -1772,14 +1763,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                   )}
                   {isRefreshing ? 'Refreshing...' : 'Refresh'}
                 </Button>
-              </div>
-
-              {/* Contribution Heatmap */}
-              <div className="mb-8">
-                <ContributionHeatmap 
-                  contributionData={generateContributionData()}
-                  loading={dataLoading}
-                />
               </div>
 
               {/* Activity Tabs */}
