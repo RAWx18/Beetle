@@ -99,7 +99,7 @@ class TrendingService {
     }
 
     try {
-      // Calculate date range based on timeframe
+      // Calculate date range based on timeframe (search for recently updated popular repos)
       const now = new Date();
       let daysBack = 7; // default weekly
       if (timeframe === 'daily') daysBack = 1;
@@ -108,13 +108,13 @@ class TrendingService {
       const fromDate = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
       const dateStr = fromDate.toISOString().split('T')[0]; // YYYY-MM-DD format
 
-      // Build search query for trending repositories
-      let query = `created:>${dateStr} stars:>100`;
+      // Build search query for popular repositories (not just recently created ones)
+      let query = `stars:>1000 updated:>${dateStr}`;
       if (language) {
         query += ` language:${language}`;
       }
 
-      // Try to search for repositories created recently with high star count
+      // Try to search for popular repositories that have been active recently
       const response = await publicGitHubSearchService.searchRepositories(
         query,
         'stars',
