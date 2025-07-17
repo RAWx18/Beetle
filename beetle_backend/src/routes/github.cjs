@@ -14,7 +14,9 @@ const {
   getRepositoryTree,
   getFileContent,
   getRepositoryTreesForAllBranches,
-  isValidOwner
+  isValidOwner,
+  rateLimitManager,
+  cacheManager
 } = require('../utils/github.cjs');
 const { saveRepository, getRepository } = require('../utils/database.cjs');
 const { asyncHandler } = require('../middleware/errorHandler.cjs');
@@ -868,6 +870,63 @@ router.get('/repositories/:owner/:repo/branches-with-trees', asyncHandler(async 
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch branches with trees', message: error.message });
+  }
+}));
+
+// Get GitHub API rate limit status
+router.get('/rate-limit', asyncHandler(async (req, res) => {
+  try {
+    const status = rateLimitManager.getRateLimitStatus(req.user.accessToken);
+    const stats = rateLimitManager.getStatistics();
+    const cacheStats = cacheManager.getStatistics();
+    
+    res.json({
+      rateLimit: {
+        limit: status.limit,
+        remaining: status.remaining,
+        used: status.used,
+        reset: status.reset,
+        resetDate: status.resetDate,
+        isNearLimit: status.isNearLimit,
+        isRateLimited: status.isRateLimited,
+        resource: status.resource
+      },
+      statistics: stats,
+      cache: cacheStats,
+      recommendations: {
+        shouldThrottle: status.isNearLimit,
+        nextResetIn: Math.max(0, status.reset - Math.floor(Date.now() / 1000)),
+        percentageUsed: ((status.limit - status.remaining) / status.limit * 100).toFixed(1)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching rate limit status:', error);
+    res.status(500).json({
+      error: 'Failed to fetch rate limit status',
+      message: error.message
+    });
+  }
+}));
+
+// Clear GitHub API cache (for debugging/admin)
+router.delete('/cache', asyncHandler(async (req, res) => {
+  try {
+    const { type } = req.query;
+    
+    if (type) {
+      // Clear specific cache type - not implemented in this simple version
+      res.json({ message: `Cache type '${type}' clearing not implemented` });
+    } else {
+      // Clear all cache
+      cacheManager.clear();
+      res.json({ message: 'All GitHub API cache cleared successfully' });
+    }
+  } catch (error) {
+    console.error('Error clearing cache:', error);
+    res.status(500).json({
+      error: 'Failed to clear cache',
+      message: error.message
+    });
   }
 }));
 
