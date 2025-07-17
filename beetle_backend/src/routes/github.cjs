@@ -23,6 +23,258 @@ const { asyncHandler } = require('../middleware/errorHandler.cjs');
 
 const router = express.Router();
 
+// Simple rate limiting for public endpoints
+const rateLimitMap = new Map();
+const publicRateLimit = (req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000; // 15 minutes
+  const maxRequests = 60; // 60 requests per 15 minutes for public endpoints
+
+  if (!rateLimitMap.has(ip)) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+    return next();
+  }
+
+  const userLimit = rateLimitMap.get(ip);
+  
+  if (now > userLimit.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+    return next();
+  }
+
+  if (userLimit.count >= maxRequests) {
+    return res.status(429).json({ 
+      error: 'Rate limit exceeded',
+      message: 'Too many requests. Please try again later or sign in for higher limits.'
+    });
+  }
+
+  userLimit.count++;
+  next();
+};
+
+// PUBLIC ENDPOINTS (no authentication required)
+
+// Public search repositories
+router.get('/public/search/repositories', [
+  publicRateLimit,
+  query('q').isString().notEmpty(),
+  query('sort').optional().isIn(['stars', 'forks', 'help-wanted-issues', 'updated']),
+  query('order').optional().isIn(['desc', 'asc']),
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('per_page').optional().isInt({ min: 1, max: 30 }).toInt()
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      details: errors.array()
+    });
+  }
+
+  const { q, sort = 'stars', order = 'desc', page = 1, per_page = 10 } = req.query;
+  
+  try {
+    // Use a demo token for public searches (replace with your GitHub token)
+    const demoToken = process.env.GITHUB_PUBLIC_TOKEN || null;
+    
+    if (!demoToken) {
+      // Return fallback results if no public token is available
+      return res.json({
+        total_count: 1,
+        incomplete_results: false,
+        items: [{
+          id: 1,
+          name: `${q}-example`,
+          full_name: `example/${q}-example`,
+          owner: {
+            login: 'example',
+            id: 1,
+            avatar_url: 'https://github.com/github.png',
+            type: 'Organization',
+            html_url: 'https://github.com/example'
+          },
+          private: false,
+          html_url: `https://github.com/example/${q}-example`,
+          description: `Example repository for ${q}. Sign in to GitHub to see real search results.`,
+          fork: false,
+          url: `https://api.github.com/repos/example/${q}-example`,
+          created_at: '2023-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          pushed_at: '2024-01-01T00:00:00Z',
+          clone_url: `https://github.com/example/${q}-example.git`,
+          stargazers_count: 1000,
+          watchers_count: 1000,
+          language: 'JavaScript',
+          forks_count: 200,
+          archived: false,
+          disabled: false,
+          open_issues_count: 5,
+          license: { key: 'mit', name: 'MIT License' },
+          allow_forking: true,
+          default_branch: 'main',
+          score: 1.0
+        }],
+        query: q,
+        pagination: { sort, order, page, per_page }
+      });
+    }
+
+    const searchResults = await searchRepositories(demoToken, q, sort, order, page, per_page);
+    
+    res.json({
+      ...searchResults,
+      query: q,
+      pagination: { sort, order, page, per_page }
+    });
+  } catch (error) {
+    console.error('Public repository search error:', error);
+    res.status(500).json({
+      error: 'Search temporarily unavailable',
+      message: 'Please try again later or sign in to GitHub for full search functionality.'
+    });
+  }
+}));
+
+// Public search users
+router.get('/public/search/users', [
+  publicRateLimit,
+  query('q').isString().notEmpty(),
+  query('sort').optional().isIn(['followers', 'repositories', 'joined']),
+  query('order').optional().isIn(['desc', 'asc']),
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('per_page').optional().isInt({ min: 1, max: 30 }).toInt()
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      details: errors.array()
+    });
+  }
+
+  const { q, sort = 'followers', order = 'desc', page = 1, per_page = 10 } = req.query;
+  
+  try {
+    const demoToken = process.env.GITHUB_PUBLIC_TOKEN || null;
+    
+    if (!demoToken) {
+      // Return fallback user results
+      return res.json({
+        total_count: 1,
+        incomplete_results: false,
+        items: [{
+          login: `${q.toLowerCase()}user`,
+          id: 1,
+          avatar_url: 'https://github.com/github.png',
+          html_url: `https://github.com/${q.toLowerCase()}user`,
+          type: 'User',
+          name: `${q} User`,
+          company: 'Example Company',
+          blog: '',
+          location: 'San Francisco',
+          email: null,
+          bio: `Example user for ${q}. Sign in to GitHub to see real search results.`,
+          public_repos: 10,
+          public_gists: 5,
+          followers: 100,
+          following: 50,
+          created_at: '2020-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          score: 1.0
+        }],
+        query: q,
+        pagination: { sort, order, page, per_page }
+      });
+    }
+
+    const searchResults = await searchUsers(demoToken, q, sort, order, page, per_page);
+    
+    res.json({
+      ...searchResults,
+      query: q,
+      pagination: { sort, order, page, per_page }
+    });
+  } catch (error) {
+    console.error('Public user search error:', error);
+    res.status(500).json({
+      error: 'Search temporarily unavailable',
+      message: 'Please try again later or sign in to GitHub for full search functionality.'
+    });
+  }
+}));
+
+// Public search organizations
+router.get('/public/search/organizations', [
+  publicRateLimit,
+  query('q').isString().notEmpty(),
+  query('sort').optional().isIn(['repositories', 'joined']),
+  query('order').optional().isIn(['desc', 'asc']),
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('per_page').optional().isInt({ min: 1, max: 30 }).toInt()
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      details: errors.array()
+    });
+  }
+
+  const { q, sort = 'repositories', order = 'desc', page = 1, per_page = 10 } = req.query;
+  
+  try {
+    const demoToken = process.env.GITHUB_PUBLIC_TOKEN || null;
+    
+    if (!demoToken) {
+      // Return fallback organization results
+      return res.json({
+        total_count: 1,
+        incomplete_results: false,
+        items: [{
+          login: `${q.toLowerCase()}org`,
+          id: 2,
+          avatar_url: 'https://github.com/github.png',
+          html_url: `https://github.com/${q.toLowerCase()}org`,
+          type: 'Organization',
+          name: `${q} Organization`,
+          company: null,
+          blog: '',
+          location: 'Global',
+          email: null,
+          bio: `Example organization for ${q}. Sign in to GitHub to see real search results.`,
+          public_repos: 25,
+          public_gists: 0,
+          followers: 500,
+          following: 0,
+          created_at: '2018-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          score: 1.0
+        }],
+        query: q,
+        pagination: { sort, order, page, per_page }
+      });
+    }
+
+    const searchResults = await searchOrganizations(demoToken, q, sort, order, page, per_page);
+    
+    res.json({
+      ...searchResults,
+      query: q,
+      pagination: { sort, order, page, per_page }
+    });
+  } catch (error) {
+    console.error('Public organization search error:', error);
+    res.status(500).json({
+      error: 'Search temporarily unavailable',
+      message: 'Please try again later or sign in to GitHub for full search functionality.'
+    });
+  }
+}));
+
+// PROTECTED ENDPOINTS (authentication required)
+
 // Get user repositories
 router.get('/repositories', [
   query('page').optional().isInt({ min: 1 }).toInt(),

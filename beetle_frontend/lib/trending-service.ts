@@ -114,7 +114,7 @@ class TrendingService {
         query += ` language:${language}`;
       }
 
-      // Search for repositories created recently with high star count
+      // Try to search for repositories created recently with high star count
       const response = await publicGitHubSearchService.searchRepositories(
         query,
         'stars',
@@ -125,14 +125,18 @@ class TrendingService {
 
       const trendingRepos = response.items.map(repo => this.convertToTrendingRepo(repo));
       
-      // Cache the results
-      this.setCachedTrending(cacheKey, trendingRepos);
-      
-      return trendingRepos;
+      // If we got results, cache them
+      if (trendingRepos.length > 0) {
+        this.setCachedTrending(cacheKey, trendingRepos);
+        return trendingRepos;
+      } else {
+        // If no results from API, return fallback
+        return this.getFallbackTrendingRepos();
+      }
     } catch (error) {
       console.error('Error fetching trending repositories:', error);
       
-      // Return fallback data if API fails
+      // Return enhanced fallback data if API fails
       return this.getFallbackTrendingRepos();
     }
   }
@@ -199,6 +203,71 @@ class TrendingService {
           avatar_url: "https://github.com/facebook.png",
         },
       },
+      {
+        name: "vuejs/vue",
+        description: "Progressive JavaScript Framework",
+        languages: ["TypeScript", "JavaScript"],
+        stars: "206k",
+        forks: "33k",
+        updated: "4 hours ago",
+        html_url: "https://github.com/vuejs/vue",
+        owner: {
+          login: "vuejs",
+          avatar_url: "https://github.com/vuejs.png",
+        },
+      },
+      {
+        name: "angular/angular",
+        description: "Deliver web apps with confidence",
+        languages: ["TypeScript", "JavaScript"],
+        stars: "93k",
+        forks: "24k",
+        updated: "5 hours ago",
+        html_url: "https://github.com/angular/angular",
+        owner: {
+          login: "angular",
+          avatar_url: "https://github.com/angular.png",
+        },
+      },
+      {
+        name: "sveltejs/svelte",
+        description: "Cybernetically enhanced web apps",
+        languages: ["TypeScript", "JavaScript"],
+        stars: "75k",
+        forks: "4k",
+        updated: "6 hours ago",
+        html_url: "https://github.com/sveltejs/svelte",
+        owner: {
+          login: "sveltejs",
+          avatar_url: "https://github.com/sveltejs.png",
+        },
+      },
+      {
+        name: "tailwindlabs/tailwindcss",
+        description: "A utility-first CSS framework",
+        languages: ["CSS", "JavaScript"],
+        stars: "78k",
+        forks: "4k",
+        updated: "8 hours ago",
+        html_url: "https://github.com/tailwindlabs/tailwindcss",
+        owner: {
+          login: "tailwindlabs",
+          avatar_url: "https://github.com/tailwindlabs.png",
+        },
+      },
+      {
+        name: "nodejs/node",
+        description: "Node.js JavaScript runtime",
+        languages: ["JavaScript", "C++", "Python"],
+        stars: "103k",
+        forks: "28k",
+        updated: "1 hour ago",
+        html_url: "https://github.com/nodejs/node",
+        owner: {
+          login: "nodejs",
+          avatar_url: "https://github.com/nodejs.png",
+        },
+      }
     ];
   }
 
