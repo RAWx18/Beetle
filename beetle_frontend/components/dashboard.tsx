@@ -2407,6 +2407,8 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
 function FeaturedProjectsCarousel({ trendingRepositories }: { trendingRepositories: any[] }) {
   const [currentProject, setCurrentProject] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (trendingRepositories.length === 0) return
@@ -2424,11 +2426,37 @@ function FeaturedProjectsCarousel({ trendingRepositories }: { trendingRepositori
     setCurrentProject((prev) => (prev - 1 + trendingRepositories.length) % trendingRepositories.length)
   }
 
+  // Handle different states
+  if (isLoading) {
+    return (
+      <div className="text-center py-8">
+        <div className="flex items-center justify-center mb-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+        </div>
+        <p className="text-sm text-muted-foreground">Loading trending projects...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <div className="flex items-center justify-center mb-4">
+          <TrendingUp className="w-8 h-8 opacity-50" />
+        </div>
+        <p className="text-sm font-medium mb-2">Unable to load trending projects</p>
+        <p className="text-xs">{error}</p>
+        <p className="text-xs mt-2">Showing curated popular repositories instead</p>
+      </div>
+    )
+  }
+
   if (trendingRepositories.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">No trending projects available</p>
+        <p className="text-sm font-medium">No trending projects available</p>
+        <p className="text-xs mt-1">Check back later for new trending repositories</p>
       </div>
     )
   }
@@ -2439,6 +2467,11 @@ function FeaturedProjectsCarousel({ trendingRepositories }: { trendingRepositori
         <h3 className="text-xl font-bold flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-orange-500" />
           Trending Featured Projects
+          {trendingRepositories.length > 0 && (
+            <Badge variant="secondary" className="text-xs ml-2">
+              {trendingRepositories.length} projects
+            </Badge>
+          )}
         </h3>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={prevProject}>
@@ -2456,7 +2489,7 @@ function FeaturedProjectsCarousel({ trendingRepositories }: { trendingRepositori
           style={{ transform: `translateX(-${currentProject * 100}%)` }}
         >
           {trendingRepositories.map((repo, index) => (
-            <div key={index} className="w-full flex-shrink-0">
+            <div key={repo.id || index} className="w-full flex-shrink-0">
               <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
                 <CardContent className="p-0">
                   <div className="flex flex-col md:flex-row">
@@ -2464,7 +2497,9 @@ function FeaturedProjectsCarousel({ trendingRepositories }: { trendingRepositori
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <h4 className="text-xl font-bold mb-2">{repo.full_name}</h4>
-                          <p className="text-muted-foreground mb-4">{repo.description || 'No description available'}</p>
+                          <p className="text-muted-foreground mb-4 line-clamp-2">
+                            {repo.description || 'No description available'}
+                          </p>
                         </div>
                         <Button variant="outline" size="sm" onClick={() => window.open(repo.html_url, '_blank')}>
                           <ExternalLink className="w-4 h-4 mr-2" />
@@ -2478,16 +2513,26 @@ function FeaturedProjectsCarousel({ trendingRepositories }: { trendingRepositori
                             {repo.language}
                           </Badge>
                         )}
+                        {repo.stargazers_count >= 10000 && (
+                          <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+                            ⭐ Popular
+                          </Badge>
+                        )}
+                        {new Date(repo.updated_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && (
+                          <Badge variant="outline" className="text-green-600 border-green-600">
+                            🔥 Recently Updated
+                          </Badge>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-6 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Star className="w-4 h-4" />
-                          {repo.stargazers_count}
+                          {repo.stargazers_count.toLocaleString()}
                         </div>
                         <div className="flex items-center gap-1">
                           <GitBranch className="w-4 h-4" />
-                          {repo.forks_count}
+                          {repo.forks_count.toLocaleString()}
                         </div>
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
@@ -2495,8 +2540,6 @@ function FeaturedProjectsCarousel({ trendingRepositories }: { trendingRepositori
                         </div>
                       </div>
                     </div>
-
-
                   </div>
                 </CardContent>
               </Card>
