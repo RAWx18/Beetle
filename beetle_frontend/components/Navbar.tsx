@@ -178,7 +178,7 @@ export const Navbar = () => {
     <>
       <TooltipProvider>
         <header className="glass-panel fixed top-4 left-1/2 transform -translate-x-1/2 z-40 rounded-lg px-1 py-1">
-          <nav className="flex items-center">
+          <nav className="flex items-center justify-center gap-1">
             <NavItem
               to="#"
               icon={<Brain size={20} />}
