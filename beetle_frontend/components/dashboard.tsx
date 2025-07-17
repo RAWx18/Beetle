@@ -69,6 +69,7 @@ import { RepositoryDetailPage } from "@/components/repository-detail-page"
 import { UserProfilePage } from "@/components/user-profile-page"
 import { OrganizationProfilePage } from "@/components/organization-profile-page"
 import { Progress } from "@/components/ui/progress"
+import { MonthlyGoals } from "@/components/monthly-goals"
 import { useGitHubData } from "@/hooks/useGitHubData"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "sonner"
@@ -133,35 +134,39 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     visibility: 'all'
   })
   
-  // Editable monthly goals
+  // Enhanced monthly goals with trends and additional data
   const [monthlyGoals, setMonthlyGoals] = useState([
     { 
       id: 1,
       title: "Repositories", 
       current: 0, 
       target: 10,
-      description: "Your repositories",
-      type: "repositories"
+      description: "Manage and contribute to repositories",
+      type: "repositories" as const,
+      trend: 15,
+      lastMonthValue: 8
     },
     { 
       id: 2,
       title: "Commits", 
       current: 0, 
-      target: 20,
-      description: "Commits across all projects",
-      type: "commits"
+      target: 50,
+      description: "Code contributions across all projects",
+      type: "commits" as const,
+      trend: -5,
+      lastMonthValue: 42
     },
     { 
       id: 3,
       title: "Pull Requests", 
       current: 0, 
-      target: 5,
-      description: "PRs created or merged",
-      type: "prs"
+      target: 8,
+      description: "PRs created, reviewed, or merged",
+      type: "prs" as const,
+      trend: 25,
+      lastMonthValue: 4
     },
   ])
-  const [isEditingGoals, setIsEditingGoals] = useState(false)
-  const [newGoal, setNewGoal] = useState({ title: "", target: 0, description: "", type: "custom" })
   
   // Replace showMore states with counts
   const PROJECTS_BATCH = 6;
@@ -335,35 +340,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     });
   };
 
-  // Generate real contribution data from user activity
-  const generateContributionData = () => {
-    const contributionMap = new Map<string, number>();
-    
-    // Initialize last 365 days with 0 contributions
-    for (let i = 0; i < 365; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateKey = date.toISOString().split('T')[0];
-      contributionMap.set(dateKey, 0);
-    }
-
-    // Count contributions from user activity
-    userActivity.forEach(activity => {
-      const activityDate = new Date(activity.created_at).toISOString().split('T')[0];
-      const currentCount = contributionMap.get(activityDate) || 0;
-      contributionMap.set(activityDate, currentCount + 1);
-    });
-
-    // Count contributions from commits
-    recentCommits.forEach(commit => {
-      const commitDate = new Date(commit.commit.author.date).toISOString().split('T')[0];
-      const currentCount = contributionMap.get(commitDate) || 0;
-      contributionMap.set(commitDate, currentCount + 1);
-    });
-  };
-
-
-
   // New handlers for editable features
   const handleUsernameEdit = () => {
     setIsEditingUsername(true)
@@ -378,57 +354,6 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   const handleUsernameCancel = () => {
     setEditableUsername(user?.login || "GitHub User")
     setIsEditingUsername(false)
-  }
-
-  const handleGoalEdit = () => {
-    setIsEditingGoals(true)
-  }
-
-  const handleGoalSave = () => {
-    setIsEditingGoals(false)
-    // Save goals to localStorage
-    localStorage.setItem('monthlyGoals', JSON.stringify(monthlyGoals))
-  }
-
-  const handleGoalCancel = () => {
-    setIsEditingGoals(false)
-    // Reset to original values
-    setMonthlyGoals(prev => prev.map(goal => {
-      switch (goal.type) {
-        case "repositories":
-          return { ...goal, current: dashboardStats.totalRepos }
-        case "commits":
-          return { ...goal, current: dashboardStats.totalCommits }
-        case "prs":
-          return { ...goal, current: dashboardStats.totalPRs }
-        default:
-          return goal
-      }
-    }))
-  }
-
-  const addNewGoal = () => {
-    if (newGoal.title && newGoal.target > 0) {
-      setMonthlyGoals(prev => [...prev, {
-        id: Date.now(),
-        title: newGoal.title,
-        current: 0,
-        target: newGoal.target,
-        description: newGoal.description,
-        type: "custom"
-      }])
-      setNewGoal({ title: "", target: 0, description: "", type: "custom" })
-    }
-  }
-
-  const removeGoal = (id: number) => {
-    setMonthlyGoals(prev => prev.filter(goal => goal.id !== id))
-  }
-
-  const updateGoalTarget = (id: number, newTarget: number) => {
-    setMonthlyGoals(prev => prev.map(goal => 
-      goal.id === id ? { ...goal, target: newTarget } : goal
-    ))
   }
 
   const handleProjectSelect = (repo: any) => {
@@ -1389,94 +1314,12 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                     </CardContent>
                   </Card>
 
-                  {/* Goals Progress */}
-                  <Card className="mt-6">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2">
-                          <Target className="w-5 h-5" />
-                          Monthly Goals
-                        </CardTitle>
-                        {isEditingGoals ? (
-                          <div className="flex items-center gap-2">
-                            <Button size="sm" onClick={handleGoalSave}>
-                              <Check className="w-4 h-4" />
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={handleGoalCancel}>
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button size="sm" variant="ghost" onClick={handleGoalEdit}>
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {monthlyGoals.map((goal) => (
-                        <div key={goal.id} className="space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <div className="flex-1">
-                              {isEditingGoals ? (
-                                <div className="flex items-center gap-2">
-                                  <Input
-                                    value={goal.title}
-                                    onChange={(e) => {
-                                      setMonthlyGoals(prev => prev.map(g => 
-                                        g.id === goal.id ? { ...g, title: e.target.value } : g
-                                      ))
-                                    }}
-                                    className="w-32 text-sm"
-                                  />
-                                  <Input
-                                    type="number"
-                                    value={goal.target}
-                                    onChange={(e) => updateGoalTarget(goal.id, parseInt(e.target.value) || 0)}
-                                    className="w-16 text-sm"
-                                  />
-                                  <Button size="sm" variant="ghost" onClick={() => removeGoal(goal.id)}>
-                                    <Trash2 className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <span className="font-medium">{goal.title}</span>
-                              )}
-                              <p className="text-xs text-muted-foreground">{goal.description}</p>
-                            </div>
-                            <span className="font-medium">
-                              {goal.current}/{goal.target}
-                            </span>
-                          </div>
-                          <Progress value={(goal.current / goal.target) * 100} className="h-2" />
-                        </div>
-                      ))}
-                      
-                      {/* Add new goal */}
-                      {isEditingGoals && (
-                        <div className="space-y-2 pt-2 border-t">
-                          <div className="flex items-center gap-2">
-                            <Input
-                              placeholder="Goal title"
-                              value={newGoal.title}
-                              onChange={(e) => setNewGoal(prev => ({ ...prev, title: e.target.value }))}
-                              className="flex-1"
-                            />
-                            <Input
-                              type="number"
-                              placeholder="Target"
-                              value={newGoal.target || ""}
-                              onChange={(e) => setNewGoal(prev => ({ ...prev, target: parseInt(e.target.value) || 0 }))}
-                              className="w-20"
-                            />
-                            <Button size="sm" onClick={addNewGoal}>
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                  {/* Enhanced Monthly Goals */}
+                  <MonthlyGoals
+                    goals={monthlyGoals}
+                    onGoalsUpdate={setMonthlyGoals}
+                    dashboardStats={dashboardStats}
+                  />
                 </div>
               </div>
             </motion.div>
