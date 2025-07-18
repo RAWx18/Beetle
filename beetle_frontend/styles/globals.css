@@ -159,6 +159,28 @@
   background: hsl(var(--foreground));
 }
 
+/* Scrollbar utility classes */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 2px;
+}
+
+.scrollbar-track-gray-100::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+}
+
+.dark .scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+}
+
+.dark .scrollbar-track-gray-100::-webkit-scrollbar-track {
+  background-color: #1f2937;
+}
+
 /* Line clamp utility */
 .line-clamp-2 {
   display: -webkit-box;
