@@ -850,7 +850,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
         </div>
       )}
       
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex justify-center">
         <div className="container flex h-14 items-center">
           {/* Logo & Navigation */}
           <div className="flex items-center space-x-8">
@@ -989,7 +989,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
               className="space-y-8"
             >
               {/* Welcome Section */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex flex-wrap">
                 <div>
                   <div className="flex items-center gap-2">
                     <h1 className="text-3xl font-bold">{getGreeting()}, </h1>
