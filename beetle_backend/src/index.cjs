@@ -14,9 +14,13 @@ const analyticsRoutes = require('./routes/analytics.cjs');
 const projectsRoutes = require('./routes/projects.cjs');
 const aiRoutes = require('./routes/ai.cjs');
 const aggregatedRoutes = require('./routes/aggregated.cjs');
+const webhookRoutes = require('./routes/webhooks.cjs');
 
 // Import environment utilities
 const { printEnvStatus } = require('./utils/env.cjs');
+
+// Import security configuration validator
+const { validateOnStartup } = require('./utils/config-validator.cjs');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler.cjs');
@@ -27,6 +31,9 @@ const { initDatabase } = require('./utils/database.cjs');
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// Validate security configuration on startup
+validateOnStartup();
 
 // __dirname is already available in CommonJS
 
@@ -48,7 +55,7 @@ app.use(helmet({
 // CORS configuration
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-frontend-domain.com'] 
+    ? ['https://coming_soon.com'] // TODO: Change to frontend domain
     : ['http://localhost:3000', 'http://127.0.0.1:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -107,6 +114,7 @@ app.use('/api/aggregated', authMiddleware, aggregatedRoutes);
 app.use('/api/analytics', authMiddleware, analyticsRoutes);
 app.use('/api/projects', authMiddleware, projectsRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -120,7 +128,8 @@ app.get('/', (req, res) => {
       aggregated: '/api/aggregated',
       analytics: '/api/analytics',
       projects: '/api/projects',
-      ai: '/api/ai'
+      ai: '/api/ai',
+      webhooks: '/api/webhooks'
     }
   });
 });

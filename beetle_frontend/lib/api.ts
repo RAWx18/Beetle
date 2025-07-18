@@ -121,8 +121,9 @@ class ApiService {
     return this.request('/github/dashboard');
   }
 
-  async getBranchData(owner: string, repo: string, branch: string): Promise<ApiResponse<any>> {
-    return this.request(`/github/repositories/${owner}/${repo}/branches/${branch}`);
+  async getBranchData(owner: string, repo: string, branch: string, params?: { since?: string }): Promise<ApiResponse<any>> {
+    const queryString = params?.since ? `?since=${params.since}` : '';
+    return this.request(`/github/repositories/${owner}/${repo}/branches/${branch}${queryString}`);
   }
 
   // Analytics
@@ -254,6 +255,24 @@ class ApiService {
   // Smart Suggestions
   async getSmartSuggestions(projectId: string, branch: string): Promise<ApiResponse<{ suggestions: any[] }>> {
     return this.request(`/projects/${projectId}/branches/${branch}/suggestions`);
+  }
+
+  // User Settings
+  async getUserSettings(): Promise<ApiResponse<{ settings: any }>> {
+    return this.request('/auth/settings');
+  }
+
+  async updateUserSettings(settings: any): Promise<ApiResponse<{ settings: any; message: string }>> {
+    return this.request('/auth/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  }
+
+  async resetUserSettings(): Promise<ApiResponse<{ settings: any; message: string }>> {
+    return this.request('/auth/settings/reset', {
+      method: 'POST',
+    });
   }
 }
 

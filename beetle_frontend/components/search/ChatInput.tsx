@@ -38,7 +38,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           />
           <input
             type="text"
-            placeholder="Ask your second brain anything..."
+            placeholder="Ask beetle anything..."
             className="w-full bg-transparent border-none outline-none focus:outline-none text-foreground"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}

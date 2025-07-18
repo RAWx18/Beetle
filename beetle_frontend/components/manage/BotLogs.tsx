@@ -1,177 +1,150 @@
-import React, { useState } from 'react';
-import { Bot, Clock, CheckCircle, AlertTriangle, XCircle, Plus, Settings } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Bot, Settings, List, ShieldCheck, BarChart2, GitPullRequestArrow } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { contributionData } from './contribution-data';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRepository } from '@/contexts/RepositoryContext';
 
-interface BotLogsProps {
-  activities: any[];
-  branch: string;
-}
+// A list of recommended bots that users can manage
+const recommendedBots = [
+  {
+    id: 'dependabot',
+    name: 'Dependabot',
+    description: 'Automates dependency updates to keep your project secure.',
+    icon: <ShieldCheck className="h-6 w-6 text-green-500" />,
+    identifier: 'dependabot[bot]',
+  },
+  {
+    id: 'codecov',
+    name: 'Codecov',
+    description: 'Provides intelligent code coverage reports in your pull requests.',
+    icon: <BarChart2 className="h-6 w-6 text-blue-500" />,
+    identifier: 'codecov-commenter',
+  },
+  {
+    id: 'stale',
+    name: 'Stale Bot',
+    description: 'Closes abandoned issues and pull requests after a period of inactivity.',
+    icon: <GitPullRequestArrow className="h-6 w-6 text-red-500" />,
+    identifier: 'stale[bot]',
+  },
+];
 
-const BotLogs = ({ activities, branch }: BotLogsProps) => {
-  const [selectedBot, setSelectedBot] = useState<string>('all');
-  
-  const botLogs = contributionData.botLogs;
-  const botActivities = activities.filter(activity => 
-    activity.user.includes('bot') || activity.type === 'automated'
-  );
+const BotLogs = ({ activities, branch }: { activities: any[], branch: string }) => {
+  const { user } = useAuth();
+  const { repository } = useRepository();
+  const [enabledBots, setEnabledBots] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
 
-  const availableBots = [
-    { name: 'Auto-Labeler', description: 'Automatically labels PRs and issues', status: 'active' },
-    { name: 'Code-Review-Bot', description: 'Requests reviews and checks code quality', status: 'active' },
-    { name: 'CI-Bot', description: 'Runs continuous integration checks', status: 'active' },
-    { name: 'Security-Scanner', description: 'Scans for security vulnerabilities', status: 'inactive' },
-    { name: 'Dependency-Bot', description: 'Updates dependencies automatically', status: 'inactive' }
-  ];
+  const isOwner = user?.login === repository?.owner?.login;
+  const storageKey = `beetle-bots-${repository?.owner?.login}-${repository?.name}`;
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'success': return <CheckCircle size={14} className="text-green-500" />;
-      case 'error': return <XCircle size={14} className="text-red-500" />;
-      case 'warning': return <AlertTriangle size={14} className="text-yellow-500" />;
-      default: return <Clock size={14} className="text-blue-500" />;
+  // Load bot settings from local storage for the owner
+  useEffect(() => {
+    if (isOwner) {
+      try {
+        const storedSettings = localStorage.getItem(storageKey);
+        if (storedSettings) {
+          setEnabledBots(JSON.parse(storedSettings));
+        }
+      } catch (e) {
+        console.error("Failed to load bot settings from localStorage", e);
+      }
     }
+    setLoading(false);
+  }, [isOwner, storageKey]);
+
+  // Save bot settings to local storage when they change
+  useEffect(() => {
+    if (isOwner && !loading) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(enabledBots));
+      } catch (e) {
+        console.error("Failed to save bot settings to localStorage", e);
+      }
+    }
+  }, [enabledBots, isOwner, storageKey, loading]);
+
+  const handleBotToggle = (botId: string, isEnabled: boolean) => {
+    setEnabledBots(prev => ({ ...prev, [botId]: isEnabled }));
   };
 
-  const getBotColor = (botName: string) => {
-    const colors = {
-      'Auto-Labeler': 'bg-blue-100 text-blue-800',
-      'Code-Review-Bot': 'bg-green-100 text-green-800',
-      'CI-Bot': 'bg-purple-100 text-purple-800',
-      'Security-Scanner': 'bg-red-100 text-red-800',
-      'Dependency-Bot': 'bg-orange-100 text-orange-800'
-    } as Record<string, string>;
-    return colors[botName] || 'bg-gray-100 text-gray-800';
-  };
-
-  const filteredLogs = selectedBot === 'all' 
-    ? botLogs 
-    : botLogs.filter(log => log.botName === selectedBot);
+  // Filter activities to find logs from known bots
+  const botActivities = useMemo(() => {
+    const botIdentifiers = recommendedBots.map(b => b.identifier);
+    return (activities || []).filter(activity =>
+      botIdentifiers.includes(activity.user?.toLowerCase()) || activity.user?.endsWith('[bot]')
+    ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [activities]);
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Bot className="h-5 w-5 text-gray-500" />
-          <h3 className="text-lg font-semibold">Bot Activity & Management</h3>
-          <Badge variant="secondary">{botLogs.length} entries</Badge>
-        </div>
-        <Button size="sm" className="bg-orange-500 hover:bg-orange-600">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Bot
-        </Button>
-      </div>
-
-      <Tabs defaultValue="logs" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="logs">Activity Logs</TabsTrigger>
-          <TabsTrigger value="management">Bot Management</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="logs" className="space-y-4">
-          <div className="flex gap-2 flex-wrap">
-            <Button 
-              variant={selectedBot === 'all' ? 'default' : 'outline'} 
-              size="sm"
-              onClick={() => setSelectedBot('all')}
-            >
-              All Bots
-            </Button>
-            {Array.from(new Set(botLogs.map(log => log.botName))).map(botName => (
-              <Button
-                key={botName}
-                variant={selectedBot === botName ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedBot(botName)}
-              >
-                {botName}
-              </Button>
+      {isOwner && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5 text-primary" />
+              Manage Repository Bots
+            </CardTitle>
+            <CardDescription>Enable or disable automated bots for this repository. Your settings are saved locally.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {recommendedBots.map(bot => (
+              <div key={bot.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
+                <div className="flex items-center gap-4">
+                  {bot.icon}
+                  <div>
+                    <h4 className="font-semibold">{bot.name}</h4>
+                    <p className="text-sm text-muted-foreground">{bot.description}</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={!!enabledBots[bot.id]}
+                  onCheckedChange={(checked) => handleBotToggle(bot.id, checked)}
+                  aria-label={`Enable ${bot.name}`}
+                />
+              </div>
             ))}
-          </div>
+          </CardContent>
+        </Card>
+      )}
 
-          {filteredLogs.length === 0 ? (
-            <Card>
-              <CardContent className="p-6 text-center text-muted-foreground">
-                <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No bot activity logged yet</p>
-              </CardContent>
-            </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <List className="h-5 w-5 text-primary" />
+            Bot Activity Logs
+          </CardTitle>
+          <CardDescription>
+            {isOwner ? "Recent activities from your enabled bots." : "Recent activities from bots on this repository."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {botActivities.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              No bot activity found.
+            </div>
           ) : (
-            <div className="space-y-3">
-              {filteredLogs.map((log) => (
-                <Card key={log.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-1">
-                        {getStatusIcon(log.status)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge className={getBotColor(log.botName)}>
-                            {log.botName}
-                          </Badge>
-                          <span className="text-sm font-medium">{log.action}</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">{log.description}</p>
-                        {log.details && (
-                          <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                            {log.details}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                          <Clock size={12} />
-                          {log.timestamp}
-                          <Badge variant="outline" className="text-xs">
-                            {log.branch}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+              {botActivities.map(activity => (
+                <div key={activity.id} className="flex items-start gap-3 p-3 border rounded-md">
+                  <Bot className="h-5 w-5 mt-1 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm break-words">
+                      <span className="font-semibold">{activity.user}</span>: {activity.description}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(activity.timestamp).toLocaleString()} on branch <Badge variant="secondary">{activity.branch}</Badge>
+                    </p>
+                  </div>
+                </div>
               ))}
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="management" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {availableBots.map((bot) => (
-              <Card key={bot.name}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Bot className="h-4 w-4" />
-                      {bot.name}
-                    </CardTitle>
-                    <Badge variant={bot.status === 'active' ? 'default' : 'secondary'}>
-                      {bot.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">{bot.description}</p>
-                  <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      variant={bot.status === 'active' ? 'destructive' : 'default'}
-                      className="flex-1"
-                    >
-                      {bot.status === 'active' ? 'Disable' : 'Enable'}
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };

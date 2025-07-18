@@ -8,17 +8,28 @@ const {
   getUser, 
   updateUser, 
   createSession, 
+  getSession,
   deleteSession,
   getUserNotes, addUserNote, updateUserNote, deleteUserNote,
   getUserSavedFilters, addUserSavedFilter, updateUserSavedFilter, deleteUserSavedFilter,
-  getUserPinnedItems, addUserPinnedItem, removeUserPinnedItem
+  getUserPinnedItems, addUserPinnedItem, removeUserPinnedItem,
+  getUserSettings, updateUserSettings, resetUserSettings,
+  // Enhanced OAuth and session functions
+  storeOAuthState,
+  getOAuthState,
+  markOAuthStateUsed,
+  deleteOAuthState,
+  createSessionWithEncryption,
+  getSessionWithDecryption
 } = require('../utils/database.cjs');
 const { getUserProfile } = require('../utils/github.cjs');
 const { asyncHandler } = require('../middleware/errorHandler.cjs');
+const { generateSecureToken, validateRedirectUri } = require('../utils/security.cjs');
+const { oauthEvents, securityEvents } = require('../utils/security-logger.cjs');
+const { oauthInitiateLimit, oauthCallbackLimit, tokenValidationLimit } = require('../middleware/oauth-rate-limit.cjs');
 
 const router = express.Router();
 
-// GitHub OAuth configuration
 // GitHub OAuth configuration - read from environment at runtime
 const getGitHubConfig = () => ({
   clientId: process.env.GITHUB_CLIENT_ID,
@@ -26,27 +37,48 @@ const getGitHubConfig = () => ({
   callbackUrl: process.env.GITHUB_CALLBACK_URL
 });
 
-// Store OAuth states in memory (in production, use Redis or database)
-const oauthStates = new Map();
+// Get allowed origins for redirect URI validation
+const getAllowedOrigins = () => {
+  const origins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+    : [];
+  
+  // Add default development origins if not in production
+  if (process.env.NODE_ENV !== 'production') {
+    origins.push('http://localhost:3000', 'http://127.0.0.1:3000');
+  }
+  
+  return origins;
+};
 
 // Generate GitHub OAuth URL
-router.get('/github/url', (req, res) => {
-  const state = uuidv4(); // Generate random state for security
+router.get('/github/url', oauthInitiateLimit, asyncHandler(async (req, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress;
+  const state = generateSecureToken(32); // Use cryptographically secure token
   const config = getGitHubConfig();
   
-  // Store state with timestamp for cleanup
-  oauthStates.set(state, {
+  // Validate redirect URI
+  const allowedOrigins = getAllowedOrigins();
+  if (!validateRedirectUri(config.callbackUrl, allowedOrigins)) {
+    oauthEvents.authFailure('invalid_redirect_uri', clientIp, {
+      redirectUri: config.callbackUrl,
+      allowedOrigins
+    });
+    return res.status(400).json({
+      error: 'Invalid redirect URI',
+      message: 'The configured redirect URI is not allowed'
+    });
+  }
+  
+  // Store state in persistent storage with additional metadata
+  await storeOAuthState(state, {
+    clientIp,
+    userAgent: req.get('User-Agent'),
     timestamp: Date.now(),
     used: false
   });
   
-  // Clean up old states (older than 10 minutes)
-  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-  for (const [key, value] of oauthStates.entries()) {
-    if (value.timestamp < tenMinutesAgo) {
-      oauthStates.delete(key);
-    }
-  }
+  oauthEvents.stateGenerated(state, clientIp);
   
   const githubAuthUrl = `https://github.com/login/oauth/authorize?` +
     `client_id=${config.clientId}&` +
@@ -59,37 +91,70 @@ router.get('/github/url', (req, res) => {
     authUrl: githubAuthUrl,
     state: state
   });
-});
+}));
 
 // GitHub OAuth callback
-router.get('/github/callback', asyncHandler(async (req, res) => {
+router.get('/github/callback', oauthCallbackLimit, asyncHandler(async (req, res) => {
   console.log('🔵 OAuth callback started:', new Date().toISOString())
   const { code, state } = req.query;
+  const clientIp = req.ip || req.connection.remoteAddress;
 
-  // Validate state parameter
-  if (state && oauthStates.has(state)) {
-    const stateData = oauthStates.get(state);
+  // Enhanced state validation with persistent storage
+  if (state) {
+    const stateData = await getOAuthState(state);
+    
+    if (!stateData) {
+      console.log('❌ Invalid OAuth state:', state);
+      oauthEvents.stateValidated(state, clientIp, false);
+      oauthEvents.authFailure('invalid_state', clientIp, { state });
+      
+      const frontendUrl = process.env.NODE_ENV === 'production'
+        ? 'https://your-frontend-domain.com'
+        : 'http://localhost:3000';
+      const redirectUrl = `${frontendUrl}/?auth_error=${encodeURIComponent('OAuth State Error')}&auth_message=${encodeURIComponent('Invalid OAuth state. Please try again.')}`;
+      return res.redirect(redirectUrl);
+    }
+    
     if (stateData.used) {
       console.log('❌ OAuth state already used:', state);
+      oauthEvents.stateValidated(state, clientIp, false);
+      oauthEvents.authFailure('state_reuse', clientIp, { state });
+      
       const frontendUrl = process.env.NODE_ENV === 'production'
         ? 'https://your-frontend-domain.com'
         : 'http://localhost:3000';
       const redirectUrl = `${frontendUrl}/?auth_error=${encodeURIComponent('OAuth State Error')}&auth_message=${encodeURIComponent('OAuth state already used. Please try again.')}`;
       return res.redirect(redirectUrl);
     }
-    // Mark state as used
-    oauthStates.set(state, { ...stateData, used: true });
-  } else if (state) {
-    console.log('❌ Invalid OAuth state:', state);
-    const frontendUrl = process.env.NODE_ENV === 'production'
-      ? 'https://your-frontend-domain.com'
-      : 'http://localhost:3000';
-    const redirectUrl = `${frontendUrl}/?auth_error=${encodeURIComponent('OAuth State Error')}&auth_message=${encodeURIComponent('Invalid OAuth state. Please try again.')}`;
-    return res.redirect(redirectUrl);
+    
+    // Additional security checks
+    if (stateData.clientIp !== clientIp) {
+      console.log('❌ OAuth state IP mismatch:', { stored: stateData.clientIp, actual: clientIp });
+      securityEvents.suspiciousActivity('oauth_ip_mismatch', clientIp, {
+        storedIp: stateData.clientIp,
+        state
+      });
+      
+      oauthEvents.authFailure('ip_mismatch', clientIp, { storedIp: stateData.clientIp });
+      
+      const frontendUrl = process.env.NODE_ENV === 'production'
+        ? 'https://your-frontend-domain.com'
+        : 'http://localhost:3000';
+      const redirectUrl = `${frontendUrl}/?auth_error=${encodeURIComponent('Security Error')}&auth_message=${encodeURIComponent('Security validation failed. Please try again.')}`;
+      return res.redirect(redirectUrl);
+    }
+    
+    // Mark state as used and log validation success
+    await markOAuthStateUsed(state);
+    oauthEvents.stateValidated(state, clientIp, true);
+  } else {
+    console.log('❌ No OAuth state provided');
+    oauthEvents.authFailure('missing_state', clientIp);
   }
 
   if (!code) {
     console.log('❌ No authorization code received')
+    oauthEvents.authFailure('missing_code', clientIp);
     
     // Redirect to frontend with error parameters
     const frontendUrl = process.env.NODE_ENV === 'production'
@@ -107,11 +172,6 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
     const config = getGitHubConfig();
     
     console.log('🔄 Exchanging code for access token...')
-    console.log('📤 Sending to GitHub:', {
-      client_id: config.clientId,
-      code: code ? `${code.substring(0, 10)}...` : 'undefined',
-      redirect_uri: config.callbackUrl
-    })
     
     // Exchange code for access token
     const tokenResponse = await axios.post('https://github.com/login/oauth/access_token', {
@@ -135,8 +195,12 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
       responseStatus: tokenResponse.status 
     })
 
+    // Log token exchange result
+    oauthEvents.tokenExchange(code, clientIp, !!access_token && !error, error ? new Error(error_description || error) : null);
+
     if (error) {
       console.error('❌ GitHub OAuth error:', { error, error_description })
+      oauthEvents.authFailure('token_exchange_error', clientIp, { error, error_description });
       
       // Redirect to frontend with error parameters for OAuth errors
       const frontendUrl = process.env.NODE_ENV === 'production'
@@ -162,6 +226,7 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
 
     if (!access_token) {
       console.error('❌ No access token received from GitHub')
+      oauthEvents.authFailure('no_access_token', clientIp);
       
       // Redirect to frontend with error parameters
       const frontendUrl = process.env.NODE_ENV === 'production'
@@ -222,15 +287,15 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
       });
     }
 
-    console.log('🔄 Creating session...')
-    // Create session
+    console.log('🔄 Creating session with encrypted token...')
+    // Create session with encrypted access token
     const sessionId = uuidv4();
-    const session = await createSession(sessionId, {
+    const session = await createSessionWithEncryption(sessionId, {
       githubId: userProfile.id,
       login: userProfile.login,
       name: userProfile.name,
       avatar_url: userProfile.avatar_url,
-      accessToken: access_token
+      accessToken: access_token // This will be encrypted by createSessionWithEncryption
     });
 
     console.log('🔄 Generating JWT token...')
@@ -245,6 +310,14 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
+    // Log successful authentication
+    oauthEvents.authSuccess(userProfile.id, clientIp);
+
+    // Clean up OAuth state
+    if (state) {
+      await deleteOAuthState(state);
+    }
+
     console.log('🔄 Redirecting directly to homepage...')
     // Redirect directly to the homepage with token in localStorage via URL params
     const frontendUrl = process.env.NODE_ENV === 'production'
@@ -257,6 +330,7 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
 
   } catch (error) {
     console.error('❌ GitHub OAuth callback error:', error);
+    oauthEvents.authFailure('callback_error', clientIp, { error: error.message });
     
     // Redirect to frontend with error parameters
     const frontendUrl = process.env.NODE_ENV === 'production'
@@ -272,7 +346,7 @@ router.get('/github/callback', asyncHandler(async (req, res) => {
 }));
 
 // Test endpoint to check authentication status
-router.get('/status', asyncHandler(async (req, res) => {
+router.get('/status', tokenValidationLimit, asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -301,7 +375,7 @@ router.get('/status', asyncHandler(async (req, res) => {
     
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const session = await getSession(decoded.sessionId);
+    const session = await getSessionWithDecryption(decoded.sessionId);
     
     if (!session) {
       return res.status(401).json({
@@ -352,7 +426,7 @@ router.get('/status', asyncHandler(async (req, res) => {
 }));
 
 // Validate token
-router.get('/validate', asyncHandler(async (req, res) => {
+router.get('/validate', tokenValidationLimit, asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -795,6 +869,237 @@ router.delete('/pins/:id', asyncHandler(async (req, res) => {
     res.json({ pins });
   } catch (error) {
     res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+
+// User Settings CRUD
+router.get('/settings', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  // Handle demo token
+  if (token === 'demo-token') {
+    const demoSettings = {
+      profile: {
+        displayName: 'Demo User',
+        bio: 'This is a demo account showing Beetle functionality',
+        location: 'Demo City',
+        website: 'https://beetle-demo.com',
+        company: 'Demo Company',
+        twitter: 'demo_user'
+      },
+      notifications: {
+        emailNotifications: true,
+        pushNotifications: true,
+        weeklyDigest: true,
+        pullRequestReviews: true,
+        newIssues: true,
+        mentions: true,
+        securityAlerts: true
+      },
+      security: {
+        twoFactorEnabled: false,
+        sessionTimeout: 7200000
+      },
+      appearance: {
+        theme: 'system',
+        language: 'en',
+        compactMode: false,
+        showAnimations: true,
+        highContrast: false
+      },
+      integrations: {
+        connectedAccounts: {
+          github: { connected: true, username: 'demo-user' },
+          gitlab: { connected: false, username: '' },
+          bitbucket: { connected: false, username: '' }
+        },
+        webhookUrl: '',
+        webhookSecret: ''
+      },
+      preferences: {
+        autoSave: true,
+        branchNotifications: true,
+        autoSync: false,
+        defaultBranch: 'main'
+      },
+      updatedAt: new Date().toISOString()
+    };
+    return res.json({ settings: demoSettings });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const settings = await getUserSettings(decoded.githubId);
+    res.json({ settings });
+  } catch (error) {
+    console.error('Error fetching user settings:', error);
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}));
+
+router.put('/settings', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  // Handle demo token
+  if (token === 'demo-token') {
+    const settingsUpdate = req.body;
+    if (!settingsUpdate || typeof settingsUpdate !== 'object') {
+      return res.status(400).json({ error: 'Settings data required' });
+    }
+    
+    // For demo mode, just return the updated settings (merge with defaults)
+    const demoSettings = {
+      profile: {
+        displayName: 'Demo User',
+        bio: 'This is a demo account showing Beetle functionality',
+        location: 'Demo City',
+        website: 'https://beetle-demo.com',
+        company: 'Demo Company',
+        twitter: 'demo_user'
+      },
+      notifications: {
+        emailNotifications: true,
+        pushNotifications: true,
+        weeklyDigest: true,
+        pullRequestReviews: true,
+        newIssues: true,
+        mentions: true,
+        securityAlerts: true
+      },
+      security: {
+        twoFactorEnabled: false,
+        sessionTimeout: 7200000
+      },
+      appearance: {
+        theme: 'system',
+        language: 'en',
+        compactMode: false,
+        showAnimations: true,
+        highContrast: false
+      },
+      integrations: {
+        connectedAccounts: {
+          github: { connected: true, username: 'demo-user' },
+          gitlab: { connected: false, username: '' },
+          bitbucket: { connected: false, username: '' }
+        },
+        webhookUrl: '',
+        webhookSecret: ''
+      },
+      preferences: {
+        autoSave: true,
+        branchNotifications: true,
+        autoSync: false,
+        defaultBranch: 'main'
+      },
+      ...settingsUpdate,
+      updatedAt: new Date().toISOString()
+    };
+    
+    return res.json({ settings: demoSettings, message: 'Settings updated successfully (demo mode)' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const settingsUpdate = req.body;
+    
+    if (!settingsUpdate || typeof settingsUpdate !== 'object') {
+      return res.status(400).json({ error: 'Settings data required' });
+    }
+    
+    const updatedSettings = await updateUserSettings(decoded.githubId, settingsUpdate);
+    res.json({ settings: updatedSettings, message: 'Settings updated successfully' });
+  } catch (error) {
+    console.error('Error updating user settings:', error);
+    if (error.message === 'User not found') {
+      res.status(404).json({ error: 'User not found' });
+    } else {
+      res.status(401).json({ error: 'Invalid token' });
+    }
+  }
+}));
+
+router.post('/settings/reset', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  // Handle demo token
+  if (token === 'demo-token') {
+    const defaultSettings = {
+      profile: {
+        displayName: 'Demo User',
+        bio: 'This is a demo account showing Beetle functionality',
+        location: 'Demo City',
+        website: 'https://beetle-demo.com',
+        company: 'Demo Company',
+        twitter: 'demo_user'
+      },
+      notifications: {
+        emailNotifications: true,
+        pushNotifications: true,
+        weeklyDigest: true,
+        pullRequestReviews: true,
+        newIssues: true,
+        mentions: true,
+        securityAlerts: true
+      },
+      security: {
+        twoFactorEnabled: false,
+        sessionTimeout: 7200000
+      },
+      appearance: {
+        theme: 'system',
+        language: 'en',
+        compactMode: false,
+        showAnimations: true,
+        highContrast: false
+      },
+      integrations: {
+        connectedAccounts: {
+          github: { connected: true, username: 'demo-user' },
+          gitlab: { connected: false, username: '' },
+          bitbucket: { connected: false, username: '' }
+        },
+        webhookUrl: '',
+        webhookSecret: ''
+      },
+      preferences: {
+        autoSave: true,
+        branchNotifications: true,
+        autoSync: false,
+        defaultBranch: 'main'
+      },
+      updatedAt: new Date().toISOString()
+    };
+    
+    return res.json({ settings: defaultSettings, message: 'Settings reset to default values (demo mode)' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const defaultSettings = await resetUserSettings(decoded.githubId);
+    res.json({ settings: defaultSettings, message: 'Settings reset to default values' });
+  } catch (error) {
+    console.error('Error resetting user settings:', error);
+    if (error.message === 'User not found') {
+      res.status(404).json({ error: 'User not found' });
+    } else {
+      res.status(401).json({ error: 'Invalid token' });
+    }
   }
 }));
 

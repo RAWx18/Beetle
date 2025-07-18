@@ -13,7 +13,6 @@ import SmartSuggestions from './SmartSuggestions';
 import SavedFilters from './SavedFilters';
 import PinnedWatched from './PinnedWatched';
 import PrivateNotes from './PrivateNotes';
-import ImportBranch from './ImportBranch';
 import BotLogs from './BotLogs';
 import PRIssuesCombined from './PRIssuesCombined';
 import PullRequestTracker from './PullRequestTracker';
@@ -47,14 +46,30 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
   const [beetleData, setBeetleData] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [allRepoPRs, setAllRepoPRs] = useState<any[]>([]);
   
   const branchInfo = getBranchInfo();
 
+  // Fallback data for demo mode or when no repository is selected
+  const fallbackContributionData = {
+    pullRequests: [],
+    issues: [],
+    commits: [],
+    summary: {
+      totalCommits: 0,
+      totalIssues: 0,
+      totalPullRequests: 0,
+      lastCommit: null,
+      lastActivity: new Date().toISOString()
+    }
+  };
+
   // Fetch Beetle project data from backend
   useEffect(() => {
-    const fetchBeetleData = async () => {
-      if (!repository) {
-        setBeetleData(null);
+    const fetchBranchAndRepoData = async () => {
+      if (!repository || !token || token === 'demo-token') {
+        setBeetleData(fallbackContributionData);
+        setAllRepoPRs(fallbackContributionData.pullRequests);
         setDataLoading(false);
         setDataError(null);
         return;
@@ -62,74 +77,90 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
       setDataLoading(true);
       setDataError(null);
       try {
-        const projectId = `${repository.owner.login}/${repository.name}`;
-        const response = await apiService.getBeetleProjectData(projectId);
-        if (response.error) {
+        const { owner, name } = repository;
+        const now = new Date();
+        const since = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        // Fetch both branch-specific data and all repo PRs
+        const [branchResponse, prResponse] = await Promise.all([
+          apiService.getBranchData(owner.login, name, selectedBranch, { since }),
+          apiService.getRepositoryPullRequests(owner.login, name, 'all')
+        ]);
+        if (branchResponse.error) {
           setBeetleData(null);
-          setDataError(response.error.message);
+          setDataError(branchResponse.error.message);
         } else {
-          setBeetleData(response.data);
-          // Debug log: fetched data
-          console.log('[Beetle Overview] beetleData:', response.data);
+          setBeetleData(branchResponse.data);
+        }
+        if (prResponse.error) {
+          setAllRepoPRs([]);
+        } else if (prResponse.data && prResponse.data.pullRequests) {
+          setAllRepoPRs(prResponse.data.pullRequests);
+        } else {
+          setAllRepoPRs([]);
         }
       } catch (err: any) {
         setBeetleData(null);
+        setAllRepoPRs([]);
         setDataError(err.message || 'Failed to fetch data');
       } finally {
         setDataLoading(false);
       }
     };
-    fetchBeetleData();
-  }, [repository]);
+    fetchBranchAndRepoData();
+  }, [repository, selectedBranch, token]);
 
   // Memoize branch-specific data
   const branchData = useMemo(() => {
-    if (!beetleData || !beetleData.branches) {
-      console.log('[Beetle Overview] No beetleData or branches:', beetleData);
+    if (!beetleData) {
       return { pullRequests: [], issues: [], activity: [] };
     }
-    const branchNames = beetleData.branches.map((b: any) => b.name);
-    console.log('[Beetle Overview] Available branches:', branchNames, 'Selected branch:', selectedBranch);
-    const branch = beetleData.branches.find((b: any) => b.name === selectedBranch);
-    if (!branch) {
-      console.log('[Beetle Overview] Branch not found:', selectedBranch);
-    } else {
-      console.log('[Beetle Overview] Branch object:', branch);
-    }
+    
+    console.log('[Beetle Overview] beetleData structure:', beetleData);
+    
     // Transform commits to activity items
-    const activity = (branch?.commits || []).map((commit: any) => ({
+    const activity = (beetleData.commits || []).map((commit: any) => ({
       id: commit.sha || commit.id || Math.random().toString(36).slice(2),
       type: 'commit',
       user: commit.commit?.author?.name || commit.author?.login || commit.commit?.committer?.name || 'Unknown',
       description: commit.commit?.message?.split('\n')[0] || 'Commit',
-      timestamp: commit.commit?.author?.date || commit.commit?.committer?.date || commit.date || '',
+      timestamp: commit.commit?.author?.date || commit.commit?.committer?.date || new Date().toISOString(),
       branch: selectedBranch
     }));
+
+    // Filter PRs by status and labels
+    let filteredPRs = allRepoPRs || [];
+    if (prFilters.status && prFilters.status !== 'all') {
+      filteredPRs = filteredPRs.filter((pr: any) => (pr.status || pr.state) === prFilters.status);
+    }
+    if (prFilters.labels && prFilters.labels.length > 0) {
+      filteredPRs = filteredPRs.filter((pr: any) => (pr.labels || []).some((l: any) => prFilters.labels.includes(typeof l === 'string' ? l : l.name)));
+    }
+
     return {
-      pullRequests: branch?.pullRequests || [],
-      issues: branch?.issues || [],
+      pullRequests: filteredPRs,
+      issues: beetleData.issues || [],
       activity,
     };
-  }, [beetleData, selectedBranch]);
+  }, [beetleData, allRepoPRs, selectedBranch, prFilters]);
 
   // Compute filter options
   const allIssueLabels = Array.from(new Set(branchData.issues.flatMap((i: any) => i.labels?.map((l: any) => typeof l === 'string' ? l : l.name) || [])));
   const allPRLabels = Array.from(new Set(branchData.pullRequests.flatMap((pr: any) => pr.labels?.map((l: any) => typeof l === 'string' ? l : l.name) || [])));
   const allIssueTypes = Array.from(new Set(branchData.issues.map((i: any) => i.type || 'feature')));
   const allIssuePriorities = Array.from(new Set(branchData.issues.map((i: any) => i.priority || 'medium')));
-  const allIssueStatuses = ['all', ...Array.from(new Set(branchData.issues.map((i: any) => i.status || i.state || 'open')))];
-  const allPRStatuses = ['all', ...Array.from(new Set(branchData.pullRequests.map((pr: any) => pr.status || pr.state || 'open')))]
+  const allIssueStatuses = ['all', ...Array.from(new Set(branchData.issues.map((i: any) => i.state || i.status || 'open')))];
+  const allPRStatuses = ['all', ...Array.from(new Set(branchData.pullRequests.map((pr: any) => pr.state || pr.status || 'open')))]
 
   // Filter data based on UI state
   const filteredData = useMemo(() => {
     let prs: any[] = branchData.pullRequests;
     let issues: any[] = branchData.issues;
     if (selectedSection === 'pr-issues-tracker' || selectedSection === 'pr-tracker') {
-      if (prFilters.status !== 'all') prs = prs.filter((pr: any) => (pr.status || pr.state) === prFilters.status);
+      if (prFilters.status !== 'all') prs = prs.filter((pr: any) => (pr.state || pr.status) === prFilters.status);
       if (prFilters.labels.length > 0) prs = prs.filter((pr: any) => (pr.labels || []).some((l: any) => prFilters.labels.includes(typeof l === 'string' ? l : l.name)));
     }
     if (selectedSection === 'pr-issues-tracker' || selectedSection === 'issue-tracker') {
-      if (issueFilters.status !== 'all') issues = issues.filter((issue: any) => (issue.status || issue.state) === issueFilters.status);
+      if (issueFilters.status !== 'all') issues = issues.filter((issue: any) => (issue.state || issue.status) === issueFilters.status);
       if (issueFilters.type !== 'all') issues = issues.filter((issue: any) => (issue.type || 'feature') === issueFilters.type);
       if (issueFilters.priority !== 'all') issues = issues.filter((issue: any) => (issue.priority || 'medium') === issueFilters.priority);
       if (issueFilters.labels.length > 0) issues = issues.filter((issue: any) => (issue.labels || []).some((l: any) => issueFilters.labels.includes(typeof l === 'string' ? l : l.name)));
@@ -137,7 +168,7 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
     if (searchQuery) {
       prs = prs.filter((pr: any) =>
         pr.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        pr.author?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (pr.user?.login || pr.author)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (pr.labels || []).some((label: any) => (typeof label === 'string' ? label : label.name).toLowerCase().includes(searchQuery.toLowerCase()))
       );
       issues = issues.filter((issue: any) =>
@@ -153,34 +184,8 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
     };
   }, [branchData, searchQuery, prFilters, issueFilters, selectedSection]);
 
-  // Placeholder for internal platform activity (replace with real API call when available)
-  const getInternalPlatformActivity = () => {
-    // Example: fetch from localStorage or a static array
-    const stored = localStorage.getItem('beetle_internal_activity');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return [];
-      }
-    }
-    // Example static activity
-    return [
-      {
-        id: 'internal-1',
-        type: 'commit',
-        user: user?.login || 'PlatformUser',
-        description: 'Committed code via Beetle platform',
-        timestamp: new Date().toISOString(),
-        branch: selectedBranch || 'main',
-        details: 'Initial commit from platform UI'
-      }
-    ];
-  };
-
-  // Merge GitHub and internal activity for the activity feed
+  // Use real GitHub activity data
   const mergedActivity = [
-    ...getInternalPlatformActivity(),
     ...(branchData.activity || [])
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
@@ -199,6 +204,15 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
   };
 
   const renderSectionContent = () => {
+    if (dataLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading branch data...</span>
+        </div>
+      );
+    }
+
     if (isLoading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -247,8 +261,6 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
         return <PinnedWatched branchData={filteredData} branch={selectedBranch} />;
       case 'private-notes':
         return <PrivateNotes branch={selectedBranch} />;
-      case 'import-branch':
-        return <ImportBranch />;
       case 'bot-logs':
         return <BotLogs activities={mergedActivity} branch={selectedBranch} />;
       default:
@@ -322,6 +334,17 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
     );
   }
 
+  // Add general error UI for other errors
+  if (dataError) {
+    return (
+      <div className="p-6 text-center text-orange-600 bg-orange-50 rounded-md">
+        <h2 className="text-xl font-semibold mb-2">Data Loading Error</h2>
+        <p>{dataError}</p>
+        <p className="mt-2 text-sm text-orange-500">Please try refreshing the page or check your connection.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Sticky Header */}
@@ -350,10 +373,6 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
             <Button variant="outline" size="sm" onClick={handleFilterClick}>
               <Filter size={16} className="mr-2" />
               Filter
-            </Button>
-            <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={handleNewClick}>
-              <Plus size={16} className="mr-2" />
-              New
             </Button>
           </div>
         </div>

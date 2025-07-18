@@ -10,11 +10,20 @@ interface BranchPullRequestTableProps {
   branch: string;
 }
 
+const getStatus = (pr: any) => {
+  if (pr.draft) return 'draft';
+  if (pr.merged) return 'merged';
+  if (pr.state === 'closed') return 'closed';
+  if (pr.requested_reviewers?.length > 0) return 'under_review';
+  return pr.state || 'open';
+};
+
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'open': return 'bg-green-100 text-green-800 border-green-200';
     case 'under_review': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     case 'merged': return 'bg-purple-100 text-purple-800 border-purple-200';
+    case 'draft': return 'bg-gray-200 text-gray-800 border-gray-300';
     case 'closed': return 'bg-gray-100 text-gray-800 border-gray-200';
     default: return 'bg-gray-100 text-gray-800 border-gray-200';
   }
@@ -47,6 +56,7 @@ const BranchPullRequestTable = ({ pullRequests, branch }: BranchPullRequestTable
         <TableBody>
           {pullRequests.map((pr) => {
             const isOpen = expanded === pr.id;
+            const status = pr.status || getStatus(pr);
             return (
               <React.Fragment key={pr.id}>
                 <TableRow className="hover:bg-muted/40 border-b border-muted-foreground/10 transition-all group">
@@ -70,12 +80,12 @@ const BranchPullRequestTable = ({ pullRequests, branch }: BranchPullRequestTable
                     </div>
                   </TableCell>
                   <TableCell className="align-top">
-                    <Badge className={getStatusColor(pr.status) + ' px-4 py-2 text-base rounded-lg font-semibold'}>{pr.status.replace('_', ' ')}</Badge>
+                    <Badge className={getStatusColor(status) + ' px-4 py-2 text-base rounded-lg font-semibold'}>{status.replace('_', ' ').replace('draft', 'Draft')}</Badge>
                   </TableCell>
                   <TableCell className="align-top">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback className="text-base">{pr.author.slice(0, 2).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="text-base">{pr.author ? pr.author.slice(0, 2).toUpperCase() : ''}</AvatarFallback>
                       </Avatar>
                       <span className="text-base font-medium">{pr.author}</span>
                     </div>
@@ -83,13 +93,13 @@ const BranchPullRequestTable = ({ pullRequests, branch }: BranchPullRequestTable
                   <TableCell className="align-top">
                     <div className="flex items-center gap-2 text-base text-muted-foreground">
                       <Clock size={16} />
-                      {pr.lastUpdated}
+                      {new Date(pr.lastUpdated).toLocaleDateString()}
                     </div>
                   </TableCell>
                 </TableRow>
                 {isOpen && (
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={5} className="py-4">
+                    <TableCell colSpan={5} className="p-4">
                       <div className="flex flex-wrap gap-8">
                         <div>
                           <div className="font-semibold mb-1">Reviewers</div>
