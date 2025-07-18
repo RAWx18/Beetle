@@ -13,7 +13,6 @@ import SmartSuggestions from './SmartSuggestions';
 import SavedFilters from './SavedFilters';
 import PinnedWatched from './PinnedWatched';
 import PrivateNotes from './PrivateNotes';
-import ImportBranch from './ImportBranch';
 import BotLogs from './BotLogs';
 import PRIssuesCombined from './PRIssuesCombined';
 import PullRequestTracker from './PullRequestTracker';
@@ -47,6 +46,7 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
   const [beetleData, setBeetleData] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [allRepoPRs, setAllRepoPRs] = useState<any[]>([]);
   
   const branchInfo = getBranchInfo();
 
@@ -66,9 +66,10 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
 
   // Fetch Beetle project data from backend
   useEffect(() => {
-    const fetchBeetleData = async () => {
+    const fetchBranchAndRepoData = async () => {
       if (!repository || !token || token === 'demo-token') {
         setBeetleData(fallbackContributionData);
+        setAllRepoPRs(fallbackContributionData.pullRequests);
         setDataLoading(false);
         setDataError(null);
         return;
@@ -79,32 +80,38 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
         const { owner, name } = repository;
         const now = new Date();
         const since = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-        const response = await apiService.getBranchData(owner.login, name, selectedBranch, { since });
-        if (response.error) {
+        // Fetch both branch-specific data and all repo PRs
+        const [branchResponse, prResponse] = await Promise.all([
+          apiService.getBranchData(owner.login, name, selectedBranch, { since }),
+          apiService.getRepositoryPullRequests(owner.login, name, 'all')
+        ]);
+        if (branchResponse.error) {
           setBeetleData(null);
-          setDataError(response.error.message);
+          setDataError(branchResponse.error.message);
         } else {
-          setBeetleData(response.data);
-          // Debug log: fetched data
-          console.log('[Beetle Overview] beetleData:', response.data);
-          console.log('[Beetle Overview] Issues count:', response.data.issues?.length || 0);
-          console.log('[Beetle Overview] PRs count:', response.data.pullRequests?.length || 0);
-          console.log('[Beetle Overview] Commits count:', response.data.commits?.length || 0);
+          setBeetleData(branchResponse.data);
+        }
+        if (prResponse.error) {
+          setAllRepoPRs([]);
+        } else if (prResponse.data && prResponse.data.pullRequests) {
+          setAllRepoPRs(prResponse.data.pullRequests);
+        } else {
+          setAllRepoPRs([]);
         }
       } catch (err: any) {
         setBeetleData(null);
+        setAllRepoPRs([]);
         setDataError(err.message || 'Failed to fetch data');
       } finally {
         setDataLoading(false);
       }
     };
-    fetchBeetleData();
+    fetchBranchAndRepoData();
   }, [repository, selectedBranch, token]);
 
   // Memoize branch-specific data
   const branchData = useMemo(() => {
     if (!beetleData) {
-      console.log('[Beetle Overview] No beetleData:', beetleData);
       return { pullRequests: [], issues: [], activity: [] };
     }
     
@@ -119,13 +126,22 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
       timestamp: commit.commit?.author?.date || commit.commit?.committer?.date || new Date().toISOString(),
       branch: selectedBranch
     }));
-    
+
+    // Filter PRs by status and labels
+    let filteredPRs = allRepoPRs || [];
+    if (prFilters.status && prFilters.status !== 'all') {
+      filteredPRs = filteredPRs.filter((pr: any) => (pr.status || pr.state) === prFilters.status);
+    }
+    if (prFilters.labels && prFilters.labels.length > 0) {
+      filteredPRs = filteredPRs.filter((pr: any) => (pr.labels || []).some((l: any) => prFilters.labels.includes(typeof l === 'string' ? l : l.name)));
+    }
+
     return {
-      pullRequests: beetleData.pullRequests || [],
+      pullRequests: filteredPRs,
       issues: beetleData.issues || [],
       activity,
     };
-  }, [beetleData, selectedBranch]);
+  }, [beetleData, allRepoPRs, selectedBranch, prFilters]);
 
   // Compute filter options
   const allIssueLabels = Array.from(new Set(branchData.issues.flatMap((i: any) => i.labels?.map((l: any) => typeof l === 'string' ? l : l.name) || [])));
@@ -245,8 +261,6 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
         return <PinnedWatched branchData={filteredData} branch={selectedBranch} />;
       case 'private-notes':
         return <PrivateNotes branch={selectedBranch} />;
-      case 'import-branch':
-        return <ImportBranch />;
       case 'bot-logs':
         return <BotLogs activities={mergedActivity} branch={selectedBranch} />;
       default:

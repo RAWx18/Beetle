@@ -12,26 +12,24 @@ interface PullRequestTrackerProps {
   searchQuery: string;
 }
 
+const getStatus = (pr: any) => {
+  if (pr.draft) return 'draft';
+  if (pr.merged) return 'merged';
+  if (pr.state === 'closed') return 'closed';
+  if (pr.requested_reviewers?.length > 0) return 'under_review';
+  return pr.state || 'open';
+};
+
 const PullRequestTracker = ({ pullRequests, branch, searchQuery }: PullRequestTrackerProps) => {
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
-
   const filteredPRs = useMemo(() => {
-    let filtered = pullRequests;
-
-    if (selectedStatus !== 'all') {
-      filtered = filtered.filter(pr => pr.status === selectedStatus);
-    }
-
-    if (searchQuery) {
-      filtered = filtered.filter(pr =>
-        pr.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        pr.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        pr.labels.some(label => label.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-    }
-
-    return filtered;
-  }, [pullRequests, selectedStatus, searchQuery]);
+    if (!searchQuery) return pullRequests;
+    const lowercasedQuery = searchQuery.toLowerCase();
+    return pullRequests.filter(pr =>
+      pr.title?.toLowerCase().includes(lowercasedQuery) ||
+      pr.author?.toLowerCase().includes(lowercasedQuery) ||
+      (pr.labels?.some((label: any) => (label.name || label).toLowerCase().includes(lowercasedQuery)))
+    );
+  }, [pullRequests, searchQuery]);
 
   const statusCounts = useMemo(() => {
     return {
@@ -54,9 +52,9 @@ const PullRequestTracker = ({ pullRequests, branch, searchQuery }: PullRequestTr
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto p-4">
       <BranchPullRequestTable 
-        pullRequests={pullRequests}
+        pullRequests={filteredPRs}
         branch={branch}
       />
     </div>
