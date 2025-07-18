@@ -77,7 +77,9 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
       setDataError(null);
       try {
         const { owner, name } = repository;
-        const response = await apiService.getBranchData(owner.login, name, selectedBranch);
+        const now = new Date();
+        const since = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const response = await apiService.getBranchData(owner.login, name, selectedBranch, { since });
         if (response.error) {
           setBeetleData(null);
           setDataError(response.error.message);
@@ -85,6 +87,9 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
           setBeetleData(response.data);
           // Debug log: fetched data
           console.log('[Beetle Overview] beetleData:', response.data);
+          console.log('[Beetle Overview] Issues count:', response.data.issues?.length || 0);
+          console.log('[Beetle Overview] PRs count:', response.data.pullRequests?.length || 0);
+          console.log('[Beetle Overview] Commits count:', response.data.commits?.length || 0);
         }
       } catch (err: any) {
         setBeetleData(null);
@@ -354,10 +359,6 @@ const BranchContributionManager = ({ selectedSection = 'overview' }: BranchContr
             <Button variant="outline" size="sm" onClick={handleFilterClick}>
               <Filter size={16} className="mr-2" />
               Filter
-            </Button>
-            <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={handleNewClick}>
-              <Plus size={16} className="mr-2" />
-              New
             </Button>
           </div>
         </div>

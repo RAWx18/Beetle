@@ -121,8 +121,9 @@ class ApiService {
     return this.request('/github/dashboard');
   }
 
-  async getBranchData(owner: string, repo: string, branch: string): Promise<ApiResponse<any>> {
-    return this.request(`/github/repositories/${owner}/${repo}/branches/${branch}`);
+  async getBranchData(owner: string, repo: string, branch: string, params?: { since?: string }): Promise<ApiResponse<any>> {
+    const queryString = params?.since ? `?since=${params.since}` : '';
+    return this.request(`/github/repositories/${owner}/${repo}/branches/${branch}${queryString}`);
   }
 
   // Analytics

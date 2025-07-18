@@ -748,14 +748,15 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
 // Get branch-specific data for Beetle
 router.get('/repositories/:owner/:repo/branches/:branch', asyncHandler(async (req, res) => {
   const { owner, repo, branch } = req.params;
+  const { since } = req.query;
   
   try {
     // Fetch branch-specific data
     const [branches, commits, issues, pullRequests] = await Promise.all([
       getRepositoryBranches(req.user.accessToken, owner, repo),
-      getRepositoryCommits(req.user.accessToken, owner, repo, branch, 1, 50),
-      getRepositoryIssues(req.user.accessToken, owner, repo, 'open', 1, 50),
-      getRepositoryPullRequests(req.user.accessToken, owner, repo, 'open', 1, 50)
+      getRepositoryCommits(req.user.accessToken, owner, repo, branch, 1, 100, since), // Pass since parameter
+      getRepositoryIssues(req.user.accessToken, owner, repo, 'all', 1, 100), // Fetch all issues, not just open ones
+      getRepositoryPullRequests(req.user.accessToken, owner, repo, 'all', 1, 100) // Fetch all PRs, not just open ones
     ]);
 
     // Find the specific branch
@@ -768,19 +769,20 @@ router.get('/repositories/:owner/:repo/branches/:branch', asyncHandler(async (re
       });
     }
 
-    // Filter issues and PRs related to this branch
-    const branchIssues = issues.filter(issue => 
-      issue.labels.some(label => 
-        label.name.toLowerCase().includes(branch.toLowerCase()) ||
-        issue.title.toLowerCase().includes(branch.toLowerCase())
-      )
-    );
 
-    const branchPullRequests = pullRequests.filter(pr => 
-      pr.head.ref === branch || 
-      pr.base.ref === branch ||
-      pr.title.toLowerCase().includes(branch.toLowerCase())
-    );
+
+    // For now, return all issues and PRs since branch-specific filtering is too restrictive
+    // The frontend can handle filtering based on user preferences
+    const branchIssues = issues;
+    const branchPullRequests = pullRequests;
+
+    // Debug logging
+    console.log(`[Branch Data] ${owner}/${repo}/${branch}:`, {
+      commitsCount: commits.length,
+      issuesCount: branchIssues.length,
+      pullRequestsCount: branchPullRequests.length,
+      since: since || 'none'
+    });
 
     const branchStats = {
       branch: branchData,
@@ -799,6 +801,22 @@ router.get('/repositories/:owner/:repo/branches/:branch', asyncHandler(async (re
     res.json(branchStats);
   } catch (error) {
     console.error('Error fetching branch data:', error);
+    
+    // Handle specific GitHub API errors
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        error: 'Repository not found',
+        message: `Repository ${owner}/${repo} not found or access denied`
+      });
+    }
+    
+    if (error.response?.status === 403) {
+      return res.status(403).json({
+        error: 'Access denied',
+        message: 'Insufficient permissions to access this repository'
+      });
+    }
+    
     res.status(500).json({
       error: 'Failed to fetch branch data',
       message: error.message

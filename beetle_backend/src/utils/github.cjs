@@ -598,20 +598,24 @@ const getRepositoryPullRequests = async (accessToken, owner, repo, state = 'open
 };
 
 // Get repository commits (cache per repo, branch, page)
-const getRepositoryCommits = async (accessToken, owner, repo, branch = 'main', page = 1, perPage = 100) => {
+const getRepositoryCommits = async (accessToken, owner, repo, branch = 'main', page = 1, perPage = 100, since = null) => {
   try {
-    const cacheKey = `repo_commits_${owner}_${repo}_${branch}_${page}`;
+    const cacheKey = `repo_commits_${owner}_${repo}_${branch}_${page}_${since || 'all'}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
 
     const client = createGitHubClient(accessToken);
-    const response = await client.get(`/repos/${owner}/${repo}/commits`, {
-      params: {
-        sha: branch,
-        per_page: perPage,
-        page: page
-      }
-    });
+    const params = {
+      sha: branch,
+      per_page: perPage,
+      page: page
+    };
+    
+    if (since) {
+      params.since = since;
+    }
+    
+    const response = await client.get(`/repos/${owner}/${repo}/commits`, { params });
 
     const commits = response.data.map(commit => ({
       sha: commit.sha,
