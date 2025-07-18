@@ -206,7 +206,7 @@ export function MonthlyGoals({ goals, onGoalsUpdate, dashboardStats }: MonthlyGo
                   </Badge>
                 </CardTitle>
                 <CardDescription className="text-sm">
-                  {completedGoals} of {goals.length} goals completed • {Math.round(overallProgress)}% overall progress
+                  {completedGoals} of {goals.length} goals completed • {Math.round(overallProgress)}%
                 </CardDescription>
               </div>
             </div>

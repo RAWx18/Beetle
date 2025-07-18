@@ -12,11 +12,11 @@ interface OverviewDashboardProps {
 const OverviewDashboard = ({ branchData, branch }: OverviewDashboardProps) => {
   const stats = {
     totalPRs: branchData.pullRequests.length,
-    openPRs: branchData.pullRequests.filter((pr: any) => pr.status === 'open').length,
+    openPRs: branchData.pullRequests.filter((pr: any) => (pr.state || pr.status) === 'open').length,
     totalIssues: branchData.issues.length,
-    openIssues: branchData.issues.filter((issue: any) => issue.status === 'open').length,
+    openIssues: branchData.issues.filter((issue: any) => (issue.state || issue.status) === 'open').length,
     recentActivity: branchData.activity.length,
-    activeContributors: new Set(branchData.pullRequests.map((pr: any) => pr.author)).size
+    activeContributors: new Set(branchData.pullRequests.map((pr: any) => pr.user?.login || pr.author)).size
   };
 
   return (
@@ -97,7 +97,7 @@ const OverviewDashboard = ({ branchData, branch }: OverviewDashboardProps) => {
                   <p className="text-sm font-medium truncate">{activity.description}</p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Clock size={12} />
-                    {activity.timestamp}
+                    {new Date(activity.timestamp).toLocaleDateString()}
                     <Badge variant="outline" className="text-xs">
                       {activity.type}
                     </Badge>
