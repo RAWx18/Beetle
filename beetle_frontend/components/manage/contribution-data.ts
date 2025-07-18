@@ -1,7 +1,7 @@
 export type PullRequest = {
   id: string;
   title: string;
-  status: 'open' | 'under_review' | 'merged' | 'closed';
+  status: 'open' | 'under_review' | 'merged' | 'closed' | 'draft';
   author: string;
   reviewers: string[];
   sourceBranch: string;
@@ -14,6 +14,7 @@ export type PullRequest = {
   comments: number;
   additions: number;
   deletions: number;
+  draft?: boolean;
 };
 
 export type Issue = {
@@ -65,7 +66,7 @@ export const transformGitHubData = (
   const transformedPRs: PullRequest[] = pullRequests.map((pr, index) => ({
     id: `pr-${pr.id || index}`,
     title: pr.title,
-    status: pr.state === 'open' ? 'open' : pr.merged ? 'merged' : 'closed',
+    status: pr.draft ? 'draft' : (pr.state === 'open' ? 'open' : pr.merged ? 'merged' : 'closed'),
     author: pr.user?.login || user?.login || 'Unknown',
     reviewers: pr.requested_reviewers?.map((r: any) => r.login) || [],
     sourceBranch: pr.head?.ref || 'main',
@@ -76,7 +77,8 @@ export const transformGitHubData = (
     description: pr.body || '',
     comments: pr.comments || 0,
     additions: pr.additions || 0,
-    deletions: pr.deletions || 0
+    deletions: pr.deletions || 0,
+    draft: pr.draft || false,
   }));
 
   // Transform issues
@@ -166,6 +168,23 @@ export const transformGitHubData = (
 // Fallback static data for when no real data is available
 export const fallbackContributionData = {
   pullRequests: [
+    {
+      id: 'pr-draft',
+      title: 'WIP: Add new authentication flow',
+      status: 'draft',
+      author: 'DraftUser',
+      reviewers: [],
+      sourceBranch: 'auth-refactor',
+      targetBranch: 'main',
+      createdAt: '2024-01-22',
+      lastUpdated: '1 hour ago',
+      labels: ['wip', 'auth'],
+      description: 'This is a draft PR for the new authentication flow.',
+      comments: 0,
+      additions: 100,
+      deletions: 10,
+      draft: true
+    },
     {
       id: 'pr-1',
       title: 'Implement multi-agent FAQ discovery system',

@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { getSession, updateSession } = require('../utils/database.cjs');
+const { getSession, updateSession, getSessionWithDecryption } = require('../utils/database.cjs');
 
 // Authentication middleware
 const authMiddleware = async (req, res, next) => {
@@ -31,8 +31,8 @@ const authMiddleware = async (req, res, next) => {
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Get session from database
-    const session = await getSession(decoded.sessionId);
+    // Get session from database with decryption
+    const session = await getSessionWithDecryption(decoded.sessionId);
     
     if (!session) {
       return res.status(401).json({
@@ -94,8 +94,8 @@ const optionalAuthMiddleware = async (req, res, next) => {
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Get session from database
-    const session = await getSession(decoded.sessionId);
+    // Get session from database with decryption
+    const session = await getSessionWithDecryption(decoded.sessionId);
     
     if (session) {
       // Update session activity

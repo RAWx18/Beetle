@@ -14,7 +14,9 @@ const {
   getRepositoryTree,
   getFileContent,
   getRepositoryTreesForAllBranches,
-  isValidOwner
+  isValidOwner,
+  rateLimitManager,
+  cacheManager
 } = require('../utils/github.cjs');
 const { saveRepository, getRepository } = require('../utils/database.cjs');
 const { asyncHandler } = require('../middleware/errorHandler.cjs');
@@ -353,119 +355,271 @@ router.get('/trending', [
   const { since = 'weekly', language, page = 1, per_page = 30 } = req.query;
   
   try {
-    // Since GitHub doesn't have a direct API for trending, we'll use a curated list
-    // of popular repositories as a fallback
-    const popularRepos = [
-      {
-        id: 70107786,
-        name: "next.js",
-        full_name: "vercel/next.js",
-        description: "The React Framework for the Web. Used by some of the world's largest companies, Next.js enables you to create full-stack web applications.",
-        language: "TypeScript",
-        stargazers_count: 120000,
-        forks_count: 26000,
-        updated_at: new Date().toISOString(),
-        private: false,
-        html_url: "https://github.com/vercel/next.js",
-        owner: {
-          login: "vercel",
-          avatar_url: "https://github.com/vercel.png"
+    // Check if this is demo mode - use fallback data
+    if (req.user.accessToken === 'demo-github-token') {
+      console.log('Demo mode: returning fallback trending repositories');
+      return res.json({
+        repositories: getFallbackTrendingRepos(language, page, per_page),
+        pagination: {
+          since,
+          language,
+          page,
+          per_page,
+          total: getFallbackTrendingRepos(language).length
         }
-      },
-      {
-        id: 70107787,
-        name: "react",
-        full_name: "facebook/react",
-        description: "The library for web and native user interfaces. React lets you build user interfaces out of individual pieces called components.",
-        language: "JavaScript",
-        stargazers_count: 220000,
-        forks_count: 45000,
-        updated_at: new Date().toISOString(),
-        private: false,
-        html_url: "https://github.com/facebook/react",
-        owner: {
-          login: "facebook",
-          avatar_url: "https://github.com/facebook.png"
-        }
-      },
-      {
-        id: 70107788,
-        name: "vscode",
-        full_name: "microsoft/vscode",
-        description: "Visual Studio Code. Code editing. Redefined. Free. Built on open source. Runs everywhere.",
-        language: "TypeScript",
-        stargazers_count: 155000,
-        forks_count: 27000,
-        updated_at: new Date().toISOString(),
-        private: false,
-        html_url: "https://github.com/microsoft/vscode",
-        owner: {
-          login: "microsoft",
-          avatar_url: "https://github.com/microsoft.png"
-        }
-      },
-      {
-        id: 70107789,
-        name: "svelte",
-        full_name: "sveltejs/svelte",
-        description: "Cybernetically enhanced web apps. Svelte is a radical new approach to building user interfaces.",
-        language: "TypeScript",
-        stargazers_count: 85000,
-        forks_count: 12000,
-        updated_at: new Date().toISOString(),
-        private: false,
-        html_url: "https://github.com/sveltejs/svelte",
-        owner: {
-          login: "sveltejs",
-          avatar_url: "https://github.com/sveltejs.png"
-        }
-      },
-      {
-        id: 70107790,
-        name: "rust",
-        full_name: "rust-lang/rust",
-        description: "Empowering everyone to build reliable and efficient software.",
-        language: "Rust",
-        stargazers_count: 95000,
-        forks_count: 15000,
-        updated_at: new Date().toISOString(),
-        private: false,
-        html_url: "https://github.com/rust-lang/rust",
-        owner: {
-          login: "rust-lang",
-          avatar_url: "https://github.com/rust-lang.png"
-        }
-      }
-    ];
+      });
+    }
 
-    // Filter by language if specified
-    const filteredRepos = language 
-      ? popularRepos.filter(repo => repo.language && repo.language.toLowerCase() === language.toLowerCase())
-      : popularRepos;
-
-    // Apply pagination
-    const startIndex = (page - 1) * per_page;
-    const endIndex = startIndex + per_page;
-    const paginatedRepos = filteredRepos.slice(startIndex, endIndex);
-
+    // Fetch real trending repositories from GitHub
+    const trendingRepos = await fetchTrendingRepositories(req.user.accessToken, since, language, page, per_page);
+    
     res.json({
-      repositories: paginatedRepos,
+      repositories: trendingRepos.repositories,
       pagination: {
         since,
         language,
         page,
         per_page,
-        total: filteredRepos.length
+        total: trendingRepos.total
       }
     });
   } catch (error) {
     console.error('Error fetching trending repositories:', error);
-    res.status(500).json({
-      error: 'Failed to fetch trending repositories',
-      message: error.message
+    
+    // Fallback to curated list on API error
+    console.log('Falling back to curated trending repositories due to API error');
+    const fallbackRepos = getFallbackTrendingRepos(language, page, per_page);
+    
+    res.json({
+      repositories: fallbackRepos,
+      pagination: {
+        since,
+        language,
+        page,
+        per_page,
+        total: getFallbackTrendingRepos(language).length
+      },
+      fallback: true,
+      error_message: 'Using fallback data due to API error'
     });
   }
 }));
+
+// Helper function to fetch trending repositories from GitHub API
+async function fetchTrendingRepositories(accessToken, since, language, page, per_page) {
+  // Calculate date range based on 'since' parameter
+  const now = new Date();
+  const pastDate = new Date();
+  
+  switch (since) {
+    case 'daily':
+      pastDate.setDate(now.getDate() - 1);
+      break;
+    case 'weekly':
+      pastDate.setDate(now.getDate() - 7);
+      break;
+    case 'monthly':
+      pastDate.setDate(now.getDate() - 30);
+      break;
+    default:
+      pastDate.setDate(now.getDate() - 7);
+  }
+
+  // Build search query
+  let searchQuery = `created:>${pastDate.toISOString().split('T')[0]}`;
+  
+  if (language) {
+    searchQuery += ` language:${language}`;
+  }
+
+  // Add additional criteria for trending repositories
+  searchQuery += ' stars:>100'; // Minimum star threshold
+  
+  const searchUrl = `https://api.github.com/search/repositories?q=${encodeURIComponent(searchQuery)}&sort=stars&order=desc&page=${page}&per_page=${per_page}`;
+  
+  console.log('Fetching trending repositories from GitHub:', searchUrl);
+  
+  const response = await fetch(searchUrl, {
+    headers: {
+      'Authorization': `token ${accessToken}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'Beetle-App'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  
+  // Transform GitHub API response to our format
+  const repositories = data.items.map(repo => ({
+    id: repo.id,
+    name: repo.name,
+    full_name: repo.full_name,
+    description: repo.description || 'No description available',
+    language: repo.language,
+    stargazers_count: repo.stargazers_count,
+    forks_count: repo.forks_count,
+    updated_at: repo.updated_at,
+    private: repo.private,
+    html_url: repo.html_url,
+    owner: {
+      login: repo.owner.login,
+      avatar_url: repo.owner.avatar_url
+    }
+  }));
+
+  return {
+    repositories,
+    total: data.total_count
+  };
+}
+
+// Helper function to get fallback trending repositories
+function getFallbackTrendingRepos(language, page = 1, per_page = 30) {
+  const popularRepos = [
+    {
+      id: 70107786,
+      name: "next.js",
+      full_name: "vercel/next.js",
+      description: "The React Framework for the Web. Used by some of the world's largest companies, Next.js enables you to create full-stack web applications.",
+      language: "TypeScript",
+      stargazers_count: 120000,
+      forks_count: 26000,
+      updated_at: new Date().toISOString(),
+      private: false,
+      html_url: "https://github.com/vercel/next.js",
+      owner: {
+        login: "vercel",
+        avatar_url: "https://github.com/vercel.png"
+      }
+    },
+    {
+      id: 70107787,
+      name: "react",
+      full_name: "facebook/react",
+      description: "The library for web and native user interfaces. React lets you build user interfaces out of individual pieces called components.",
+      language: "JavaScript",
+      stargazers_count: 220000,
+      forks_count: 45000,
+      updated_at: new Date().toISOString(),
+      private: false,
+      html_url: "https://github.com/facebook/react",
+      owner: {
+        login: "facebook",
+        avatar_url: "https://github.com/facebook.png"
+      }
+    },
+    {
+      id: 70107788,
+      name: "vscode",
+      full_name: "microsoft/vscode",
+      description: "Visual Studio Code. Code editing. Redefined. Free. Built on open source. Runs everywhere.",
+      language: "TypeScript",
+      stargazers_count: 155000,
+      forks_count: 27000,
+      updated_at: new Date().toISOString(),
+      private: false,
+      html_url: "https://github.com/microsoft/vscode",
+      owner: {
+        login: "microsoft",
+        avatar_url: "https://github.com/microsoft.png"
+      }
+    },
+    {
+      id: 70107789,
+      name: "svelte",
+      full_name: "sveltejs/svelte",
+      description: "Cybernetically enhanced web apps. Svelte is a radical new approach to building user interfaces.",
+      language: "TypeScript",
+      stargazers_count: 85000,
+      forks_count: 12000,
+      updated_at: new Date().toISOString(),
+      private: false,
+      html_url: "https://github.com/sveltejs/svelte",
+      owner: {
+        login: "sveltejs",
+        avatar_url: "https://github.com/sveltejs.png"
+      }
+    },
+    {
+      id: 70107790,
+      name: "rust",
+      full_name: "rust-lang/rust",
+      description: "Empowering everyone to build reliable and efficient software.",
+      language: "Rust",
+      stargazers_count: 95000,
+      forks_count: 15000,
+      updated_at: new Date().toISOString(),
+      private: false,
+      html_url: "https://github.com/rust-lang/rust",
+      owner: {
+        login: "rust-lang",
+        avatar_url: "https://github.com/rust-lang.png"
+      }
+    },
+    {
+      id: 70107791,
+      name: "vue",
+      full_name: "vuejs/vue",
+      description: "Vue.js is a progressive, incrementally-adoptable JavaScript framework for building UI on the web.",
+      language: "JavaScript",
+      stargazers_count: 210000,
+      forks_count: 33000,
+      updated_at: new Date().toISOString(),
+      private: false,
+      html_url: "https://github.com/vuejs/vue",
+      owner: {
+        login: "vuejs",
+        avatar_url: "https://github.com/vuejs.png"
+      }
+    },
+    {
+      id: 70107792,
+      name: "tailwindcss",
+      full_name: "tailwindlabs/tailwindcss",
+      description: "A utility-first CSS framework for rapid UI development.",
+      language: "CSS",
+      stargazers_count: 80000,
+      forks_count: 4000,
+      updated_at: new Date().toISOString(),
+      private: false,
+      html_url: "https://github.com/tailwindlabs/tailwindcss",
+      owner: {
+        login: "tailwindlabs",
+        avatar_url: "https://github.com/tailwindlabs.png"
+      }
+    },
+    {
+      id: 70107793,
+      name: "nodejs",
+      full_name: "nodejs/node",
+      description: "Node.js JavaScript runtime built on Chrome's V8 JavaScript engine.",
+      language: "C++",
+      stargazers_count: 105000,
+      forks_count: 28500,
+      updated_at: new Date().toISOString(),
+      private: false,
+      html_url: "https://github.com/nodejs/node",
+      owner: {
+        login: "nodejs",
+        avatar_url: "https://github.com/nodejs.png"
+      }
+    }
+  ];
+
+  // Filter by language if specified
+  const filteredRepos = language 
+    ? popularRepos.filter(repo => repo.language && repo.language.toLowerCase() === language.toLowerCase())
+    : popularRepos;
+
+  // Apply pagination
+  const startIndex = (page - 1) * per_page;
+  const endIndex = startIndex + per_page;
+  return filteredRepos.slice(startIndex, endIndex);
+}
 
 // Search repositories
 router.get('/search/repositories', [
@@ -594,14 +748,15 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
 // Get branch-specific data for Beetle
 router.get('/repositories/:owner/:repo/branches/:branch', asyncHandler(async (req, res) => {
   const { owner, repo, branch } = req.params;
+  const { since } = req.query;
   
   try {
     // Fetch branch-specific data
     const [branches, commits, issues, pullRequests] = await Promise.all([
       getRepositoryBranches(req.user.accessToken, owner, repo),
-      getRepositoryCommits(req.user.accessToken, owner, repo, branch, 1, 50),
-      getRepositoryIssues(req.user.accessToken, owner, repo, 'open', 1, 50),
-      getRepositoryPullRequests(req.user.accessToken, owner, repo, 'open', 1, 50)
+      getRepositoryCommits(req.user.accessToken, owner, repo, branch, 1, 100, since), // Pass since parameter
+      getRepositoryIssues(req.user.accessToken, owner, repo, 'all', 1, 100), // Fetch all issues, not just open ones
+      getRepositoryPullRequests(req.user.accessToken, owner, repo, 'all', 1, 100) // Fetch all PRs, not just open ones
     ]);
 
     // Find the specific branch
@@ -614,19 +769,20 @@ router.get('/repositories/:owner/:repo/branches/:branch', asyncHandler(async (re
       });
     }
 
-    // Filter issues and PRs related to this branch
-    const branchIssues = issues.filter(issue => 
-      issue.labels.some(label => 
-        label.name.toLowerCase().includes(branch.toLowerCase()) ||
-        issue.title.toLowerCase().includes(branch.toLowerCase())
-      )
-    );
 
-    const branchPullRequests = pullRequests.filter(pr => 
-      pr.head.ref === branch || 
-      pr.base.ref === branch ||
-      pr.title.toLowerCase().includes(branch.toLowerCase())
-    );
+
+    // For now, return all issues and PRs since branch-specific filtering is too restrictive
+    // The frontend can handle filtering based on user preferences
+    const branchIssues = issues;
+    const branchPullRequests = pullRequests;
+
+    // Debug logging
+    console.log(`[Branch Data] ${owner}/${repo}/${branch}:`, {
+      commitsCount: commits.length,
+      issuesCount: branchIssues.length,
+      pullRequestsCount: branchPullRequests.length,
+      since: since || 'none'
+    });
 
     const branchStats = {
       branch: branchData,
@@ -645,6 +801,22 @@ router.get('/repositories/:owner/:repo/branches/:branch', asyncHandler(async (re
     res.json(branchStats);
   } catch (error) {
     console.error('Error fetching branch data:', error);
+    
+    // Handle specific GitHub API errors
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        error: 'Repository not found',
+        message: `Repository ${owner}/${repo} not found or access denied`
+      });
+    }
+    
+    if (error.response?.status === 403) {
+      return res.status(403).json({
+        error: 'Access denied',
+        message: 'Insufficient permissions to access this repository'
+      });
+    }
+    
     res.status(500).json({
       error: 'Failed to fetch branch data',
       message: error.message
@@ -716,6 +888,63 @@ router.get('/repositories/:owner/:repo/branches-with-trees', asyncHandler(async 
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch branches with trees', message: error.message });
+  }
+}));
+
+// Get GitHub API rate limit status
+router.get('/rate-limit', asyncHandler(async (req, res) => {
+  try {
+    const status = rateLimitManager.getRateLimitStatus(req.user.accessToken);
+    const stats = rateLimitManager.getStatistics();
+    const cacheStats = cacheManager.getStatistics();
+    
+    res.json({
+      rateLimit: {
+        limit: status.limit,
+        remaining: status.remaining,
+        used: status.used,
+        reset: status.reset,
+        resetDate: status.resetDate,
+        isNearLimit: status.isNearLimit,
+        isRateLimited: status.isRateLimited,
+        resource: status.resource
+      },
+      statistics: stats,
+      cache: cacheStats,
+      recommendations: {
+        shouldThrottle: status.isNearLimit,
+        nextResetIn: Math.max(0, status.reset - Math.floor(Date.now() / 1000)),
+        percentageUsed: ((status.limit - status.remaining) / status.limit * 100).toFixed(1)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching rate limit status:', error);
+    res.status(500).json({
+      error: 'Failed to fetch rate limit status',
+      message: error.message
+    });
+  }
+}));
+
+// Clear GitHub API cache (for debugging/admin)
+router.delete('/cache', asyncHandler(async (req, res) => {
+  try {
+    const { type } = req.query;
+    
+    if (type) {
+      // Clear specific cache type - not implemented in this simple version
+      res.json({ message: `Cache type '${type}' clearing not implemented` });
+    } else {
+      // Clear all cache
+      cacheManager.clear();
+      res.json({ message: 'All GitHub API cache cleared successfully' });
+    }
+  } catch (error) {
+    console.error('Error clearing cache:', error);
+    res.status(500).json({
+      error: 'Failed to clear cache',
+      message: error.message
+    });
   }
 }));
 

@@ -101,12 +101,6 @@ const CortexSidebar = ({
       tooltip: 'Your personal notes'
     },
     {
-      id: 'import-branch',
-      name: 'Import Branch',
-      icon: <Upload size={16} className="text-teal-500" />,
-      tooltip: 'Import external branches'
-    },
-    {
       id: 'bot-logs',
       name: 'Bot Logs',
       icon: <Bot size={16} className="text-gray-500" />,

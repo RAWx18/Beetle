@@ -400,7 +400,7 @@ export const useGitHubData = () => {
       }));
   };
 
-  // Modified fetch function with silent update option
+  // Modified fetch function with silent update option and better rate limit handling
   const fetchRealData = useCallback(async (silent = false) => {
     if (!apiRef.current) {
       console.log('No API instance available');
@@ -424,6 +424,27 @@ export const useGitHubData = () => {
         return;
       }
 
+      // Check rate limit status first
+      try {
+        const rateLimitStatus = await apiRef.current.getRateLimitStatus();
+        console.log('Rate limit status:', rateLimitStatus);
+        
+        if (rateLimitStatus.rateLimit.isRateLimited) {
+          const resetIn = rateLimitStatus.recommendations.nextResetIn;
+          const resetMinutes = Math.ceil(resetIn / 60);
+          setError(
+            `GitHub API rate limit exceeded. The limit will reset in approximately ${resetMinutes} minutes. ` +
+            `You can continue using demo mode or try again later.`
+          );
+          return;
+        } else if (rateLimitStatus.rateLimit.isNearLimit) {
+          console.warn(`⚠️ Approaching rate limit: ${rateLimitStatus.rateLimit.remaining}/${rateLimitStatus.rateLimit.limit} requests remaining`);
+        }
+      } catch (rateLimitError) {
+        console.warn('Could not fetch rate limit status:', rateLimitError.message);
+        // Continue with requests anyway
+      }
+
       // Fetch basic data in parallel to improve performance
       const [
         repos,
@@ -435,7 +456,10 @@ export const useGitHubData = () => {
       ] = await Promise.all([
         apiRef.current.getUserRepositories(),
         apiRef.current.getUserStarredRepositories().catch(() => []),
-        apiRef.current.getTrendingRepositories().catch(() => []),
+        apiRef.current.getTrendingRepositories('weekly').catch((error) => {
+          console.warn('Failed to fetch trending repositories, using fallback:', error);
+          return [];
+        }),
         apiRef.current.getUserActivity().catch(() => []),
         apiRef.current.getAggregatedPullRequests('all', 15).catch(() => []),
         apiRef.current.getAggregatedIssues('all', 15).catch(() => [])
@@ -511,15 +535,17 @@ export const useGitHubData = () => {
       }
     } catch (err) {
       console.error('Error fetching GitHub data:', err);
-      // Provide more specific error messages
+      // Enhanced error handling for rate limits
       let errorMessage = 'Failed to fetch GitHub data';
       if (err instanceof Error) {
-        if (err.message.includes('Failed to fetch')) {
+        if (err.message.includes('rate limit')) {
+          errorMessage = err.message;
+        } else if (err.message.includes('Failed to fetch')) {
           errorMessage = 'Network error: Unable to connect to the server. Please check your connection and try again. You can use demo mode to explore the application.';
         } else if (err.message.includes('401')) {
           errorMessage = 'Authentication failed: Please log in again.';
         } else if (err.message.includes('403')) {
-          errorMessage = 'Access denied: You do not have permission to access this data.';
+          errorMessage = 'Access denied: You may have hit the GitHub API rate limit. Please try again later or use demo mode.';
         } else if (err.message.includes('404')) {
           errorMessage = 'Data not found: The requested information is not available.';
         } else if (err.message.includes('500')) {
