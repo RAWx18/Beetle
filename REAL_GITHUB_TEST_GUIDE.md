@@ -6,7 +6,7 @@ Follow these steps to test and debug the real GitHub integration:
 
 ```bash
 cd beetle_backend
-npm start
+./start-stable.sh
 ```
 
 You should see:

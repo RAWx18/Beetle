@@ -1,0 +1,10 @@
+numpy
+sentence-transformers
+qdrant-client
+pydantic
+bs4
+langdetect
+PyGithub
+playwright
+trafilatura
+google-generativeai
