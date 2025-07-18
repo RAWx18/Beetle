@@ -37,8 +37,9 @@ interface CortexSidebarProps {
 const CortexSidebar = ({ 
   onCortexSelect, 
   selectedCategoryId = 'overview', 
-  selectedItemId = null 
-}: CortexSidebarProps) => {
+  selectedItemId = null,
+  badgeCounts = {} // <-- add this prop
+}: CortexSidebarProps & { badgeCounts?: Record<string, number> }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -53,7 +54,7 @@ const CortexSidebar = ({
       id: 'my-contributions',
       name: 'My Contributions',
       icon: <GitPullRequest size={16} className="text-blue-500" />,
-      badge: 3,
+      badge: badgeCounts['my-contributions'],
       tooltip: 'Your PRs and issues'
     },
     {
@@ -66,19 +67,21 @@ const CortexSidebar = ({
       id: 'pr-tracker',
       name: 'Pull Request Tracker',
       icon: <GitPullRequest size={16} className="text-blue-500" />,
+      badge: badgeCounts['pr-tracker'],
       tooltip: 'Track all pull requests'
     },
     {
       id: 'issue-tracker',
       name: 'Issue Tracker',
       icon: <Bug size={16} className="text-red-500" />,
+      badge: badgeCounts['issue-tracker'],
       tooltip: 'Track all issues'
     },
     {
       id: 'smart-suggestions',
       name: 'Smart Suggestions',
       icon: <Lightbulb size={16} className="text-yellow-500" />,
-      badge: 2,
+      badge: badgeCounts['smart-suggestions'],
       tooltip: 'AI-powered recommendations'
     },
     {
@@ -91,7 +94,7 @@ const CortexSidebar = ({
       id: 'pinned-watched',
       name: 'Pinned/Watched Issues',
       icon: <Pin size={16} className="text-pink-500" />,
-      badge: 7,
+      badge: badgeCounts['pinned-watched'],
       tooltip: 'Items you are watching'
     },
     {
