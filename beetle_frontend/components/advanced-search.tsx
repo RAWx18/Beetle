@@ -9,48 +9,38 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { githubSearchService, GitHubRepository, GitHubUser, GitHubOrganization } from "@/lib/search-service"
+import { useDebouncedSearch } from "@/hooks/useDebounce"
+import { toast } from "sonner"
 
 export function AdvancedSearch() {
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("repositories")
   const [filters, setFilters] = useState<string[]>([])
-  const [searchResults, setSearchResults] = useState<any>({
-    repositories: mockRepositories,
-    users: mockUsers,
-    organizations: mockOrganizations,
-  })
+
+  // Use debounced search with real GitHub data
+  const {
+    results: searchResults,
+    isLoading,
+    error,
+    search
+  } = useDebouncedSearch(
+    async (query: string) => {
+      try {
+        return await githubSearchService.searchAll(query, 1, 10); // Get more results for advanced view
+      } catch (error) {
+        toast.error('Search failed. Please check your connection and try again.');
+        throw error;
+      }
+    },
+    300 // 300ms debounce
+  );
 
   const handleSearch = (query: string) => {
     setSearchQuery(query)
-    // Simulate search filtering
-    if (query) {
-      const filteredRepos = mockRepositories.filter(
-        (repo) =>
-          repo.name.toLowerCase().includes(query.toLowerCase()) ||
-          repo.description.toLowerCase().includes(query.toLowerCase()),
-      )
-      const filteredUsers = mockUsers.filter(
-        (user) =>
-          user.name.toLowerCase().includes(query.toLowerCase()) ||
-          user.username.toLowerCase().includes(query.toLowerCase()),
-      )
-      const filteredOrgs = mockOrganizations.filter(
-        (org) =>
-          org.name.toLowerCase().includes(query.toLowerCase()) ||
-          org.description.toLowerCase().includes(query.toLowerCase()),
-      )
-
-      setSearchResults({
-        repositories: filteredRepos,
-        users: filteredUsers,
-        organizations: filteredOrgs,
-      })
-    } else {
-      setSearchResults({
-        repositories: mockRepositories,
-        users: mockUsers,
-        organizations: mockOrganizations,
-      })
+    
+    if (query.trim()) {
+      search(query);
     }
   }
 
@@ -63,6 +53,10 @@ export function AdvancedSearch() {
   const removeFilter = (filter: string) => {
     setFilters(filters.filter((f) => f !== filter))
   }
+
+  const repositories = searchResults?.repositories || [];
+  const users = searchResults?.users || [];
+  const organizations = searchResults?.organizations || [];
 
   return (
     <div className="space-y-6">
@@ -115,25 +109,39 @@ export function AdvancedSearch() {
         )}
       </AnimatePresence>
 
+      {/* Show loading state */}
+      {isLoading && (
+        <div className="text-center py-8">
+          <div className="text-muted-foreground">Searching...</div>
+        </div>
+      )}
+
+      {/* Show error state */}
+      {error && (
+        <div className="text-center py-8 text-red-500">
+          <div>Error: {error}</div>
+        </div>
+      )}
+
       {/* Search Results Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="repositories" className="flex items-center gap-2">
             <Code className="w-4 h-4" />
-            Repositories ({searchResults.repositories.length})
+            Repositories ({repositories.length})
           </TabsTrigger>
           <TabsTrigger value="users" className="flex items-center gap-2">
             <User className="w-4 h-4" />
-            Users ({searchResults.users.length})
+            Users ({users.length})
           </TabsTrigger>
           <TabsTrigger value="organizations" className="flex items-center gap-2">
             <Building className="w-4 h-4" />
-            Organizations ({searchResults.organizations.length})
+            Organizations ({organizations.length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="repositories" className="space-y-4">
-          {searchResults.repositories.map((repo: any, index: number) => (
+          {repositories.map((repo: GitHubRepository, index: number) => (
             <motion.div
               key={repo.id}
               initial={{ opacity: 0, y: 20 }}
@@ -147,9 +155,9 @@ export function AdvancedSearch() {
                       <h3 className="text-lg font-semibold text-orange-500 hover:text-orange-600 mb-2">{repo.name}</h3>
                       <p className="text-muted-foreground mb-3">{repo.description}</p>
                       <div className="flex flex-wrap gap-2 mb-3">
-                        {repo.languages.map((lang: string) => (
-                          <Badge key={lang} variant="outline" className="text-xs">
-                            {lang}
+                        {repo.topics.slice(0, 5).map((topic: string) => (
+                          <Badge key={topic} variant="outline" className="text-xs">
+                            {topic}
                           </Badge>
                         ))}
                       </div>
@@ -162,16 +170,21 @@ export function AdvancedSearch() {
                   <div className="flex items-center gap-6 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Star className="w-4 h-4" />
-                      {repo.stars}
+                      {repo.stargazers_count}
                     </div>
                     <div className="flex items-center gap-1">
                       <GitBranch className="w-4 h-4" />
-                      {repo.forks}
+                      {repo.forks_count}
                     </div>
                     <div className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
-                      Updated {repo.updated}
+                      Updated {new Date(repo.updated_at).toLocaleDateString()}
                     </div>
+                    {repo.language && (
+                      <Badge variant="outline">
+                        {repo.language}
+                      </Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -180,7 +193,7 @@ export function AdvancedSearch() {
         </TabsContent>
 
         <TabsContent value="users" className="space-y-4">
-          {searchResults.users.map((user: any, index: number) => (
+          {users.map((user: GitHubUser, index: number) => (
             <motion.div
               key={user.id}
               initial={{ opacity: 0, y: 20 }}
@@ -191,22 +204,24 @@ export function AdvancedSearch() {
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
                     <Avatar className="w-16 h-16">
-                      <AvatarImage src={user.avatar || "/placeholder.jpeg"} />
+                      <AvatarImage src={user.avatar_url} />
                       <AvatarFallback>
-                        {user.name
+                        {(user.name || user.login)
                           .split(" ")
                           .map((n: string) => n[0])
                           .join("")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold">{user.name}</h3>
-                      <p className="text-muted-foreground mb-2">@{user.username}</p>
+                      <h3 className="text-lg font-semibold">{user.name || user.login}</h3>
+                      <p className="text-muted-foreground mb-2">@{user.login}</p>
                       <p className="text-sm text-muted-foreground mb-3">{user.bio}</p>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span>{user.followers} followers</span>
                         <span>{user.following} following</span>
-                        <span>{user.repositories} repositories</span>
+                        <span>{user.public_repos} repositories</span>
+                        {user.company && <span>{user.company}</span>}
+                        {user.location && <span>{user.location}</span>}
                       </div>
                     </div>
                     <Button variant="outline" size="sm">
@@ -220,7 +235,7 @@ export function AdvancedSearch() {
         </TabsContent>
 
         <TabsContent value="organizations" className="space-y-4">
-          {searchResults.organizations.map((org: any, index: number) => (
+          {organizations.map((org: GitHubOrganization, index: number) => (
             <motion.div
               key={org.id}
               initial={{ opacity: 0, y: 20 }}
@@ -231,16 +246,16 @@ export function AdvancedSearch() {
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
                     <Avatar className="w-16 h-16">
-                      <AvatarImage src={org.avatar || "/placeholder.jpeg"} />
-                      <AvatarFallback>{org.name[0]}</AvatarFallback>
+                      <AvatarImage src={org.avatar_url} />
+                      <AvatarFallback>{(org.name || org.login)[0]}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold">{org.name}</h3>
-                      <p className="text-muted-foreground mb-2">{org.description}</p>
+                      <h3 className="text-lg font-semibold">{org.name || org.login}</h3>
+                      <p className="text-muted-foreground mb-2">{org.bio}</p>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>{org.members} members</span>
-                        <span>{org.repositories} repositories</span>
-                        <span>Founded {org.founded}</span>
+                        <span>{org.public_repos} repositories</span>
+                        {org.location && <span>{org.location}</span>}
+                        <span>Since {new Date(org.created_at).getFullYear()}</span>
                       </div>
                     </div>
                     <Button variant="outline" size="sm">
@@ -257,78 +272,3 @@ export function AdvancedSearch() {
     </div>
   )
 }
-
-// Mock data
-const mockRepositories = [
-  {
-    id: 1,
-    name: "microsoft/vscode",
-    description: "Visual Studio Code - Open source code editor",
-    languages: ["TypeScript", "JavaScript", "CSS"],
-    stars: "155k",
-    forks: "27k",
-    updated: "2 hours ago",
-  },
-  {
-    id: 2,
-    name: "vercel/next.js",
-    description: "The React Framework for the Web",
-    languages: ["TypeScript", "JavaScript", "MDX"],
-    stars: "120k",
-    forks: "26k",
-    updated: "1 hour ago",
-  },
-  {
-    id: 3,
-    name: "facebook/react",
-    description: "The library for web and native user interfaces",
-    languages: ["JavaScript", "TypeScript"],
-    stars: "220k",
-    forks: "45k",
-    updated: "3 hours ago",
-  },
-]
-
-const mockUsers = [
-  {
-    id: 1,
-    name: "Ryan Madhuwala",
-    username: "RAWx18",
-    bio: "Working on @reactjs. Co-author of Redux and Create React App.",
-    avatar: "/placeholder.jpeg?height=64&width=64",
-    followers: "125k",
-    following: "180",
-    repositories: "89",
-  },
-  {
-    id: 2,
-    name: "Sindre Sorhus",
-    username: "sindresorhus",
-    bio: "Full-Time Open-Sourcerer. Maker of many npm packages and apps.",
-    avatar: "/placeholder.jpeg?height=64&width=64",
-    followers: "45k",
-    following: "12",
-    repositories: "1.2k",
-  },
-]
-
-const mockOrganizations = [
-  {
-    id: 1,
-    name: "Microsoft",
-    description: "Open source projects and samples from Microsoft",
-    avatar: "/placeholder.jpeg?height=64&width=64",
-    members: "15k",
-    repositories: "3.2k",
-    founded: "2014",
-  },
-  {
-    id: 2,
-    name: "Vercel",
-    description: "Develop. Preview. Ship. For the best frontend teams",
-    avatar: "/placeholder.jpeg?height=64&width=64",
-    members: "180",
-    repositories: "150",
-    founded: "2015",
-  },
-]
