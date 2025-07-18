@@ -24,28 +24,46 @@ interface EnhancedSearchProps {
 }
 
 export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSearchProps) {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isOpen, setIsOpen] = useState(false)
-  const [activeFilter, setActiveFilter] = useState<string | null>(null)
-  const searchRef = useRef<HTMLDivElement>(null)
+  // Remove debounced search and only trigger search on Enter
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const [searchResults, setSearchResults] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Use debounced search with real GitHub data
-  const {
-    results: searchResults,
-    isLoading,
-    error,
-    search
-  } = useDebouncedSearch(
-    async (query: string) => {
+  const handleSearch = async () => {
+    if (searchQuery.length > 2) {
+      setIsLoading(true);
+      setError(null);
+      setIsOpen(true);
       try {
-        return await githubSearchService.searchAll(query, 1, 4); // Get 4 results per category for preview
-      } catch (error) {
-        toast.error('Search failed. Please check your connection and try again.');
-        throw error;
+        const results = await githubSearchService.searchAll(searchQuery, 1, 4);
+        setSearchResults(results);
+      } catch (err: any) {
+        setError(err.message || 'Search failed. Please check your connection and try again.');
+        setSearchResults(null);
+      } finally {
+        setIsLoading(false);
       }
-    },
-    300 // 300ms debounce
-  );
+    } else {
+      setIsOpen(false);
+      setSearchResults(null);
+      setError(null);
+    }
+  };
+
+  // Move handlers above JSX usage
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -58,17 +76,6 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
-
-  const handleSearch = (query: string) => {
-    setSearchQuery(query)
-
-    if (query.length > 2) {
-      setIsOpen(true)
-      search(query)
-    } else {
-      setIsOpen(false)
-    }
-  }
 
   const handleResultClick = (type: "repository" | "user" | "organization", data: any) => {
     onResultSelect({ type, id: data.id || data.login || data.name, data })
@@ -89,8 +96,9 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
         <Input
           placeholder="Search repositories, users, organizations... (Press / to focus)"
           value={searchQuery}
-          onChange={(e) => handleSearch(e.target.value)}
-          onFocus={() => searchQuery.length > 2 && setIsOpen(true)}
+          onChange={handleInputChange}
+          onKeyDown={handleInputKeyDown}
+          onFocus={() => { if (searchQuery.length > 2) setIsOpen(true); }}
           className="pl-12 pr-16 py-4 text-base bg-background border-2 border-muted hover:border-orange-500/50 focus:border-orange-500 rounded-xl transition-all duration-200"
         />
         <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
@@ -127,7 +135,7 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
               </div>
             )}
 
-            {!isLoading && !error && hasResults && searchResults && (
+            {!isLoading && !error && searchResults && (
               <div className="max-h-[80vh] overflow-y-auto">
                 {/* Quick Stats Header */}
                 <div className="p-4 border-b bg-muted/20">
@@ -150,24 +158,24 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                 </div>
 
                 {/* Repositories Section */}
-                {searchResults.repositories && searchResults.repositories.length > 0 && (
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <Code className="w-4 h-4 text-blue-500" />
-                        Repositories
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onViewAllResults(searchQuery, "repositories")}
-                        className="text-xs"
-                      >
-                        View all <ArrowRight className="w-3 h-3 ml-1" />
-                      </Button>
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Code className="w-4 h-4 text-blue-500" />
+                      Repositories
                     </div>
-                    <div className="space-y-3">
-                      {searchResults.repositories.map((repo: GitHubRepository, index: number) => (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onViewAllResults(searchQuery, "repositories")}
+                      className="text-xs"
+                    >
+                      View all <ArrowRight className="w-3 h-3 ml-1" />
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {searchResults.repositories && searchResults.repositories.length > 0 ? (
+                      searchResults.repositories.map((repo: GitHubRepository, index: number) => (
                         <motion.div
                           key={repo.id}
                           initial={{ opacity: 0, x: -20 }}
@@ -221,135 +229,137 @@ export function EnhancedSearch({ onResultSelect, onViewAllResults }: EnhancedSea
                           </div>
                           <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                         </motion.div>
-                      ))}
-                    </div>
+                      ))
+                    ) : (
+                      <div className="text-muted-foreground text-sm">No repositories found</div>
+                    )}
                   </div>
-                )}
+                </div>
 
                 {/* Users Section */}
-                {searchResults.users && searchResults.users.length > 0 && (
-                  <>
-                    {searchResults.repositories && searchResults.repositories.length > 0 && <Separator />}
-                    <div className="p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <User className="w-4 h-4 text-green-500" />
-                          Users
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onViewAllResults(searchQuery, "users")}
-                          className="text-xs"
-                        >
-                          View all <ArrowRight className="w-3 h-3 ml-1" />
-                        </Button>
-                      </div>
-                      <div className="space-y-3">
-                        {searchResults.users.map((user: GitHubUser, index: number) => (
-                          <motion.div
-                            key={user.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            onClick={() => handleResultClick("user", user)}
-                            className="flex items-center gap-4 p-4 hover:bg-muted/50 rounded-xl cursor-pointer group transition-all duration-200"
-                          >
-                            <Avatar className="w-12 h-12 border-2 border-muted">
-                              <AvatarImage src={user.avatar_url} />
-                              <AvatarFallback>
-                                {(user.name || user.login)
-                                  .split(" ")
-                                  .map((n: string) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h4 className="font-semibold text-sm group-hover:text-orange-500 transition-colors">
-                                  {user.name || user.login}
-                                </h4>
-                                {user.site_admin && (
-                                  <Badge variant="default" className="text-xs">
-                                    Staff
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground mb-1">@{user.login}</p>
-                              <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{user.bio}</p>
-                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                <span>{user.followers} followers</span>
-                                <span>{user.following} following</span>
-                                <span>{user.public_repos} repos</span>
-                                {user.company && <span>{user.company}</span>}
-                              </div>
-                            </div>
-                            <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </motion.div>
-                        ))}
-                      </div>
+                <Separator />
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <User className="w-4 h-4 text-green-500" />
+                      Users
                     </div>
-                  </>
-                )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onViewAllResults(searchQuery, "users")}
+                      className="text-xs"
+                    >
+                      View all <ArrowRight className="w-3 h-3 ml-1" />
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {searchResults.users && searchResults.users.length > 0 ? (
+                      searchResults.users.map((user: GitHubUser, index: number) => (
+                        <motion.div
+                          key={user.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          onClick={() => handleResultClick("user", user)}
+                          className="flex items-center gap-4 p-4 hover:bg-muted/50 rounded-xl cursor-pointer group transition-all duration-200"
+                        >
+                          <Avatar className="w-12 h-12 border-2 border-muted">
+                            <AvatarImage src={user.avatar_url} />
+                            <AvatarFallback>
+                              {(user.name || user.login)
+                                .split(" ")
+                                .map((n: string) => n[0])
+                                .join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-semibold text-sm group-hover:text-orange-500 transition-colors">
+                                {user.name || user.login}
+                              </h4>
+                              {user.site_admin && (
+                                <Badge variant="default" className="text-xs">
+                                  Staff
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-1">@{user.login}</p>
+                            <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{user.bio}</p>
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                              <span>{user.followers} followers</span>
+                              <span>{user.following} following</span>
+                              <span>{user.public_repos} repos</span>
+                              {user.company && <span>{user.company}</span>}
+                            </div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </motion.div>
+                      ))
+                    ) : (
+                      <div className="text-muted-foreground text-sm">No users found</div>
+                    )}
+                  </div>
+                </div>
 
                 {/* Organizations Section */}
-                {searchResults.organizations && searchResults.organizations.length > 0 && (
-                  <>
-                    {((searchResults.repositories && searchResults.repositories.length > 0) || (searchResults.users && searchResults.users.length > 0)) && <Separator />}
-                    <div className="p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <Building className="w-4 h-4 text-purple-500" />
-                          Organizations
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onViewAllResults(searchQuery, "organizations")}
-                          className="text-xs"
-                        >
-                          View all <ArrowRight className="w-3 h-3 ml-1" />
-                        </Button>
-                      </div>
-                      <div className="space-y-3">
-                        {searchResults.organizations.map((org: GitHubOrganization, index: number) => (
-                          <motion.div
-                            key={org.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            onClick={() => handleResultClick("organization", org)}
-                            className="flex items-center gap-4 p-4 hover:bg-muted/50 rounded-xl cursor-pointer group transition-all duration-200"
-                          >
-                            <Avatar className="w-12 h-12 border-2 border-muted">
-                              <AvatarImage src={org.avatar_url} />
-                              <AvatarFallback>{(org.name || org.login)[0]}</AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h4 className="font-semibold text-sm group-hover:text-orange-500 transition-colors">
-                                  {org.name || org.login}
-                                </h4>
-                                {org.site_admin && (
-                                  <Badge variant="default" className="text-xs">
-                                    Verified
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{org.bio}</p>
-                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                <span>{org.public_repos} repositories</span>
-                                {org.location && <span>{org.location}</span>}
-                                <span>Since {new Date(org.created_at).getFullYear()}</span>
-                              </div>
-                            </div>
-                            <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </motion.div>
-                        ))}
-                      </div>
+                <Separator />
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Building className="w-4 h-4 text-purple-500" />
+                      Organizations
                     </div>
-                  </>
-                )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onViewAllResults(searchQuery, "organizations")}
+                      className="text-xs"
+                    >
+                      View all <ArrowRight className="w-3 h-3 ml-1" />
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {searchResults.organizations && searchResults.organizations.length > 0 ? (
+                      searchResults.organizations.map((org: GitHubOrganization, index: number) => (
+                        <motion.div
+                          key={org.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          onClick={() => handleResultClick("organization", org)}
+                          className="flex items-center gap-4 p-4 hover:bg-muted/50 rounded-xl cursor-pointer group transition-all duration-200"
+                        >
+                          <Avatar className="w-12 h-12 border-2 border-muted">
+                            <AvatarImage src={org.avatar_url} />
+                            <AvatarFallback>{(org.name || org.login)[0]}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-semibold text-sm group-hover:text-orange-500 transition-colors">
+                                {org.name || org.login}
+                              </h4>
+                              {org.site_admin && (
+                                <Badge variant="default" className="text-xs">
+                                  Verified
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{org.bio}</p>
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                              <span>{org.public_repos} repositories</span>
+                              {org.location && <span>{org.location}</span>}
+                              <span>Since {new Date(org.created_at).getFullYear()}</span>
+                            </div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </motion.div>
+                      ))
+                    ) : (
+                      <div className="text-muted-foreground text-sm">No organizations found</div>
+                    )}
+                  </div>
+                </div>
 
                 {/* Enhanced Footer */}
                 <div className="border-t bg-muted/20 p-4">

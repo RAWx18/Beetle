@@ -129,6 +129,9 @@ cdk.out/
 # 📦 PACKAGE MANAGER FILES
 #######################################
 
+# Ignore package lock files
+package-lock.json
+
 # Yarn Plug'n'Play
 .pnp/
 .pnp.js

@@ -169,6 +169,23 @@ class GitHubSearchService {
     }
   }
 
+  // Helper for fetch with timeout
+  async fetchWithTimeout(resource: RequestInfo, options: RequestInit = {}, timeout = 7000): Promise<Response> {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(resource, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      return response;
+    } catch (err: any) {
+      clearTimeout(id);
+      if (err && err.name === 'AbortError') {
+        throw new Error('Request timed out. The server may be slow or unresponsive.');
+      }
+      throw err;
+    }
+  }
+
   // Search users
   async searchUsers(
     query: string,
@@ -186,13 +203,17 @@ class GitHubSearchService {
     }
 
     try {
-      // Make request to our new backend endpoint
-      const response = await fetch(`http://localhost:3001/api/github/search/users?q=${encodeURIComponent(query)}&sort=${sort}&order=${order}&page=${page}&per_page=${per_page}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('beetle_token')}`,
-          'Content-Type': 'application/json',
+      // Make request to our new backend endpoint with timeout
+      const response = await this.fetchWithTimeout(
+        `http://localhost:3001/api/github/search/users?q=${encodeURIComponent(query)}&sort=${sort}&order=${order}&page=${page}&per_page=${per_page}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('beetle_token')}`,
+            'Content-Type': 'application/json',
+          },
         },
-      });
+        7000
+      );
 
       if (!response.ok) {
         throw new Error(`Search failed: ${response.status} ${response.statusText}`);
@@ -227,13 +248,17 @@ class GitHubSearchService {
     }
 
     try {
-      // Make request to our new backend endpoint
-      const response = await fetch(`http://localhost:3001/api/github/search/organizations?q=${encodeURIComponent(query)}&sort=${sort}&order=${order}&page=${page}&per_page=${per_page}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('beetle_token')}`,
-          'Content-Type': 'application/json',
+      // Make request to our new backend endpoint with timeout
+      const response = await this.fetchWithTimeout(
+        `http://localhost:3001/api/github/search/organizations?q=${encodeURIComponent(query)}&sort=${sort}&order=${order}&page=${page}&per_page=${per_page}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('beetle_token')}`,
+            'Content-Type': 'application/json',
+          },
         },
-      });
+        7000
+      );
 
       if (!response.ok) {
         throw new Error(`Search failed: ${response.status} ${response.statusText}`);
@@ -270,7 +295,7 @@ class GitHubSearchService {
       ]);
 
       return {
-        repositories: repoResults.status === 'fulfilled' ? repoResults.value.items : [],
+        repositories: userResults.status === 'rejected' && userResults.reason?.message?.includes('timed out') ? [] : (repoResults.status === 'fulfilled' ? repoResults.value.items : []),
         users: userResults.status === 'fulfilled' ? userResults.value.items : [],
         organizations: orgResults.status === 'fulfilled' ? orgResults.value.items : [],
       };

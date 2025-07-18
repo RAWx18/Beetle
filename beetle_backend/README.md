@@ -28,7 +28,7 @@ GITHUB_WEBHOOK_SECRET=your_github_webhook_secret
 
 3. Start server:
 ```bash
-setup.sh
+./setup.sh
 ```
 
 ## AI Setup
