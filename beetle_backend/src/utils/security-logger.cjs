@@ -22,18 +22,19 @@ const securityLogFile = path.join(logsDir, 'security.log');
  */
 function logSecurityEvent(event, details = {}, level = 'info') {
   const timestamp = new Date().toISOString();
+  const sanitizedDetails = sanitizeLogDetails(details);
   const logEntry = {
     timestamp,
     level,
     event,
-    details: sanitizeLogDetails(details),
+    details: sanitizedDetails,
     env: process.env.NODE_ENV || 'development'
   };
 
   const logLine = JSON.stringify(logEntry) + '\n';
 
-  // Write to console
-  console.log(`[SECURITY ${level.toUpperCase()}] ${event}:`, details);
+  // Write to console with sanitized details
+  console.log(`[SECURITY ${level.toUpperCase()}] ${event}:`, JSON.stringify(sanitizedDetails, null, 2));
 
   // Write to file (async, non-blocking)
   fs.appendFile(securityLogFile, logLine, (err) => {

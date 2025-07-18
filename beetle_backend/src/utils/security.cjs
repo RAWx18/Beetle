@@ -41,8 +41,8 @@ function encrypt(text) {
     // Derive key from JWT secret and salt
     const key = deriveKey(salt.toString('base64'));
     
-    // Create cipher
-    const cipher = crypto.createCipher('aes-256-gcm', key);
+    // Create cipher using createCipheriv (the modern, non-deprecated method)
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
     cipher.setAAD(Buffer.from('additional-auth-data'));
     
     // Encrypt the text
@@ -84,8 +84,8 @@ function decrypt(encryptedData) {
     // Derive key from JWT secret and salt
     const key = deriveKey(salt);
     
-    // Create decipher
-    const decipher = crypto.createDecipher('aes-256-gcm', key);
+    // Create decipher using createDecipheriv (the modern, non-deprecated method)
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, Buffer.from(iv, 'base64'));
     decipher.setAAD(Buffer.from('additional-auth-data'));
     decipher.setAuthTag(Buffer.from(tag, 'base64'));
     

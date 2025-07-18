@@ -19,6 +19,9 @@ const webhookRoutes = require('./routes/webhooks.cjs');
 // Import environment utilities
 const { printEnvStatus } = require('./utils/env.cjs');
 
+// Import security configuration validator
+const { validateOnStartup } = require('./utils/config-validator.cjs');
+
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler.cjs');
 const { authMiddleware } = require('./middleware/auth.cjs');
@@ -28,6 +31,9 @@ const { initDatabase } = require('./utils/database.cjs');
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// Validate security configuration on startup
+validateOnStartup();
 
 // __dirname is already available in CommonJS
 

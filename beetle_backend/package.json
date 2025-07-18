@@ -10,7 +10,11 @@
     "setup": "node setup-env.js",
     "setup:quick": "./create-env.sh",
     "test": "jest",
-    "test:ai": "node test-ai-pipeline.js"
+    "test:ai": "node test-ai-pipeline.js",
+    "test:security": "node test-security.js",
+    "test:security:comprehensive": "node test-security-comprehensive.js",
+    "generate:security": "node generate-security-config.js",
+    "validate:security": "node -e \"require('./src/utils/config-validator.cjs').validateOnStartup()\""
   },
   "dependencies": {
     "axios": "^1.6.0",
