@@ -14,6 +14,95 @@ const { asyncHandler } = require('../middleware/errorHandler.cjs');
 
 const router = express.Router();
 
+// Helper function to check if user is project owner
+const isProjectOwner = async (user, projectId) => {
+  const project = await getProject(projectId);
+  if (!project) return false;
+  
+  // Check if user created the project
+  if (project.created_by === user.id) return true;
+  
+  // Check if user owns the repository (for GitHub projects)
+  if (project.repository_url) {
+    const [owner] = project.repository_url.split('/').slice(-2);
+    return owner === user.login;
+  }
+  
+  return false;
+};
+
+// Helper function to get default page content
+const getDefaultPageContent = (pageType) => {
+  const defaultContent = {
+    why: {
+      title: 'Why This Project?',
+      description: 'Understanding the purpose and vision behind this project.',
+      sections: [
+        {
+          title: 'Vision',
+          content: 'Our project aims to solve important problems and create value for users.',
+          icon: 'Lightbulb'
+        },
+        {
+          title: 'Impact',
+          content: 'We strive to make a meaningful difference in our community.',
+          icon: 'Heart'
+        },
+        {
+          title: 'Innovation',
+          content: 'We embrace new technologies and methodologies to deliver excellence.',
+          icon: 'Zap'
+        }
+      ]
+    },
+    how: {
+      title: 'How It Works',
+      description: 'Learn about the technical implementation and architecture.',
+      setup: [
+        'Clone the repository',
+        'Install dependencies',
+        'Configure environment variables',
+        'Run the development server'
+      ],
+      workflow: [
+        'Create feature branches',
+        'Implement changes',
+        'Write tests',
+        'Submit pull requests'
+      ]
+    },
+    contribute: {
+      title: 'How to Contribute',
+      description: 'Join our community and help improve the project.',
+      quickStart: [
+        'Fork the repository',
+        'Pick an issue to work on',
+        'Follow our contribution guidelines',
+        'Submit a pull request'
+      ],
+      areas: [
+        {
+          title: 'Development',
+          description: 'Help build new features and fix bugs',
+          skills: ['JavaScript', 'TypeScript', 'React']
+        },
+        {
+          title: 'Documentation',
+          description: 'Improve project documentation and guides',
+          skills: ['Technical Writing', 'Markdown']
+        },
+        {
+          title: 'Testing',
+          description: 'Write tests and improve code quality',
+          skills: ['Jest', 'Testing Library', 'Quality Assurance']
+        }
+      ]
+    }
+  };
+  
+  return defaultContent[pageType] || {};
+};
+
 // Get all projects for user
 router.get('/', asyncHandler(async (req, res) => {
   const user = await getUser(req.user.id);
@@ -614,6 +703,105 @@ router.get('/:projectId/branches/:branch/suggestions', asyncHandler(async (req, 
     console.error('Error generating smart suggestions:', error);
     res.status(500).json({ error: 'Failed to generate suggestions', message: error.message });
   }
+}));
+
+// Get project page content (Why, How, Contribute)
+router.get('/:projectId/content/:pageType', asyncHandler(async (req, res) => {
+  const { projectId, pageType } = req.params;
+  
+  const project = await getProject(projectId);
+  if (!project) {
+    return res.status(404).json({
+      error: 'Project not found',
+      message: 'Project with the specified ID not found'
+    });
+  }
+
+  const validPageTypes = ['why', 'how', 'contribute'];
+  if (!validPageTypes.includes(pageType)) {
+    return res.status(400).json({
+      error: 'Invalid page type',
+      message: 'Page type must be one of: why, how, contribute'
+    });
+  }
+
+  // Get page content from project data
+  const pageContent = project.pageContent?.[pageType] || getDefaultPageContent(pageType);
+  
+  res.json({
+    content: pageContent,
+    lastUpdated: project.pageContent?.[pageType]?.lastUpdated || null,
+    updatedBy: project.pageContent?.[pageType]?.updatedBy || null
+  });
+}));
+
+// Update project page content (Why, How, Contribute) - Only for project owners
+router.put('/:projectId/content/:pageType', [
+  body('content').isObject().notEmpty(),
+  body('content.title').optional().isString().trim().isLength({ min: 1, max: 200 }),
+  body('content.description').optional().isString().trim().isLength({ min: 1, max: 1000 }),
+  body('content.sections').optional().isArray(),
+  body('content.features').optional().isArray(),
+  body('content.quickStart').optional().isArray(),
+  body('content.areas').optional().isArray(),
+  body('content.setup').optional().isArray(),
+  body('content.workflow').optional().isArray(),
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      details: errors.array()
+    });
+  }
+
+  const { projectId, pageType } = req.params;
+  const { content } = req.body;
+
+  const project = await getProject(projectId);
+  if (!project) {
+    return res.status(404).json({
+      error: 'Project not found',
+      message: 'Project with the specified ID not found'
+    });
+  }
+
+  const validPageTypes = ['why', 'how', 'contribute'];
+  if (!validPageTypes.includes(pageType)) {
+    return res.status(400).json({
+      error: 'Invalid page type',
+      message: 'Page type must be one of: why, how, contribute'
+    });
+  }
+
+  // Check if user is project owner
+  const isOwner = await isProjectOwner(req.user, projectId);
+  if (!isOwner) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'Only project owners can update page content'
+    });
+  }
+
+  // Update page content
+  if (!project.pageContent) {
+    project.pageContent = {};
+  }
+  
+  project.pageContent[pageType] = {
+    ...content,
+    lastUpdated: new Date().toISOString(),
+    updatedBy: req.user.id
+  };
+  
+  project.updated_at = new Date().toISOString();
+
+  await saveProject(projectId, project);
+
+  res.json({
+    message: 'Page content updated successfully',
+    content: project.pageContent[pageType]
+  });
 }));
 
 module.exports = router; 
