@@ -188,24 +188,24 @@ export function MonthlyGoals({ goals, onGoalsUpdate, dashboardStats }: MonthlyGo
 
   return (
     <TooltipProvider>
-      <Card className="relative overflow-hidden">
+      <Card className="relative overflow-hidden w-full">
         {/* Background gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-purple-500/5 to-blue-500/5" />
         
         <CardHeader className="relative pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-purple-600">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-purple-600 flex-shrink-0">
                 <Target className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <CardTitle className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="flex items-center gap-2 flex-wrap">
                   Monthly Goals
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs flex-shrink-0">
                     {daysRemaining} days left
                   </Badge>
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-sm">
                   {completedGoals} of {goals.length} goals completed • {Math.round(overallProgress)}% overall progress
                 </CardDescription>
               </div>
@@ -232,19 +232,19 @@ export function MonthlyGoals({ goals, onGoalsUpdate, dashboardStats }: MonthlyGo
               <span>Overall Progress</span>
               <span>{Math.round(overallProgress)}%</span>
             </div>
-            <div className="relative">
+            <div className="relative overflow-hidden rounded-full">
               <Progress value={overallProgress} className="h-3" />
               <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-purple-500/20 rounded-full"
+                className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-purple-500/20 rounded-full overflow-hidden"
                 initial={{ width: 0 }}
-                animate={{ width: `${overallProgress}%` }}
+                animate={{ width: `${Math.min(overallProgress, 100)}%` }}
                 transition={{ duration: 1, ease: "easeOut" }}
               />
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="relative space-y-4">
+        <CardContent className="relative space-y-4 p-4">
           <AnimatePresence>
             {goals.map((goal, index) => {
               const IconComponent = getGoalIcon(goal.type)
@@ -260,7 +260,7 @@ export function MonthlyGoals({ goals, onGoalsUpdate, dashboardStats }: MonthlyGo
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ delay: index * 0.1 }}
-                  className={`relative group p-4 rounded-xl border bg-gradient-to-r ${getGoalBackground(goal)} hover:shadow-md transition-all duration-300`}
+                  className={`relative group p-4 rounded-xl border bg-gradient-to-r ${getGoalBackground(goal)} hover:shadow-md transition-all duration-300 overflow-hidden`}
                 >
                   {/* Achievement badge for completed goals */}
                   {progress >= 100 && (
@@ -276,37 +276,38 @@ export function MonthlyGoals({ goals, onGoalsUpdate, dashboardStats }: MonthlyGo
                   )}
 
                   <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${progress >= 100 ? 'bg-green-500' : 'bg-background/50'}`}>
+                    <div className={`p-2 rounded-lg flex-shrink-0 ${progress >= 100 ? 'bg-green-500' : 'bg-background/50'}`}>
                       <IconComponent className={`w-4 h-4 ${progress >= 100 ? 'text-white' : getGoalColor(goal)}`} />
                     </div>
 
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
+                    <div className="flex-1 space-y-3 min-w-0">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
                           {isEditingGoals ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Input
                                 value={goal.title}
                                 onChange={(e) => updateGoalTitle(goal.id, e.target.value)}
-                                className="w-32 text-sm h-8"
+                                className="flex-1 min-w-0 text-sm h-8"
+                                style={{ minWidth: '120px' }}
                               />
                               <Input
                                 type="number"
                                 value={goal.target}
                                 onChange={(e) => updateGoalTarget(goal.id, parseInt(e.target.value) || 0)}
-                                className="w-16 text-sm h-8"
+                                className="w-16 text-sm h-8 flex-shrink-0"
                               />
-                              <Button size="sm" variant="ghost" onClick={() => removeGoal(goal.id)} className="h-8 w-8 p-0">
+                              <Button size="sm" variant="ghost" onClick={() => removeGoal(goal.id)} className="h-8 w-8 p-0 flex-shrink-0">
                                 <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
                           ) : (
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <h4 className="font-medium text-sm">{goal.title}</h4>
                                 <Tooltip>
                                   <TooltipTrigger>
-                                    <Badge variant="outline" className={`text-xs ${status.status === 'completed' ? 'bg-green-100 text-green-800' : ''}`}>
+                                    <Badge variant="outline" className={`text-xs flex-shrink-0 ${status.status === 'completed' ? 'bg-green-100 text-green-800' : ''}`}>
                                       <StatusIcon className="w-3 h-3 mr-1" />
                                       {status.text}
                                     </Badge>
@@ -316,13 +317,13 @@ export function MonthlyGoals({ goals, onGoalsUpdate, dashboardStats }: MonthlyGo
                                   </TooltipContent>
                                 </Tooltip>
                               </div>
-                              <p className="text-xs text-muted-foreground mt-1">{goal.description}</p>
+                              <p className="text-xs text-muted-foreground mt-1 break-words">{goal.description}</p>
                             </div>
                           )}
                         </div>
                         
-                        <div className="text-right">
-                          <div className="flex items-center gap-2">
+                        <div className="text-right flex-shrink-0">
+                          <div className="flex items-center gap-1 text-sm">
                             <span className="font-bold text-lg">
                               {goal.current}
                             </span>
@@ -339,7 +340,7 @@ export function MonthlyGoals({ goals, onGoalsUpdate, dashboardStats }: MonthlyGo
 
                       {/* Enhanced progress bar */}
                       <div className="space-y-2">
-                        <div className="relative">
+                        <div className="relative overflow-hidden rounded-full">
                           <Progress value={Math.min(progress, 100)} className="h-2" />
                           {progress > 100 && (
                             <motion.div
@@ -399,29 +400,31 @@ export function MonthlyGoals({ goals, onGoalsUpdate, dashboardStats }: MonthlyGo
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="space-y-2 pt-2 border-t border-dashed"
+              className="space-y-2 pt-2 border-t border-dashed overflow-hidden"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Input
                   placeholder="Goal title"
                   value={newGoal.title}
                   onChange={(e) => setNewGoal(prev => ({ ...prev, title: e.target.value }))}
-                  className="flex-1 h-8"
+                  className="flex-1 h-8 min-w-0"
+                  style={{ minWidth: '120px' }}
                 />
                 <Input
                   placeholder="Description"
                   value={newGoal.description}
                   onChange={(e) => setNewGoal(prev => ({ ...prev, description: e.target.value }))}
-                  className="flex-1 h-8"
+                  className="flex-1 h-8 min-w-0"
+                  style={{ minWidth: '120px' }}
                 />
                 <Input
                   type="number"
                   placeholder="Target"
                   value={newGoal.target || ""}
                   onChange={(e) => setNewGoal(prev => ({ ...prev, target: parseInt(e.target.value) || 0 }))}
-                  className="w-20 h-8"
+                  className="w-20 h-8 flex-shrink-0"
                 />
-                <Button size="sm" onClick={addNewGoal} className="h-8 w-8 p-0 bg-orange-500 hover:bg-orange-600">
+                <Button size="sm" onClick={addNewGoal} className="h-8 w-8 p-0 bg-orange-500 hover:bg-orange-600 flex-shrink-0">
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
