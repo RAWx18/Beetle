@@ -21,7 +21,7 @@ export const CommitGuidelines = () => {
     { type: 'revert', description: 'Reverts a previous commit' }
   ];
 
-  const branchExamples = {
+  const branchExamples: Record<string, string[]> = {
     dev: [
       'feat(integration): add data connector between agent and snowflake modules',
       'fix(api): correct type definitions in shared interfaces',
@@ -103,7 +103,7 @@ export const CommitGuidelines = () => {
             <div className="space-y-4">
               <h3 className="text-lg font-semibold mb-2">Examples for {branchInfo.name}</h3>
               <div className="space-y-3">
-                {branchExamples[selectedBranch].map((example, idx) => (
+                {(branchExamples[selectedBranch] || branchExamples['dev']).map((example: string, idx: number) => (
                   <div key={idx} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-md font-mono text-sm">
                     {example}
                   </div>

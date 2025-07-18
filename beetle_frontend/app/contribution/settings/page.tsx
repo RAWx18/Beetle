@@ -77,15 +77,22 @@ export default function SettingsPage() {
       notifications: {
         emailNotifications: formData.emailNotifications,
         pushNotifications: formData.pushNotifications,
-        weeklyDigest: formData.weeklyDigest
+        weeklyDigest: formData.weeklyDigest,
+        pullRequestReviews: formData.emailNotifications, // Use a default from form data
+        newIssues: formData.emailNotifications, // Use a default from form data
+        mentions: formData.emailNotifications, // Use a default from form data
+        securityAlerts: formData.emailNotifications // Use a default from form data
       },
       security: {
-        twoFactorEnabled: formData.twoFactorEnabled
+        twoFactorEnabled: formData.twoFactorEnabled,
+        sessionTimeout: 7200000
       },
       appearance: {
-        theme: formData.theme,
+        theme: formData.theme as 'light' | 'dark' | 'system',
         language: formData.language,
-        showAnimations: formData.hardwareAcceleration
+        compactMode: false,
+        showAnimations: formData.hardwareAcceleration,
+        highContrast: false
       }
     };
 

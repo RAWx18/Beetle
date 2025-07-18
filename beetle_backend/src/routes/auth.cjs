@@ -8,6 +8,7 @@ const {
   getUser, 
   updateUser, 
   createSession, 
+  getSession,
   deleteSession,
   getUserNotes, addUserNote, updateUserNote, deleteUserNote,
   getUserSavedFilters, addUserSavedFilter, updateUserSavedFilter, deleteUserSavedFilter,
@@ -807,6 +808,58 @@ router.get('/settings', asyncHandler(async (req, res) => {
   }
   
   const token = authHeader.substring(7);
+  
+  // Handle demo token
+  if (token === 'demo-token') {
+    const demoSettings = {
+      profile: {
+        displayName: 'Demo User',
+        bio: 'This is a demo account showing Beetle functionality',
+        location: 'Demo City',
+        website: 'https://beetle-demo.com',
+        company: 'Demo Company',
+        twitter: 'demo_user'
+      },
+      notifications: {
+        emailNotifications: true,
+        pushNotifications: true,
+        weeklyDigest: true,
+        pullRequestReviews: true,
+        newIssues: true,
+        mentions: true,
+        securityAlerts: true
+      },
+      security: {
+        twoFactorEnabled: false,
+        sessionTimeout: 7200000
+      },
+      appearance: {
+        theme: 'system',
+        language: 'en',
+        compactMode: false,
+        showAnimations: true,
+        highContrast: false
+      },
+      integrations: {
+        connectedAccounts: {
+          github: { connected: true, username: 'demo-user' },
+          gitlab: { connected: false, username: '' },
+          bitbucket: { connected: false, username: '' }
+        },
+        webhookUrl: '',
+        webhookSecret: ''
+      },
+      preferences: {
+        autoSave: true,
+        branchNotifications: true,
+        autoSync: false,
+        defaultBranch: 'main'
+      },
+      updatedAt: new Date().toISOString()
+    };
+    return res.json({ settings: demoSettings });
+  }
+  
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const settings = await getUserSettings(decoded.githubId);
@@ -824,6 +877,66 @@ router.put('/settings', asyncHandler(async (req, res) => {
   }
   
   const token = authHeader.substring(7);
+  
+  // Handle demo token
+  if (token === 'demo-token') {
+    const settingsUpdate = req.body;
+    if (!settingsUpdate || typeof settingsUpdate !== 'object') {
+      return res.status(400).json({ error: 'Settings data required' });
+    }
+    
+    // For demo mode, just return the updated settings (merge with defaults)
+    const demoSettings = {
+      profile: {
+        displayName: 'Demo User',
+        bio: 'This is a demo account showing Beetle functionality',
+        location: 'Demo City',
+        website: 'https://beetle-demo.com',
+        company: 'Demo Company',
+        twitter: 'demo_user'
+      },
+      notifications: {
+        emailNotifications: true,
+        pushNotifications: true,
+        weeklyDigest: true,
+        pullRequestReviews: true,
+        newIssues: true,
+        mentions: true,
+        securityAlerts: true
+      },
+      security: {
+        twoFactorEnabled: false,
+        sessionTimeout: 7200000
+      },
+      appearance: {
+        theme: 'system',
+        language: 'en',
+        compactMode: false,
+        showAnimations: true,
+        highContrast: false
+      },
+      integrations: {
+        connectedAccounts: {
+          github: { connected: true, username: 'demo-user' },
+          gitlab: { connected: false, username: '' },
+          bitbucket: { connected: false, username: '' }
+        },
+        webhookUrl: '',
+        webhookSecret: ''
+      },
+      preferences: {
+        autoSave: true,
+        branchNotifications: true,
+        autoSync: false,
+        defaultBranch: 'main'
+      },
+      ...settingsUpdate,
+      updatedAt: new Date().toISOString()
+    };
+    
+    return res.json({ settings: demoSettings, message: 'Settings updated successfully (demo mode)' });
+  }
+  
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const settingsUpdate = req.body;
@@ -851,6 +964,59 @@ router.post('/settings/reset', asyncHandler(async (req, res) => {
   }
   
   const token = authHeader.substring(7);
+  
+  // Handle demo token
+  if (token === 'demo-token') {
+    const defaultSettings = {
+      profile: {
+        displayName: 'Demo User',
+        bio: 'This is a demo account showing Beetle functionality',
+        location: 'Demo City',
+        website: 'https://beetle-demo.com',
+        company: 'Demo Company',
+        twitter: 'demo_user'
+      },
+      notifications: {
+        emailNotifications: true,
+        pushNotifications: true,
+        weeklyDigest: true,
+        pullRequestReviews: true,
+        newIssues: true,
+        mentions: true,
+        securityAlerts: true
+      },
+      security: {
+        twoFactorEnabled: false,
+        sessionTimeout: 7200000
+      },
+      appearance: {
+        theme: 'system',
+        language: 'en',
+        compactMode: false,
+        showAnimations: true,
+        highContrast: false
+      },
+      integrations: {
+        connectedAccounts: {
+          github: { connected: true, username: 'demo-user' },
+          gitlab: { connected: false, username: '' },
+          bitbucket: { connected: false, username: '' }
+        },
+        webhookUrl: '',
+        webhookSecret: ''
+      },
+      preferences: {
+        autoSave: true,
+        branchNotifications: true,
+        autoSync: false,
+        defaultBranch: 'main'
+      },
+      updatedAt: new Date().toISOString()
+    };
+    
+    return res.json({ settings: defaultSettings, message: 'Settings reset to default values (demo mode)' });
+  }
+  
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const defaultSettings = await resetUserSettings(decoded.githubId);
