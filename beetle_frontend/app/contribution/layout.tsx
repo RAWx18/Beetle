@@ -2,6 +2,7 @@
 
 import ClientProviders from '@/components/ClientProviders';
 import "./globals.css";
+import { KnowledgeBaseProvider } from '@/contexts/KnowledgeBaseContext';
 
 export default function ContributionLayout({
   children,
@@ -10,7 +11,9 @@ export default function ContributionLayout({
 }) {
   return (
     <ClientProviders>
-      <main className="pt-16">{children}</main>
+      <KnowledgeBaseProvider>
+        <main className="pt-16">{children}</main>
+      </KnowledgeBaseProvider>
     </ClientProviders>
   );
 } 

@@ -110,6 +110,16 @@ git clone https://github.com/RAWx18/beetle.git
 cd beetle
 ```
 
+```bash
+# Setup backend and run backend server as per README.md in backend
+cd beetle_backend/
+```
+
+```bash
+# Setup frontend and run frontend server as per README.md in frontend
+cd beetle_frontend/
+```
+
 ### Static Demo
 
 [Deployed on Vercel](https://beetle-demo.vercel.app/)

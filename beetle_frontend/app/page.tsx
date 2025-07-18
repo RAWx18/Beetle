@@ -26,6 +26,8 @@ import {
   Zap,
   CheckCircle,
   ArrowLeft,
+  Loader2,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,18 +43,32 @@ import { PRReviewDemo } from "@/components/pr-review-demo"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
+import { useHomepageSearch } from "@/hooks/useHomepageSearch"
+import { HomepageSearchDropdown } from "@/components/homepage-search-dropdown"
 
 export default function Home() {
   const { isAuthenticated, user, login, logout, loading, setUserFromCallback, loginDemo } = useAuth()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [trendingRepos, setTrendingRepos] = useState(mockTrendingRepos)
   const [mounted, setMounted] = useState(false)
   const [playingVideo, setPlayingVideo] = useState<string | null>(null)
   const { theme, setTheme } = useTheme()
 
   const [currentProject, setCurrentProject] = useState(0)
+
+  // Use the new homepage search hook
+  const {
+    searchQuery,
+    setSearchQuery,
+    searchResults,
+    isSearching,
+    searchError,
+    trendingRepos,
+    isTrendingLoading,
+    trendingError,
+    clearSearch,
+    refreshTrending,
+  } = useHomepageSearch()
 
   // Add this after the existing mock data
   const featuredProjects = [
@@ -170,11 +186,6 @@ export default function Home() {
 
   const handleSignOut = () => {
     logout()
-  }
-
-  const handleSearch = (query: string) => {
-    setSearchQuery(query)
-    console.log("Searching for:", query)
   }
 
   const handleTryDemo = () => {
@@ -656,84 +667,110 @@ export default function Home() {
               Discover the hottest repositories and contribute to projects that matter
             </p>
 
-            {/* Public Search */}
-            <div className="max-w-2xl mx-auto mb-12">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
-                <Input
-                  placeholder="Search any GitHub repository, user, or organization..."
-                  value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  className="pl-12 pr-4 py-4 text-lg bg-background border-2 border-muted hover:border-orange-500/50 focus:border-orange-500 rounded-2xl"
-                />
-              </div>
+            {/* Search with Dropdown */}
+            <HomepageSearchDropdown
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              searchResults={searchResults}
+              isSearching={isSearching}
+              searchError={searchError}
+              onClearSearch={clearSearch}
+              className="max-w-2xl mx-auto mb-12"
+            />
+          </motion.div>
+
+          {/* Trending repositories loading/error states */}
+          {isTrendingLoading && (
+            <div className="text-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-orange-500" />
+              <p className="text-muted-foreground">Loading trending repositories...</p>
             </div>
-          </motion.div>
+          )}
 
-          {/* Compact Grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {trendingRepos.slice(0, 8).map((repo, index) => (
+          {trendingError && (
+            <div className="text-center py-12">
+              <p className="text-red-500 mb-4">Failed to load trending repositories</p>
+              <Button onClick={refreshTrending} variant="outline" size="sm">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Try Again
+              </Button>
+            </div>
+          )}
+
+          {/* Trending Repositories Grid */}
+          {!isTrendingLoading && !trendingError && trendingRepos.length > 0 && (
+            <>
+              {/* Compact Grid */}
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {trendingRepos.slice(0, 8).map((repo, index) => (
+                  <motion.div
+                    key={repo.name}
+                    initial={{ opacity: 0, y: 50 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: index * 0.05 }}
+                    viewport={{ once: true }}
+                    whileHover={{ y: -4, scale: 1.02 }}
+                    className="group"
+                  >
+                    <Card className="h-full hover:shadow-xl transition-all duration-300 border-2 hover:border-orange-500/20">
+                      <CardContent className="p-4">
+                        <div className="mb-3">
+                          <h3 className="font-bold text-sm group-hover:text-orange-500 transition-colors flex items-center gap-2 mb-2">
+                            {repo.name}
+                            <button
+                              onClick={() => window.open(repo.html_url, '_blank', 'noopener,noreferrer')}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          </h3>
+                          <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{repo.description}</p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {repo.languages.slice(0, 2).map((lang) => (
+                            <Badge key={lang} variant="secondary" className="text-xs px-2 py-0">
+                              {lang}
+                            </Badge>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1">
+                              <Star className="w-3 h-3 text-yellow-500" />
+                              {repo.stars}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <GitBranch className="w-3 h-3" />
+                              {repo.forks}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Activity className="w-3 h-3 text-green-500" />
+                            <span className="text-green-500">Active</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+
               <motion.div
-                key={repo.name}
-                initial={{ opacity: 0, y: 50 }}
+                className="text-center mt-12"
+                initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.05 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
                 viewport={{ once: true }}
-                whileHover={{ y: -4, scale: 1.02 }}
-                className="group"
               >
-                <Card className="h-full hover:shadow-xl transition-all duration-300 border-2 hover:border-orange-500/20">
-                  <CardContent className="p-4">
-                    <div className="mb-3">
-                      <h3 className="font-bold text-sm group-hover:text-orange-500 transition-colors flex items-center gap-2 mb-2">
-                        {repo.name}
-                        <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </h3>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{repo.description}</p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {repo.languages.slice(0, 2).map((lang) => (
-                        <Badge key={lang} variant="secondary" className="text-xs px-2 py-0">
-                          {lang}
-                        </Badge>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 text-yellow-500" />
-                          {repo.stars}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <GitBranch className="w-3 h-3" />
-                          {repo.forks}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Activity className="w-3 h-3 text-green-500" />
-                        <span className="text-green-500">Active</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <Button size="lg" variant="outline" className="px-8 py-3">
+                  View All Trending Projects
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
               </motion.div>
-            ))}
-          </div>
-
-          <motion.div
-            className="text-center mt-12"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            viewport={{ once: true }}
-          >
-            <Button size="lg" variant="outline" className="px-8 py-3">
-              View All Trending Projects
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </motion.div>
+            </>
+          )}
         </div>
       </section>
 
@@ -1384,74 +1421,6 @@ const platformStats = [
     icon: CheckCircle,
     value: "TBD",
     label: "Success Rate",
-  },
-]
-
-// Mock data
-const mockTrendingRepos = [
-  {
-    name: "microsoft/vscode",
-    description: "Visual Studio Code - Open source code editor",
-    languages: ["TypeScript", "JavaScript", "CSS"],
-    stars: "155k",
-    forks: "27k",
-    updated: "2 hours ago",
-  },
-  {
-    name: "vercel/next.js",
-    description: "The React Framework for the Web",
-    languages: ["TypeScript", "JavaScript", "MDX"],
-    stars: "120k",
-    forks: "26k",
-    updated: "1 hour ago",
-  },
-  {
-    name: "facebook/react",
-    description: "The library for web and native user interfaces",
-    languages: ["JavaScript", "TypeScript"],
-    stars: "220k",
-    forks: "45k",
-    updated: "3 hours ago",
-  },
-  {
-    name: "tailwindlabs/tailwindcss",
-    description: "A utility-first CSS framework for rapid UI development",
-    languages: ["JavaScript", "CSS", "HTML"],
-    stars: "78k",
-    forks: "4k",
-    updated: "5 hours ago",
-  },
-  {
-    name: "openai/whisper",
-    description: "Robust Speech Recognition via Large-Scale Weak Supervision",
-    languages: ["Python", "Jupyter Notebook"],
-    stars: "62k",
-    forks: "7k",
-    updated: "1 day ago",
-  },
-  {
-    name: "rust-lang/rust",
-    description: "Empowering everyone to build reliable and efficient software",
-    languages: ["Rust", "C++", "Python"],
-    stars: "92k",
-    forks: "12k",
-    updated: "4 hours ago",
-  },
-  {
-    name: "tensorflow/tensorflow",
-    description: "An Open Source Machine Learning Framework for Everyone",
-    languages: ["C++", "Python", "CUDA"],
-    stars: "185k",
-    forks: "74k",
-    updated: "6 hours ago",
-  },
-  {
-    name: "kubernetes/kubernetes",
-    description: "Production-Grade Container Scheduling and Management",
-    languages: ["Go", "Shell", "Makefile"],
-    stars: "108k",
-    forks: "39k",
-    updated: "2 hours ago",
   },
 ]
 

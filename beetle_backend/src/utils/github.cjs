@@ -1046,6 +1046,134 @@ const getRepositoryTreesForAllBranches = async (accessToken, owner, repo) => {
   }
 };
 
+// Search users
+const searchUsers = async (accessToken, query, sort = 'followers', order = 'desc', page = 1, perPage = 30) => {
+  try {
+    const cacheKey = `search_users_${query}_${sort}_${order}_${page}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return cached;
+
+    const client = createGitHubClient(accessToken);
+    const response = await client.get('/search/users', {
+      params: {
+        q: query,
+        sort: sort,
+        order: order,
+        per_page: perPage,
+        page: page
+      }
+    });
+
+    const searchResults = {
+      total_count: response.data.total_count,
+      incomplete_results: response.data.incomplete_results,
+      items: response.data.items.map(user => ({
+        id: user.id,
+        login: user.login,
+        avatar_url: user.avatar_url,
+        gravatar_id: user.gravatar_id,
+        url: user.url,
+        html_url: user.html_url,
+        followers_url: user.followers_url,
+        following_url: user.following_url,
+        gists_url: user.gists_url,
+        starred_url: user.starred_url,
+        subscriptions_url: user.subscriptions_url,
+        organizations_url: user.organizations_url,
+        repos_url: user.repos_url,
+        events_url: user.events_url,
+        received_events_url: user.received_events_url,
+        type: user.type,
+        site_admin: user.site_admin,
+        name: user.name,
+        company: user.company,
+        blog: user.blog,
+        location: user.location,
+        email: user.email,
+        hireable: user.hireable,
+        bio: user.bio,
+        twitter_username: user.twitter_username,
+        public_repos: user.public_repos,
+        public_gists: user.public_gists,
+        followers: user.followers,
+        following: user.following,
+        created_at: user.created_at,
+        updated_at: user.updated_at
+      }))
+    };
+
+    await setCache(cacheKey, searchResults, 900); // Cache for 15 minutes
+    return searchResults;
+  } catch (error) {
+    console.error('Error searching users:', error.message);
+    throw new Error('Failed to search users');
+  }
+};
+
+// Search organizations
+const searchOrganizations = async (accessToken, query, sort = 'repositories', order = 'desc', page = 1, perPage = 30) => {
+  try {
+    const cacheKey = `search_orgs_${query}_${sort}_${order}_${page}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return cached;
+
+    const client = createGitHubClient(accessToken);
+    const response = await client.get('/search/users', {
+      params: {
+        q: `${query} type:org`,
+        sort: sort,
+        order: order,
+        per_page: perPage,
+        page: page
+      }
+    });
+
+    const searchResults = {
+      total_count: response.data.total_count,
+      incomplete_results: response.data.incomplete_results,
+      items: response.data.items.map(org => ({
+        id: org.id,
+        login: org.login,
+        avatar_url: org.avatar_url,
+        gravatar_id: org.gravatar_id,
+        url: org.url,
+        html_url: org.html_url,
+        followers_url: org.followers_url,
+        following_url: org.following_url,
+        gists_url: org.gists_url,
+        starred_url: org.starred_url,
+        subscriptions_url: org.subscriptions_url,
+        organizations_url: org.organizations_url,
+        repos_url: org.repos_url,
+        events_url: org.events_url,
+        received_events_url: org.received_events_url,
+        type: org.type,
+        site_admin: org.site_admin,
+        name: org.name,
+        company: org.company,
+        blog: org.blog,
+        location: org.location,
+        email: org.email,
+        hireable: org.hireable,
+        bio: org.bio,
+        twitter_username: org.twitter_username,
+        public_repos: org.public_repos,
+        public_gists: org.public_gists,
+        followers: org.followers,
+        following: org.following,
+        created_at: org.created_at,
+        updated_at: org.updated_at
+      }))
+    };
+
+    await setCache(cacheKey, searchResults, 900); // Cache for 15 minutes
+    return searchResults;
+  } catch (error) {
+    console.error('Error searching organizations:', error.message);
+    throw new Error('Failed to search organizations');
+  }
+};
+
 // Export all functions
 module.exports = {
   getUserProfile,
@@ -1059,6 +1187,8 @@ module.exports = {
   getRepositoryContributors,
   getRepositoryLanguages,
   searchRepositories,
+  searchUsers,
+  searchOrganizations,
   getRepositoryTree,
   getFileContent,
   getRepositoryTreesForAllBranches,

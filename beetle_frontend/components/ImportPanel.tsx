@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBranch } from '@/contexts/BranchContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRepository } from '@/contexts/RepositoryContext';
+import { useKnowledgeBase } from '@/contexts/KnowledgeBaseContext';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -908,6 +909,7 @@ export const ImportPanel: React.FC = () => {
   const { selectedBranch, getBranchInfo, branchList: contextBranchList } = useBranch();
   const { repository, setRepository } = useRepository();
   const { token, user } = useAuth();
+  const { updateKnowledgeBase } = useKnowledgeBase();
   const githubAPI = new GitHubAPI(token || '');
 
   // Branches and file structure
@@ -923,7 +925,7 @@ export const ImportPanel: React.FC = () => {
   const [selectedFileContents, setSelectedFileContents] = useState<Array<{branch: string, path: string, content: string}>>([]);
 
   // Control Panel Data
-  const [controlPanelData, setControlPanelData] = useState<any>(null);
+  const [controlPanelData, setControlPanelData] = useState<any>(fallbackContributionData);
   const [controlPanelLoading, setControlPanelLoading] = useState(false);
   const [controlPanelError, setControlPanelError] = useState<string | null>(null);
 
@@ -987,7 +989,7 @@ export const ImportPanel: React.FC = () => {
     } else {
       console.log('Repository not available, setting default branches');
       // Set some default branches for testing
-      setBranchList(['main', 'develop', 'feature/new-ui', 'bugfix/auth-fix']);
+      setBranchList(['main']);
     }
   }, [repository, token]);
 
@@ -1128,23 +1130,34 @@ export const ImportPanel: React.FC = () => {
     }
   };
 
-  // Fetch real control panel data (PRs, issues, etc.)
+  // Fetch real control panel data (PRs, issues, activity)
   useEffect(() => {
-    if (repository?.owner?.login && repository?.name && selectedBranch) {
+    if (selectedSource === 'control-panel' && repository?.owner?.login && repository?.name && user?.login) {
       setControlPanelLoading(true);
+      setControlPanelError(null);
+      const githubAPI = new GitHubAPI(token || '');
       Promise.all([
-        githubAPI.getRepositoryPullRequests(repository.owner.login, repository.name, 'all', 1, 20),
-        githubAPI.getRepositoryIssues(repository.owner.login, repository.name, 'all', 1, 20),
-        githubAPI.getRepositoryCommits(repository.owner.login, repository.name, selectedBranch, 1, 20),
-        githubAPI.getUserActivity(user?.login, 1, 100)
-      ]).then(([prs, issues, commits, activity]) => {
-        setControlPanelData({ prs, issues, commits, activity });
+        githubAPI.getRepositoryPullRequests(repository.owner.login, repository.name, 'all', 1, 100),
+        githubAPI.getRepositoryIssues(repository.owner.login, repository.name, 'all', 1, 100),
+        githubAPI.getUserActivity(user.login, 1, 100)
+      ]).then(([prs, issues, activity]) => {
+        const transformedData = transformGitHubData(
+          activity, // userActivity
+          prs,      // pullRequests
+          issues,   // issues
+          [],       // commits (not fetched here)
+          user      // user (from context)
+        );
+        // Add fallback botLogs
+        transformedData.botLogs = fallbackContributionData.botLogs;
+        setControlPanelData(transformedData);
       }).catch(err => {
-        setControlPanelError('Failed to fetch control panel data');
-        setControlPanelData(null);
+        console.error('Failed to fetch control panel data:', err);
+        setControlPanelError('Failed to fetch control panel data. Using fallback data.');
+        setControlPanelData(fallbackContributionData);
       }).finally(() => setControlPanelLoading(false));
     }
-  }, [repository, selectedBranch, token, user]);
+  }, [selectedSource, repository, user, token]);
 
   // Helper function to convert GitHub tree to file structure
   const convertTreeToFileStructure = (treeData: any[]): any[] => {
@@ -1237,33 +1250,28 @@ export const ImportPanel: React.FC = () => {
   const getFilteredData = () => {
     const branch = selectedBranchFilter;
     const isAllBranches = branch === "all";
-    
+    const dataToFilter = controlPanelData || fallbackContributionData;
     const result: any = {};
-    
     if (selectedDataTypes.pullRequests) {
-      result.pullRequests = contributionData.pullRequests.filter(pr => 
+      result.pullRequests = dataToFilter.pullRequests.filter((pr: any) => 
         isAllBranches || pr.targetBranch === branch || pr.sourceBranch === branch
       );
     }
-    
     if (selectedDataTypes.issues) {
-      result.issues = contributionData.issues.filter(issue => 
-        isAllBranches || issue.branch === branch || issue.labels.includes(branch)
+      result.issues = dataToFilter.issues.filter((issue: any) => 
+        isAllBranches || issue.branch === branch || (issue.labels || []).includes(branch)
       );
     }
-    
     if (selectedDataTypes.botLogs) {
-      result.botLogs = contributionData.botLogs.filter(log => 
+      result.botLogs = dataToFilter.botLogs.filter((log: any) => 
         isAllBranches || log.branch === branch
       );
     }
-    
     if (selectedDataTypes.activities) {
-      result.activities = contributionData.activity.filter(activity => 
+      result.activities = (dataToFilter.activity || []).filter((activity: any) => 
         isAllBranches || activity.branch === branch
       );
     }
-    
     return result;
   };
 
@@ -1286,8 +1294,12 @@ export const ImportPanel: React.FC = () => {
 
   const handleControlPanelImport = () => {
     const filteredData = getFilteredData();
-    console.log('Importing control panel data:', filteredData);
-    // Here you would process the data for import
+    try {
+      updateKnowledgeBase(filteredData);
+      toast.success('Control Panel data imported to knowledge base!');
+    } catch (e) {
+      toast.error('Failed to import control panel data.');
+    }
   };
 
   // Function to get the branch color
@@ -1385,54 +1397,16 @@ export const ImportPanel: React.FC = () => {
 
   // Import selected items from all branches
   const handleImport = () => {
-    // Get all selected items from all branches
-    const selectedItems: {branch: string, paths: string[]}[] = [];
-    
-    if (!selectedBranches || !Array.isArray(selectedBranches)) {
-      return;
-    }
-    
-    selectedBranches.forEach(branch => {
-      const branchItems: string[] = [];
-      const structure = branchFileStructures[branch];
-      
-      if (!structure || !Array.isArray(structure)) {
-        return; // Skip if structure is not loaded or invalid
-      }
-      
-      const findSelectedItems = (items: any[], path: string[] = []) => {
-        if (!items || !Array.isArray(items)) {
-          return; // Skip if items is not valid
-        }
-        
-        items.forEach(item => {
-          const currentPath = [...path, item.name];
-          
-          if (item.selected) {
-            branchItems.push(currentPath.join('/'));
-          }
-          
-          if (item.children) {
-            findSelectedItems(item.children, currentPath);
-          }
-        });
+    let dataToImport: any = {};
+    if (selectedSource === 'control-panel') {
+      dataToImport = getFilteredData();
+    } else if (selectedSource === 'file') {
+      dataToImport = {
+        files: selectedFileContents.map(f => ({ path: f.path, content: f.content }))
       };
-      
-      findSelectedItems(structure);
-      
-      if (branchItems.length > 0) {
-        selectedItems.push({
-          branch,
-          paths: branchItems
-        });
-      }
-    });
-    
-    // Here you would send the selectedItems to your application state
-    console.log('Importing items:', selectedItems);
-    
-    // Reset state after import
-    // setSelectedBranches([]);
+    }
+    updateKnowledgeBase(dataToImport);
+    toast.success('Data has been added to the knowledge base.');
   };
 
   // Total selected counts
