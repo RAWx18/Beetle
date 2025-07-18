@@ -256,6 +256,24 @@ class ApiService {
   async getSmartSuggestions(projectId: string, branch: string): Promise<ApiResponse<{ suggestions: any[] }>> {
     return this.request(`/projects/${projectId}/branches/${branch}/suggestions`);
   }
+
+  // User Settings
+  async getUserSettings(): Promise<ApiResponse<{ settings: any }>> {
+    return this.request('/auth/settings');
+  }
+
+  async updateUserSettings(settings: any): Promise<ApiResponse<{ settings: any; message: string }>> {
+    return this.request('/auth/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  }
+
+  async resetUserSettings(): Promise<ApiResponse<{ settings: any; message: string }>> {
+    return this.request('/auth/settings/reset', {
+      method: 'POST',
+    });
+  }
 }
 
 // Export singleton instance

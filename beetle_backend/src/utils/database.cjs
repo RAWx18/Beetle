@@ -502,6 +502,128 @@ const removeUserPinnedItem = async (githubId, itemId) => {
   return true;
 };
 
+// User Settings functions
+const getUserSettings = async (githubId) => {
+  const user = await getUser(githubId);
+  return user?.settings || {
+    // Default settings structure
+    profile: {
+      displayName: user?.name || user?.login || '',
+      bio: user?.bio || '',
+      location: user?.location || '',
+      website: user?.blog || '',
+      company: user?.company || '',
+      twitter: user?.twitter_username || ''
+    },
+    notifications: {
+      emailNotifications: true,
+      pushNotifications: true,
+      weeklyDigest: true,
+      pullRequestReviews: true,
+      newIssues: true,
+      mentions: true,
+      securityAlerts: true
+    },
+    security: {
+      twoFactorEnabled: false,
+      sessionTimeout: 7200000 // 2 hours in milliseconds
+    },
+    appearance: {
+      theme: 'system',
+      language: 'en',
+      compactMode: false,
+      showAnimations: true,
+      highContrast: false
+    },
+    integrations: {
+      connectedAccounts: {
+        github: { connected: true, username: user?.login || '' },
+        gitlab: { connected: false, username: '' },
+        bitbucket: { connected: false, username: '' }
+      },
+      webhookUrl: '',
+      webhookSecret: ''
+    },
+    preferences: {
+      autoSave: true,
+      branchNotifications: true,
+      autoSync: false,
+      defaultBranch: 'main'
+    }
+  };
+};
+
+const updateUserSettings = async (githubId, settingsUpdate) => {
+  const user = await getUser(githubId);
+  if (!user) throw new Error('User not found');
+  
+  const currentSettings = user.settings || {};
+  const updatedSettings = {
+    ...currentSettings,
+    ...settingsUpdate,
+    updatedAt: new Date().toISOString()
+  };
+  
+  await updateUser(githubId, { settings: updatedSettings });
+  return updatedSettings;
+};
+
+const resetUserSettings = async (githubId) => {
+  const user = await getUser(githubId);
+  if (!user) throw new Error('User not found');
+  
+  const defaultSettings = {
+    profile: {
+      displayName: user.name || user.login || '',
+      bio: user.bio || '',
+      location: user.location || '',
+      website: user.blog || '',
+      company: user.company || '',
+      twitter: user.twitter_username || ''
+    },
+    notifications: {
+      emailNotifications: true,
+      pushNotifications: true,
+      weeklyDigest: true,
+      pullRequestReviews: true,
+      newIssues: true,
+      mentions: true,
+      securityAlerts: true
+    },
+    security: {
+      twoFactorEnabled: false,
+      sessionTimeout: 7200000
+    },
+    appearance: {
+      theme: 'system',
+      language: 'en',
+      compactMode: false,
+      showAnimations: true,
+      highContrast: false
+    },
+    integrations: {
+      connectedAccounts: {
+        github: { connected: true, username: user.login || '' },
+        gitlab: { connected: false, username: '' },
+        bitbucket: { connected: false, username: '' }
+      },
+      webhookUrl: '',
+      webhookSecret: ''
+    },
+    preferences: {
+      autoSave: true,
+      branchNotifications: true,
+      autoSync: false,
+      defaultBranch: 'main'
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  
+  await updateUser(githubId, { settings: defaultSettings });
+  return defaultSettings;
+};
+
 // Export all functions
 module.exports = {
   initDatabase,
@@ -544,5 +666,8 @@ module.exports = {
   deleteUserSavedFilter,
   getUserPinnedItems,
   addUserPinnedItem,
-  removeUserPinnedItem
+  removeUserPinnedItem,
+  getUserSettings,
+  updateUserSettings,
+  resetUserSettings
 }; 
