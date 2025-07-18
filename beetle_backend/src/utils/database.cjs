@@ -1,5 +1,7 @@
 const { join } = require('path');
 const fs = require('fs');
+const { encrypt, decrypt } = require('./security.cjs');
+const { securityEvents } = require('./security-logger.cjs');
 
 // Dynamic imports for ESM-only lowdb
 let Low, JSONFile;
@@ -32,6 +34,7 @@ const defaultData = {
   pullRequests: {},
   commits: {},
   userSessions: {},
+  oauthStates: {},
   cache: {},
   metadata: {
     lastUpdated: new Date().toISOString(),
@@ -289,6 +292,132 @@ const cleanupExpiredSessions = async () => {
 // Run cleanup every hour
 setInterval(cleanupExpiredSessions, 60 * 60 * 1000);
 
+// OAuth State Management
+const storeOAuthState = async (state, data) => {
+  const database = getDatabase();
+  database.data.oauthStates[state] = {
+    ...data,
+    timestamp: Date.now(),
+    used: false
+  };
+  await saveDatabase();
+  return state;
+};
+
+const getOAuthState = async (state) => {
+  const database = getDatabase();
+  return database.data.oauthStates[state] || null;
+};
+
+const markOAuthStateUsed = async (state) => {
+  const database = getDatabase();
+  if (database.data.oauthStates[state]) {
+    database.data.oauthStates[state].used = true;
+    await saveDatabase();
+    return true;
+  }
+  return false;
+};
+
+const deleteOAuthState = async (state) => {
+  const database = getDatabase();
+  if (database.data.oauthStates[state]) {
+    delete database.data.oauthStates[state];
+    await saveDatabase();
+    return true;
+  }
+  return false;
+};
+
+// Cleanup old OAuth states (older than 10 minutes)
+const cleanupOAuthStates = async () => {
+  const database = getDatabase();
+  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+  const expiredStates = [];
+  
+  Object.keys(database.data.oauthStates).forEach(state => {
+    const stateData = database.data.oauthStates[state];
+    if (stateData.timestamp < tenMinutesAgo) {
+      expiredStates.push(state);
+    }
+  });
+  
+  expiredStates.forEach(state => {
+    delete database.data.oauthStates[state];
+  });
+  
+  if (expiredStates.length > 0) {
+    await saveDatabase();
+    console.log(`🧹 Cleaned up ${expiredStates.length} expired OAuth states`);
+  }
+};
+
+// Run OAuth state cleanup every 5 minutes
+setInterval(cleanupOAuthStates, 5 * 60 * 1000);
+
+// Enhanced session management with encrypted tokens
+const createSessionWithEncryption = async (sessionId, userData) => {
+  try {
+    const database = getDatabase();
+    
+    // Encrypt the access token if provided
+    let encryptedAccessToken = null;
+    if (userData.accessToken) {
+      encryptedAccessToken = encrypt(userData.accessToken);
+      securityEvents.accessTokenEncrypted(userData.githubId);
+    }
+    
+    database.data.userSessions[sessionId] = {
+      ...userData,
+      accessToken: encryptedAccessToken, // Store encrypted token
+      createdAt: new Date().toISOString(),
+      lastActivity: new Date().toISOString()
+    };
+    
+    await saveDatabase();
+    return database.data.userSessions[sessionId];
+  } catch (error) {
+    securityEvents.encryptionFailure('session_creation', error);
+    throw error;
+  }
+};
+
+const getSessionWithDecryption = async (sessionId) => {
+  try {
+    const database = getDatabase();
+    const session = database.data.userSessions[sessionId];
+    
+    if (!session) return null;
+    
+    // Decrypt the access token if it exists and is encrypted
+    let decryptedAccessToken = null;
+    if (session.accessToken) {
+      if (typeof session.accessToken === 'object' && session.accessToken.encrypted) {
+        // New encrypted format
+        decryptedAccessToken = decrypt(session.accessToken);
+        securityEvents.accessTokenDecrypted(session.githubId);
+      } else if (typeof session.accessToken === 'string') {
+        // Legacy plaintext format - migrate to encrypted
+        decryptedAccessToken = session.accessToken;
+        
+        // Update session with encrypted token
+        const encryptedAccessToken = encrypt(session.accessToken);
+        session.accessToken = encryptedAccessToken;
+        await saveDatabase();
+        securityEvents.accessTokenEncrypted(session.githubId);
+      }
+    }
+    
+    return {
+      ...session,
+      accessToken: decryptedAccessToken
+    };
+  } catch (error) {
+    securityEvents.encryptionFailure('session_retrieval', error);
+    throw error;
+  }
+};
+
 // User notes CRUD
 const getUserNotes = async (githubId) => {
   const user = await getUser(githubId);
@@ -396,6 +525,15 @@ module.exports = {
   updateSession,
   deleteSession,
   cleanupExpiredSessions,
+  // OAuth state management
+  storeOAuthState,
+  getOAuthState,
+  markOAuthStateUsed,
+  deleteOAuthState,
+  cleanupOAuthStates,
+  // Enhanced session management with encryption
+  createSessionWithEncryption,
+  getSessionWithDecryption,
   getUserNotes,
   addUserNote,
   updateUserNote,
