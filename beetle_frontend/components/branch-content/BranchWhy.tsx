@@ -74,6 +74,34 @@ export const BranchWhy = () => {
     const loadContent = async () => {
       try {
         setLoading(true);
+        
+        // If no repository/project, show default content immediately
+        if (projectId === 'unknown' || !repository) {
+          setContent({
+            title: `Why ${projectName} ${selectedBranch} Branch?`,
+            description: `The ${selectedBranch} branch focuses on specific features and improvements for ${projectName}.`,
+            sections: [
+              {
+                title: 'Innovation',
+                content: 'We embrace new technologies and methodologies to deliver excellence.',
+                icon: 'Zap'
+              },
+              {
+                title: 'Quality',
+                content: 'Maintains high code quality and follows best practices.',
+                icon: 'Shield'
+              },
+              {
+                title: 'Collaboration',
+                content: 'Team collaboration and code review processes.',
+                icon: 'Users'
+              }
+            ]
+          });
+          setLoading(false);
+          return;
+        }
+        
         const [contentResponse, ownershipCheck] = await Promise.all([
           ContentAPI.getPageContent(projectId, 'why'),
           user ? ContentAPI.isProjectOwner(projectId) : Promise.resolve(false)
@@ -110,10 +138,8 @@ export const BranchWhy = () => {
       }
     };
 
-    if (projectId !== 'unknown') {
-      loadContent();
-    }
-  }, [projectId, selectedBranch, projectName, user]);
+    loadContent();
+  }, [projectId, selectedBranch, projectName, user, repository]);
 
   const handleEdit = () => {
     setEditContent(JSON.parse(JSON.stringify(content)));

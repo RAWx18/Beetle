@@ -29,6 +29,29 @@ export const BranchHow = () => {
     const loadContent = async () => {
       try {
         setLoading(true);
+        
+        // If no repository/project, show default content immediately
+        if (projectId === 'unknown' || !repository) {
+          setContent({
+            title: `How ${projectName} Works`,
+            description: 'Learn about the technical implementation and architecture.',
+            setup: [
+              'Clone the repository',
+              'Install dependencies',
+              'Configure environment variables',
+              'Run the development server'
+            ],
+            workflow: [
+              'Create feature branches',
+              'Implement changes',
+              'Write tests',
+              'Submit pull requests'
+            ]
+          });
+          setLoading(false);
+          return;
+        }
+        
         const [contentResponse, ownershipCheck] = await Promise.all([
           ContentAPI.getPageContent(projectId, 'how'),
           user ? ContentAPI.isProjectOwner(projectId) : Promise.resolve(false)
@@ -60,10 +83,8 @@ export const BranchHow = () => {
       }
     };
 
-    if (projectId !== 'unknown') {
-      loadContent();
-    }
-  }, [projectId, selectedBranch, projectName, user]);
+    loadContent();
+  }, [projectId, selectedBranch, projectName, user, repository]);
 
   const handleEdit = () => {
     setEditContent(JSON.parse(JSON.stringify(content)));

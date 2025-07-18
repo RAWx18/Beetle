@@ -29,6 +29,40 @@ export const BranchContribute = () => {
     const loadContent = async () => {
       try {
         setLoading(true);
+        
+        // If no repository/project, show default content immediately
+        if (projectId === 'unknown' || !repository) {
+          setContent({
+            title: `How to Contribute to ${projectName}`,
+            description: 'Join our community and help improve the project.',
+            quickStart: [
+              'Fork the repository',
+              'Pick an issue to work on',
+              'Follow our contribution guidelines',
+              'Submit a pull request'
+            ],
+            areas: [
+              {
+                title: 'Development',
+                description: 'Help build new features and fix bugs',
+                skills: ['JavaScript', 'TypeScript', 'React']
+              },
+              {
+                title: 'Documentation',
+                description: 'Improve project documentation and guides',
+                skills: ['Technical Writing', 'Markdown']
+              },
+              {
+                title: 'Testing',
+                description: 'Write tests and improve code quality',
+                skills: ['Jest', 'Testing Library', 'Quality Assurance']
+              }
+            ]
+          });
+          setLoading(false);
+          return;
+        }
+        
         const [contentResponse, ownershipCheck] = await Promise.all([
           ContentAPI.getPageContent(projectId, 'contribute'),
           user ? ContentAPI.isProjectOwner(projectId) : Promise.resolve(false)
@@ -71,10 +105,8 @@ export const BranchContribute = () => {
       }
     };
 
-    if (projectId !== 'unknown') {
-      loadContent();
-    }
-  }, [projectId, selectedBranch, projectName, user]);
+    loadContent();
+  }, [projectId, selectedBranch, projectName, user, repository]);
 
   const handleEdit = () => {
     setEditContent(JSON.parse(JSON.stringify(content)));
