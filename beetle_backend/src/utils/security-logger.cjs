@@ -75,6 +75,11 @@ function sanitizeLogDetails(details) {
 }
 
 /**
+ * Session tracking for login deduplication
+ */
+const activeSessions = new Map(); // userId -> { sessionId, loginTime, clientIp }
+
+/**
  * OAuth-specific security event loggers
  */
 const oauthEvents = {
@@ -104,11 +109,58 @@ const oauthEvents = {
     }, success ? 'info' : 'error');
   },
 
-  authSuccess: (userId, clientIp) => {
-    logSecurityEvent('oauth_auth_success', {
-      userId,
-      clientIp
-    });
+  authSuccess: (userId, clientIp, sessionId, isNewLogin = true) => {
+    // Check if this is a duplicate login attempt
+    const existingSession = activeSessions.get(userId);
+    const now = Date.now();
+    
+    if (existingSession && isNewLogin) {
+      // Check if the existing session is still recent (within last hour)
+      const timeSinceLogin = now - existingSession.loginTime;
+      const ONE_HOUR = 60 * 60 * 1000;
+      
+      if (timeSinceLogin < ONE_HOUR && existingSession.sessionId !== sessionId) {
+        // This is likely a duplicate login attempt - log as session refresh instead
+        logSecurityEvent('oauth_session_refresh', {
+          userId,
+          clientIp,
+          sessionId,
+          existingSessionId: existingSession.sessionId,
+          timeSinceLastLogin: timeSinceLogin
+        });
+        
+        // Update the active session tracking
+        activeSessions.set(userId, {
+          sessionId,
+          loginTime: now,
+          clientIp
+        });
+        return;
+      }
+    }
+    
+    if (isNewLogin) {
+      // This is a genuine new login
+      logSecurityEvent('oauth_auth_success', {
+        userId,
+        clientIp,
+        sessionId
+      });
+      
+      // Track this session
+      activeSessions.set(userId, {
+        sessionId,
+        loginTime: now,
+        clientIp
+      });
+    } else {
+      // This is a session continuation/validation
+      logSecurityEvent('oauth_session_validated', {
+        userId,
+        clientIp,
+        sessionId
+      });
+    }
   },
 
   authFailure: (reason, clientIp, details = {}) => {
@@ -117,6 +169,17 @@ const oauthEvents = {
       clientIp,
       ...details
     }, 'warn');
+  },
+
+  sessionExpired: (userId, sessionId, clientIp) => {
+    logSecurityEvent('oauth_session_expired', {
+      userId,
+      sessionId,
+      clientIp
+    });
+    
+    // Remove from active sessions
+    activeSessions.delete(userId);
   },
 
   rateLimitExceeded: (clientIp, endpoint) => {
@@ -233,5 +296,9 @@ module.exports = {
   oauthEvents,
   webhookEvents,
   securityEvents,
-  rateLimitedLog
+  rateLimitedLog,
+  // Export session tracking utilities for cleanup
+  clearActiveSession: (userId) => activeSessions.delete(userId),
+  getActiveSession: (userId) => activeSessions.get(userId),
+  getAllActiveSessions: () => Array.from(activeSessions.entries())
 };

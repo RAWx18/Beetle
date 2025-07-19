@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { getSession, updateSession, getSessionWithDecryption } = require('../utils/database.cjs');
+const { clearActiveSession } = require('../utils/security-logger.cjs');
 
 // Authentication middleware
 const authMiddleware = async (req, res, next) => {
