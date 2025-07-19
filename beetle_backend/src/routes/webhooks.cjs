@@ -115,7 +115,7 @@ router.post('/github',
       });
       
     } catch (error) {
-      console.error(`❌ Error processing webhook ${event}:`, error);
+      console.error('❌ Error processing webhook %s:', event, error);
       webhookEvents.processed(event, delivery, false, error);
       
       res.status(500).json({
