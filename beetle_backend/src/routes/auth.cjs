@@ -25,7 +25,7 @@ const {
 const { getUserProfile } = require('../utils/github.cjs');
 const { asyncHandler } = require('../middleware/errorHandler.cjs');
 const { generateSecureToken, validateRedirectUri } = require('../utils/security.cjs');
-const { oauthEvents, securityEvents } = require('../utils/security-logger.cjs');
+const { oauthEvents, securityEvents, clearActiveSession, getActiveSession } = require('../utils/security-logger.cjs');
 const { oauthInitiateLimit, oauthCallbackLimit, tokenValidationLimit } = require('../middleware/oauth-rate-limit.cjs');
 
 const router = express.Router();
@@ -287,6 +287,23 @@ router.get('/github/callback', oauthCallbackLimit, asyncHandler(async (req, res)
       });
     }
 
+    console.log('🔄 Checking for existing user sessions...')
+    // Check if user already has an active session
+    const existingActiveSession = getActiveSession(userProfile.id);
+    let isNewLogin = true;
+    
+    if (existingActiveSession) {
+      // Check if this is within a reasonable timeframe to be considered the same login
+      const timeSinceLastLogin = Date.now() - existingActiveSession.loginTime;
+      const FIVE_MINUTES = 5 * 60 * 1000;
+      
+      // If the last login was very recent, this might be a page refresh or duplicate callback
+      if (timeSinceLastLogin < FIVE_MINUTES) {
+        isNewLogin = false;
+        console.log('🔄 Detected recent session, treating as refresh rather than new login');
+      }
+    }
+
     console.log('🔄 Creating session with encrypted token...')
     // Create session with encrypted access token
     const sessionId = uuidv4();
@@ -310,8 +327,8 @@ router.get('/github/callback', oauthCallbackLimit, asyncHandler(async (req, res)
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    // Log successful authentication
-    oauthEvents.authSuccess(userProfile.id, clientIp);
+    // Log authentication with session context
+    oauthEvents.authSuccess(userProfile.id, clientIp, sessionId, isNewLogin);
 
     // Clean up OAuth state
     if (state) {
@@ -514,12 +531,16 @@ router.post('/logout', asyncHandler(async (req, res) => {
   }
 
   const token = authHeader.substring(7);
+  const clientIp = req.ip || req.connection.remoteAddress;
   
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Delete session
     await deleteSession(decoded.sessionId);
+    
+    // Clear active session tracking
+    clearActiveSession(decoded.githubId);
     
     res.json({
       message: 'Successfully logged out',

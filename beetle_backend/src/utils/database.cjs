@@ -1,7 +1,7 @@
 const { join } = require('path');
 const fs = require('fs');
 const { encrypt, decrypt } = require('./security.cjs');
-const { securityEvents } = require('./security-logger.cjs');
+const { securityEvents, oauthEvents, clearActiveSession } = require('./security-logger.cjs');
 
 // Dynamic imports for ESM-only lowdb
 let Low, JSONFile;
@@ -256,6 +256,12 @@ const updateSession = async (sessionId, updates) => {
 const deleteSession = async (sessionId) => {
   const database = getDatabase();
   if (database.data.userSessions[sessionId]) {
+    const session = database.data.userSessions[sessionId];
+    
+    // Clear from active sessions tracking
+    clearActiveSession(session.githubId);
+    
+    // Remove from database
     delete database.data.userSessions[sessionId];
     await saveDatabase();
     return true;
@@ -275,11 +281,18 @@ const cleanupExpiredSessions = async () => {
     const hoursSinceActivity = (now - lastActivity) / (1000 * 60 * 60);
     
     if (hoursSinceActivity > 24) { // Expire after 24 hours of inactivity
-      expiredSessions.push(sessionId);
+      expiredSessions.push({ sessionId, session });
     }
   });
   
-  expiredSessions.forEach(sessionId => {
+  expiredSessions.forEach(({ sessionId, session }) => {
+    // Log session expiration
+    oauthEvents.sessionExpired(session.githubId, sessionId, 'system');
+    
+    // Clear from active sessions tracking
+    clearActiveSession(session.githubId);
+    
+    // Remove from database
     delete database.data.userSessions[sessionId];
   });
   
