@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useRepository } from '@/contexts/RepositoryContext';
+import { NavbarSearch } from '@/components/NavbarSearch';
 
 interface NavItemProps {
   to: string;
@@ -270,6 +271,11 @@ export const Navbar = () => {
                 onClick={() => handleNavItemClick(item.id)}
               />
             ))}
+            
+            {/* GitHub Search - Only show for authenticated users */}
+            {isAuthenticated && (
+              <NavbarSearch className="mx-2" />
+            )}
             
             {/* Theme toggle */}
             <Tooltip>
