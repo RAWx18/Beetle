@@ -1396,17 +1396,111 @@ export const ImportPanel: React.FC = () => {
   };
 
   // Import selected items from all branches
-  const handleImport = () => {
-    let dataToImport: any = {};
-    if (selectedSource === 'control-panel') {
-      dataToImport = getFilteredData();
-    } else if (selectedSource === 'file') {
-      dataToImport = {
-        files: selectedFileContents.map(f => ({ path: f.path, content: f.content }))
-      };
+  const handleImport = async () => {
+    setImportLoading(true);
+    setImportError(null);
+    
+    try {
+      let importResult;
+      
+      if (selectedSource === 'control-panel') {
+        // Import GitHub data using multi-agent system
+        const importData = {
+          repository_id: repository?.full_name || 'default',
+          branch: selectedBranchFilter === 'all' ? 'main' : selectedBranchFilter,
+          data_types: Object.keys(selectedDataTypes).filter(key => selectedDataTypes[key as keyof typeof selectedDataTypes]),
+          github_token: token
+        };
+        
+        const response = await fetch('/api/ai/import-github', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(importData)
+        });
+        
+        importResult = await response.json();
+        
+      } else if (selectedSource === 'file') {
+        // Import files using multi-agent system
+        const formData = new FormData();
+        formData.append('repository_id', repository?.full_name || 'default');
+        formData.append('branch', selectedBranches[0] || 'main');
+        formData.append('source_type', 'file');
+        
+        // Add selected files to form data
+        selectedFileContents.forEach(file => {
+          // Create a blob from the content and append directly
+          const blob = new Blob([file.content], { type: 'text/plain' });
+          formData.append('files', blob, file.path.split('/').pop() || 'file.txt');
+        });
+        
+        const response = await fetch('/api/ai/import', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+        
+        importResult = await response.json();
+        
+      } else if (selectedSource === 'text') {
+        // Import text content using multi-agent system
+        const formData = new FormData();
+        formData.append('repository_id', repository?.full_name || 'default');
+        formData.append('branch', 'main');
+        formData.append('source_type', 'text');
+        
+        // Create a blob from text content and append directly
+        const blob = new Blob([textContent], { type: 'text/plain' });
+        formData.append('files', blob, `${textTitle}.txt`);
+        
+        const response = await fetch('/api/ai/import', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+        
+        importResult = await response.json();
+      }
+      
+      if (importResult?.success) {
+        toast.success(importResult.message || 'Data imported successfully!');
+        
+        // Clear form data after successful import
+        if (selectedSource === 'text') {
+          setTextTitle('');
+          setTextContent('');
+        } else if (selectedSource === 'file') {
+          setSelectedFileContents([]);
+        }
+        
+        // Reset data type selections for control panel
+        if (selectedSource === 'control-panel') {
+          setSelectedDataTypes({
+            pullRequests: false,
+            issues: false,
+            botLogs: false,
+            activities: false
+          });
+        }
+        
+      } else {
+        throw new Error(importResult?.error || 'Import failed');
+      }
+      
+    } catch (error) {
+      console.error('Import error:', error);
+      setImportError(error instanceof Error ? error.message : 'Import failed');
+      toast.error('Failed to import data. Please try again.');
+    } finally {
+      setImportLoading(false);
     }
-    updateKnowledgeBase(dataToImport);
-    toast.success('Data has been added to the knowledge base.');
   };
 
   // Total selected counts
@@ -1745,6 +1839,8 @@ export const ImportPanel: React.FC = () => {
                 type="text" 
                 className="w-full p-2 rounded-lg border border-border bg-card"
                 placeholder="Enter a title for this content"
+                value={textTitle}
+                onChange={(e) => setTextTitle(e.target.value)}
               />
             </div>
             <div>
@@ -1752,78 +1848,62 @@ export const ImportPanel: React.FC = () => {
               <textarea 
                 className="w-full p-2 rounded-lg border border-border bg-card min-h-32"
                 placeholder="Enter or paste your content here..."
+                value={textContent}
+                onChange={(e) => setTextContent(e.target.value)}
               />
             </div>
-            <button className="mt-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">
-              Save to Brain
+            <button 
+              className="mt-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!textTitle.trim() || !textContent.trim()}
+              onClick={() => {
+                const dataToImport = {
+                  files: [{
+                    path: `${textTitle}.txt`,
+                    content: textContent
+                  }]
+                };
+                updateKnowledgeBase(dataToImport);
+                toast.success('Text content added to knowledge base!');
+                setTextTitle('');
+                setTextContent('');
+              }}
+            >
+              Save to Knowledge Base
             </button>
           </div>
         )}
         
         {selectedSource === 'branch' && (
-          <div className="space-y-5">
-            <h3 className="text-xl font-medium">Import from Branches</h3>
+          <div className="space-y-4">
+            <h3 className="text-xl font-medium">Branch Import</h3>
             <p className="text-muted-foreground">
-              Import context from multiple branches to enhance your AI interactions.
+              Import context from other branches in your repository.
             </p>
             
-            {/* Branch selection section */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-medium">Select branches to import from:</h4>
-                {selectedBranches.length > 0 && (
-                  <button 
-                    className="text-xs text-primary hover:underline"
-                    onClick={() => setSelectedBranches([])}
-                  >
-                    Clear All
-                  </button>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {loadingBranches ? (
-                  <div className="col-span-full flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    <span className="ml-2 text-muted-foreground">Loading branches...</span>
-                  </div>
-                ) : branchError ? (
-                  <div className="col-span-full text-center py-8 text-red-500">
-                    <AlertCircle size={40} className="mx-auto mb-2" />
-                    <p>{branchError}</p>
-                  </div>
-                ) : branchList.length === 0 ? (
-                  <div className="col-span-full text-center py-8 text-muted-foreground">
-                    <GitBranch className="h-8 w-8 mx-auto mb-2" />
-                    <p>No branches available</p>
-                    <p className="text-xs mt-1">Debug: branchList length = {branchList.length}</p>
-                  </div>
-                ) : (
-                  branchList.map((branch) => {
-                    const branchInfo = {
-                      name: `${branch} Branch`,
+            {/* Branch selection */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Select Branches to Import</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {branchList.map(branch => (
+                  <BranchCard
+                    key={branch}
+                    branch={branch}
+                    isContextBranch={selectedBranch === branch}
+                    isSelected={selectedBranches.includes(branch)}
+                    onSelect={handleBranchSelect}
+                    branchInfo={{
+                      name: branch,
                       color: getBranchColorClass(branch),
-                      description: branch === selectedBranch ? 'Current branch' : '',
+                      description: branch === repository?.default_branch ? 'Default branch' : '',
                       maintainer: '',
-                      githubUrl: ''
-                    };
-                    
-                    return (
-                      <BranchCard
-                        key={branch}
-                        branch={branch}
-                        isContextBranch={branch === selectedBranch}
-                        isSelected={selectedBranches.includes(branch)}
-                        onSelect={handleBranchSelect}
-                        branchInfo={branchInfo}
-                      />
-                    );
-                  })
-                )}
+                      githubUrl: repository ? `${repository.html_url}/tree/${branch}` : ''
+                    }}
+                  />
+                ))}
               </div>
             </div>
             
-            {/* Selected branches content */}
+            {/* Selected branches */}
             {selectedBranches.length > 0 && (
               <div className="space-y-4">
                 <h4 className="text-sm font-medium">Selected branches:</h4>
@@ -1862,70 +1942,82 @@ export const ImportPanel: React.FC = () => {
                 
                 {/* Select another branch button */}
                 {selectedBranches.length < branchList.length && (
-                  <div className="flex justify-center">
-                    <button 
-                      className="flex items-center gap-1 text-sm text-primary hover:underline"
+                  <div className="text-center">
+                    <button
+                      className="text-primary hover:text-primary/80 text-sm font-medium"
                       onClick={() => {
-                        // Show branches selection UI
-                        const availableBranches = branchList.filter(
-                          branch => !selectedBranches.includes(branch)
-                        );
-                        
-                        if (availableBranches.length > 0) {
-                          setSelectedBranches([...selectedBranches, availableBranches[0]]);
+                        const remainingBranches = branchList.filter(b => !selectedBranches.includes(b));
+                        if (remainingBranches.length > 0) {
+                          handleBranchSelect(remainingBranches[0]);
                         }
                       }}
                     >
-                      <PlusCircle size={14} />
-                      Add Another Branch
+                      + Add Another Branch
                     </button>
                   </div>
                 )}
-                
-                {/* Import summary and button */}
-                <div className="flex items-center justify-between pt-4 mt-4 border-t border-border">
-                  <div className="text-sm">
-                    {hasSelections ? (
-                      <span>
-                        Total selected: {totalFiles > 0 && `${totalFiles} file${totalFiles !== 1 ? 's' : ''}`}
-                        {totalFiles > 0 && totalFolders > 0 && ', '}
-                        {totalFolders > 0 && `${totalFolders} folder${totalFolders !== 1 ? 's' : ''}`}
-                        {` from ${selectedBranches.length} branch${selectedBranches.length > 1 ? 'es' : ''}`}
-                        {selectedFileContents.length > 0 && (
-                          <span className="text-muted-foreground ml-2">
-                            • {selectedFileContents.length} file{selectedFileContents.length !== 1 ? 's' : ''} with content
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      <span>No items selected from any branch</span>
-                    )}
-                  </div>
-                  <button 
-                    className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!hasSelections}
-                    onClick={handleImport}
-                  >
-                    Import Selected Items
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {selectedBranches.length === 0 && (
-              <div className="p-8 text-center border border-dashed border-border rounded-lg">
-                <GitBranch size={40} className="mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">
-                  {branchList.length > 0 
-                    ? "Select one or more branches to view and import their files"
-                    : "No branches available for import"
-                  }
-                </p>
               </div>
             )}
           </div>
         )}
       </AnimatedTransition>
+      
+      {/* Global Import Button */}
+      {selectedSource && (
+        <div className="mt-6 border-t border-border pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium">Import to Knowledge Base</h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                {(() => {
+                  switch (selectedSource) {
+                    case 'control-panel':
+                      return hasSelectedDataTypes() 
+                        ? `${getSelectedDataCount()} items from ${getBranchDisplayName(selectedBranchFilter)}`
+                        : "Select at least one data type to import";
+                    case 'branch':
+                      return hasSelections 
+                        ? `${totalFiles} files and ${totalFolders} folders from ${selectedBranches.length} branch(es)`
+                        : "Select files and folders to import";
+                    case 'text':
+                      return textTitle && textContent 
+                        ? `"${textTitle}" content`
+                        : "Enter title and content to import";
+                    case 'file':
+                      return selectedFileContents.length > 0 
+                        ? `${selectedFileContents.length} file(s)`
+                        : "Select files to import";
+                    default:
+                      return "Ready to import data";
+                  }
+                })()}
+              </p>
+            </div>
+            
+            <button 
+              className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              disabled={(() => {
+                switch (selectedSource) {
+                  case 'control-panel':
+                    return !hasSelectedDataTypes();
+                  case 'branch':
+                    return !hasSelections;
+                  case 'text':
+                    return !textTitle.trim() || !textContent.trim();
+                  case 'file':
+                    return selectedFileContents.length === 0;
+                  default:
+                    return false;
+                }
+              })()}
+              onClick={handleImport}
+            >
+              <Database size={16} />
+              Import to Knowledge Base
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

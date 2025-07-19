@@ -7,6 +7,7 @@ import { Chat, ChatMessage } from '@/types/chat';
 import { generateId, createNewChat as createNewChatUtil } from '@/utils/chatUtils';
 import { useBranch } from '@/contexts/BranchContext';
 import { useRepository } from '@/contexts/RepositoryContext';
+import { aiService } from '@/lib/ai-service';
 import ChatSidebar from './ChatSidebar';
 import ChatMessages from './ChatMessages';
 import ChatInput from './ChatInput';
@@ -80,8 +81,29 @@ export const Search: React.FC = () => {
     setIsEditingTitle(null);
   };
 
+  // Generate AI response using multi-agent system
+  const generateAIResponse = async (userQuery: string): Promise<string> => {
+    try {
+      const response = await aiService.chat({
+        message: userQuery,
+        repository_id: repository?.full_name || 'default',
+        branch: selectedBranch || 'main'
+      });
+      
+      if (response.success && response.answer) {
+        return response.answer;
+      } else {
+        return `I encountered an error while processing your request: ${response.error}. Please try again or contact support if the issue persists.`;
+      }
+      
+    } catch (error) {
+      console.error('Chat API error:', error);
+      return `I'm having trouble connecting to my knowledge base right now. Please check your internet connection and try again. If the problem persists, you may need to import some data first.`;
+    }
+  };
+
   // Handle message submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim() && activeChat) {
       // Create user message
@@ -121,30 +143,60 @@ export const Search: React.FC = () => {
       if (updatedActiveChat) {
         setActiveChat(updatedActiveChat);
         
-        // Add AI response after a short delay with branch-specific context
-        setTimeout(() => {
-          const aiMessage: ChatMessage = {
-            id: generateId(),
-            type: 'assistant',
-            content: `Based on your search for "${userMessage.content}" in the ${selectedBranch} branch of ${projectName}, I found several relevant notes in your second brain. Would you like me to summarize the key insights specific to this branch?`,
-            timestamp: new Date()
-          };
-          
-          const updatedChatsWithAi = updatedChats.map(chat => {
-            if (chat.id === activeChat.id) {
-              return {
-                ...chat,
-                messages: [...chat.messages, aiMessage],
-                updatedAt: new Date()
-              };
+        // Add AI response after a short delay
+        setTimeout(async () => {
+          try {
+            const aiResponse = await generateAIResponse(userMessage.content);
+            
+            const aiMessage: ChatMessage = {
+              id: generateId(),
+              type: 'assistant',
+              content: aiResponse,
+              timestamp: new Date()
+            };
+            
+            const updatedChatsWithAi = updatedChats.map(chat => {
+              if (chat.id === activeChat.id) {
+                return {
+                  ...chat,
+                  messages: [...chat.messages, aiMessage],
+                  updatedAt: new Date()
+                };
+              }
+              return chat;
+            });
+            
+            setChats(updatedChatsWithAi);
+            const updatedActiveChatWithAi = updatedChatsWithAi.find(chat => chat.id === activeChat.id);
+            if (updatedActiveChatWithAi) {
+              setActiveChat(updatedActiveChatWithAi);
             }
-            return chat;
-          });
-          
-          setChats(updatedChatsWithAi);
-          const updatedActiveChatWithAi = updatedChatsWithAi.find(chat => chat.id === activeChat.id);
-          if (updatedActiveChatWithAi) {
-            setActiveChat(updatedActiveChatWithAi);
+          } catch (error) {
+            console.error('Error generating AI response:', error);
+            
+            const errorMessage: ChatMessage = {
+              id: generateId(),
+              type: 'assistant',
+              content: 'I encountered an error while processing your request. Please try again.',
+              timestamp: new Date()
+            };
+            
+            const updatedChatsWithError = updatedChats.map(chat => {
+              if (chat.id === activeChat.id) {
+                return {
+                  ...chat,
+                  messages: [...chat.messages, errorMessage],
+                  updatedAt: new Date()
+                };
+              }
+              return chat;
+            });
+            
+            setChats(updatedChatsWithError);
+            const updatedActiveChatWithError = updatedChatsWithError.find(chat => chat.id === activeChat.id);
+            if (updatedActiveChatWithError) {
+              setActiveChat(updatedActiveChatWithError);
+            }
           }
         }, 800);
       }

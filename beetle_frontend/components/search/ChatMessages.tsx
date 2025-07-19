@@ -17,9 +17,9 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ activeChat }) => {
         className="h-full flex items-center justify-center"
       >
         <div className="text-center space-y-2 max-w-md">
-          <h3 className="text-xl font-medium">Search Your Second Brain</h3>
+          <h3 className="text-xl font-medium">Chat with Beetle</h3>
           <p className="text-muted-foreground">
-            Ask questions to search across your notes, documents, and knowledge base.
+            Ask questions to search across your branches, documents, and knowledge base.
           </p>
         </div>
       </AnimatedTransition>
@@ -60,25 +60,6 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ activeChat }) => {
             </div>
           </div>
         ))}
-        
-        {(activeChat?.messages?.length ?? 0) > 0 && activeChat?.messages?.[activeChat.messages.length - 1]?.type === 'assistant' && (
-          <div className="p-4 glass-panel rounded-xl space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Suggested Results</h3>
-            <div className="space-y-3">
-              {['Artificial Intelligence', 'Machine Learning', 'Neural Networks'].map((result, index) => (
-                <div 
-                  key={index}
-                  className="p-3 hover:bg-primary/5 rounded-lg transition-all duration-200 cursor-pointer"
-                >
-                  <h4 className="font-medium">{result}</h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Related to your search query
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </AnimatedTransition>
     </div>
   );

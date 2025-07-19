@@ -17,6 +17,7 @@
     "validate:security": "node -e \"require('./src/utils/config-validator.cjs').validateOnStartup()\""
   },
   "dependencies": {
+    "@octokit/rest": "^20.0.2",
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
@@ -29,10 +30,10 @@
     "jsonwebtoken": "^9.0.2",
     "lowdb": "^6.1.1",
     "morgan": "^1.10.0",
+    "multer": "^2.0.2",
     "node-cache": "^5.1.2",
-    "uuid": "^9.0.1",
-    "@octokit/rest": "^20.0.2",
-    "playwright": "^1.40.0"
+    "playwright": "^1.40.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "jest": "^29.7.0",
