@@ -56,6 +56,33 @@ const publicRateLimit = (req, res, next) => {
   next();
 };
 
+// Utility function for exact word matching (case-insensitive)
+const isExactMatch = (searchQuery, targetString) => {
+  if (!searchQuery || !targetString) return false;
+  
+  const query = searchQuery.toLowerCase().trim();
+  const target = targetString.toLowerCase().trim();
+  
+  // Check for exact match of the full string
+  if (target === query) return true;
+  
+  // Check for exact word match within the string
+  const words = target.split(/\s+|[-._]/); // Split on spaces, hyphens, dots, underscores
+  return words.some(word => word === query);
+};
+
+// Filter search results for exact matches
+const filterExactMatches = (items, query, matchFields) => {
+  if (!query || !items || !Array.isArray(items)) return [];
+  
+  return items.filter(item => {
+    return matchFields.some(field => {
+      const value = field.split('.').reduce((obj, key) => obj?.[key], item);
+      return value && isExactMatch(query, value);
+    });
+  });
+};
+
 // PUBLIC ENDPOINTS (no authentication required)
 
 // Public search repositories
@@ -83,41 +110,112 @@ router.get('/public/search/repositories', [
     
     if (!demoToken) {
       // Return fallback results if no public token is available
-      return res.json({
-        total_count: 1,
-        incomplete_results: false,
-        items: [{
+      const fallbackRepos = [
+        {
           id: 1,
-          name: `${q}-example`,
-          full_name: `example/${q}-example`,
+          name: "next.js",
+          full_name: "vercel/next.js",
           owner: {
-            login: 'example',
+            login: 'vercel',
             id: 1,
-            avatar_url: 'https://github.com/github.png',
+            avatar_url: 'https://github.com/vercel.png',
             type: 'Organization',
-            html_url: 'https://github.com/example'
+            html_url: 'https://github.com/vercel'
           },
           private: false,
-          html_url: `https://github.com/example/${q}-example`,
-          description: `Example repository for ${q}. Sign in to GitHub to see real search results.`,
+          html_url: "https://github.com/vercel/next.js",
+          description: "The React Framework for the Web. Used by some of the world's largest companies, Next.js enables you to create full-stack web applications.",
           fork: false,
-          url: `https://api.github.com/repos/example/${q}-example`,
+          url: "https://api.github.com/repos/vercel/next.js",
           created_at: '2023-01-01T00:00:00Z',
           updated_at: '2024-01-01T00:00:00Z',
           pushed_at: '2024-01-01T00:00:00Z',
-          clone_url: `https://github.com/example/${q}-example.git`,
-          stargazers_count: 1000,
-          watchers_count: 1000,
-          language: 'JavaScript',
-          forks_count: 200,
+          clone_url: "https://github.com/vercel/next.js.git",
+          stargazers_count: 120000,
+          watchers_count: 120000,
+          language: 'TypeScript',
+          forks_count: 26000,
           archived: false,
           disabled: false,
-          open_issues_count: 5,
+          open_issues_count: 1200,
           license: { key: 'mit', name: 'MIT License' },
           allow_forking: true,
           default_branch: 'main',
           score: 1.0
-        }],
+        },
+        {
+          id: 2,
+          name: "react",
+          full_name: "facebook/react",
+          owner: {
+            login: 'facebook',
+            id: 2,
+            avatar_url: 'https://github.com/facebook.png',
+            type: 'Organization',
+            html_url: 'https://github.com/facebook'
+          },
+          private: false,
+          html_url: "https://github.com/facebook/react",
+          description: "The library for web and native user interfaces",
+          fork: false,
+          url: "https://api.github.com/repos/facebook/react",
+          created_at: '2023-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          pushed_at: '2024-01-01T00:00:00Z',
+          clone_url: "https://github.com/facebook/react.git",
+          stargazers_count: 220000,
+          watchers_count: 220000,
+          language: 'JavaScript',
+          forks_count: 45000,
+          archived: false,
+          disabled: false,
+          open_issues_count: 800,
+          license: { key: 'mit', name: 'MIT License' },
+          allow_forking: true,
+          default_branch: 'main',
+          score: 1.0
+        },
+        {
+          id: 3,
+          name: "beetle",
+          full_name: "RAWx18/beetle",
+          owner: {
+            login: 'RAWx18',
+            id: 3,
+            avatar_url: 'https://github.com/RAWx18.png',
+            type: 'User',
+            html_url: 'https://github.com/RAWx18'
+          },
+          private: false,
+          html_url: "https://github.com/RAWx18/beetle",
+          description: "The Next-Generation Git Collaboration Platform with AI-Powered Branch Intelligence",
+          fork: false,
+          url: "https://api.github.com/repos/RAWx18/beetle",
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          pushed_at: '2024-01-01T00:00:00Z',
+          clone_url: "https://github.com/RAWx18/beetle.git",
+          stargazers_count: 4,
+          watchers_count: 4,
+          language: 'TypeScript',
+          forks_count: 1,
+          archived: false,
+          disabled: false,
+          open_issues_count: 2,
+          license: { key: 'mit', name: 'MIT License' },
+          allow_forking: true,
+          default_branch: 'main',
+          score: 1.0
+        }
+      ];
+
+      // Filter for exact matches only
+      const exactMatches = filterExactMatches(fallbackRepos, q, ['name', 'full_name', 'owner.login']);
+
+      return res.json({
+        total_count: exactMatches.length,
+        incomplete_results: false,
+        items: exactMatches,
         query: q,
         pagination: { sort, order, page, per_page }
       });
@@ -125,8 +223,13 @@ router.get('/public/search/repositories', [
 
     const searchResults = await searchRepositories(demoToken, q, sort, order, page, per_page);
     
+    // Filter GitHub API results for exact matches
+    const exactMatches = filterExactMatches(searchResults.items, q, ['name', 'full_name', 'owner.login']);
+    
     res.json({
-      ...searchResults,
+      total_count: exactMatches.length,
+      incomplete_results: false,
+      items: exactMatches,
       query: q,
       pagination: { sort, order, page, per_page }
     });
@@ -163,29 +266,76 @@ router.get('/public/search/users', [
     
     if (!demoToken) {
       // Return fallback user results
-      return res.json({
-        total_count: 1,
-        incomplete_results: false,
-        items: [{
-          login: `${q.toLowerCase()}user`,
+      const fallbackUsers = [
+        {
+          login: "vercel",
           id: 1,
-          avatar_url: 'https://github.com/github.png',
-          html_url: `https://github.com/${q.toLowerCase()}user`,
-          type: 'User',
-          name: `${q} User`,
-          company: 'Example Company',
-          blog: '',
+          avatar_url: 'https://github.com/vercel.png',
+          html_url: "https://github.com/vercel",
+          type: 'Organization',
+          name: "Vercel",
+          company: 'Vercel Inc.',
+          blog: 'https://vercel.com',
           location: 'San Francisco',
           email: null,
-          bio: `Example user for ${q}. Sign in to GitHub to see real search results.`,
-          public_repos: 10,
-          public_gists: 5,
-          followers: 100,
+          bio: "Develop. Preview. Ship. For the best frontend teams – https://vercel.com",
+          public_repos: 150,
+          public_gists: 0,
+          followers: 5000,
           following: 50,
           created_at: '2020-01-01T00:00:00Z',
           updated_at: '2024-01-01T00:00:00Z',
           score: 1.0
-        }],
+        },
+        {
+          login: "facebook",
+          id: 2,
+          avatar_url: 'https://github.com/facebook.png',
+          html_url: "https://github.com/facebook",
+          type: 'Organization',
+          name: "Facebook",
+          company: 'Meta',
+          blog: 'https://engineering.fb.com',
+          location: 'Menlo Park, CA',
+          email: null,
+          bio: "We are working to build community through open source technology.",
+          public_repos: 200,
+          public_gists: 0,
+          followers: 15000,
+          following: 0,
+          created_at: '2009-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          score: 1.0
+        },
+        {
+          login: "RAWx18",
+          id: 3,
+          avatar_url: 'https://github.com/RAWx18.png',
+          html_url: "https://github.com/RAWx18",
+          type: 'User',
+          name: "RAWx18",
+          company: null,
+          blog: '',
+          location: null,
+          email: null,
+          bio: "Developer focused on open source collaboration tools",
+          public_repos: 10,
+          public_gists: 2,
+          followers: 50,
+          following: 100,
+          created_at: '2022-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          score: 1.0
+        }
+      ];
+
+      // Filter for exact matches only
+      const exactMatches = filterExactMatches(fallbackUsers, q, ['login', 'name']);
+
+      return res.json({
+        total_count: exactMatches.length,
+        incomplete_results: false,
+        items: exactMatches,
         query: q,
         pagination: { sort, order, page, per_page }
       });
@@ -193,8 +343,13 @@ router.get('/public/search/users', [
 
     const searchResults = await searchUsers(demoToken, q, sort, order, page, per_page);
     
+    // Filter GitHub API results for exact matches
+    const exactMatches = filterExactMatches(searchResults.items, q, ['login', 'name']);
+    
     res.json({
-      ...searchResults,
+      total_count: exactMatches.length,
+      incomplete_results: false,
+      items: exactMatches,
       query: q,
       pagination: { sort, order, page, per_page }
     });
@@ -231,29 +386,76 @@ router.get('/public/search/organizations', [
     
     if (!demoToken) {
       // Return fallback organization results
-      return res.json({
-        total_count: 1,
-        incomplete_results: false,
-        items: [{
-          login: `${q.toLowerCase()}org`,
-          id: 2,
-          avatar_url: 'https://github.com/github.png',
-          html_url: `https://github.com/${q.toLowerCase()}org`,
+      const fallbackOrgs = [
+        {
+          login: "vercel",
+          id: 1,
+          avatar_url: 'https://github.com/vercel.png',
+          html_url: "https://github.com/vercel",
           type: 'Organization',
-          name: `${q} Organization`,
+          name: "Vercel",
           company: null,
-          blog: '',
+          blog: 'https://vercel.com',
           location: 'Global',
           email: null,
-          bio: `Example organization for ${q}. Sign in to GitHub to see real search results.`,
-          public_repos: 25,
+          bio: "Develop. Preview. Ship. For the best frontend teams",
+          public_repos: 150,
           public_gists: 0,
-          followers: 500,
+          followers: 5000,
           following: 0,
           created_at: '2018-01-01T00:00:00Z',
           updated_at: '2024-01-01T00:00:00Z',
           score: 1.0
-        }],
+        },
+        {
+          login: "microsoft",
+          id: 2,
+          avatar_url: 'https://github.com/microsoft.png',
+          html_url: "https://github.com/microsoft",
+          type: 'Organization',
+          name: "Microsoft",
+          company: null,
+          blog: 'https://opensource.microsoft.com',
+          location: 'Redmond, WA',
+          email: null,
+          bio: "Open source projects and samples from Microsoft",
+          public_repos: 4500,
+          public_gists: 0,
+          followers: 25000,
+          following: 0,
+          created_at: '2014-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          score: 1.0
+        },
+        {
+          login: "facebook",
+          id: 3,
+          avatar_url: 'https://github.com/facebook.png',
+          html_url: "https://github.com/facebook",
+          type: 'Organization',
+          name: "Facebook",
+          company: null,
+          blog: 'https://engineering.fb.com',
+          location: 'Menlo Park, CA',
+          email: null,
+          bio: "We are working to build community through open source technology.",
+          public_repos: 200,
+          public_gists: 0,
+          followers: 15000,
+          following: 0,
+          created_at: '2009-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          score: 1.0
+        }
+      ];
+
+      // Filter for exact matches only
+      const exactMatches = filterExactMatches(fallbackOrgs, q, ['login', 'name']);
+
+      return res.json({
+        total_count: exactMatches.length,
+        incomplete_results: false,
+        items: exactMatches,
         query: q,
         pagination: { sort, order, page, per_page }
       });
@@ -261,8 +463,13 @@ router.get('/public/search/organizations', [
 
     const searchResults = await searchOrganizations(demoToken, q, sort, order, page, per_page);
     
+    // Filter GitHub API results for exact matches
+    const exactMatches = filterExactMatches(searchResults.items, q, ['login', 'name']);
+    
     res.json({
-      ...searchResults,
+      total_count: exactMatches.length,
+      incomplete_results: false,
+      items: exactMatches,
       query: q,
       pagination: { sort, order, page, per_page }
     });
