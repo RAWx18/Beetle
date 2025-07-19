@@ -16,7 +16,7 @@ export default function ContributionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setUserFromCallback, isAuthenticated, token } = useAuth();
-  const { setRepository, repository } = useRepository();
+  const { setRepository, repository, isRepositoryLoaded } = useRepository();
   const repoProcessedRef = useRef(false);
 
   // Handle authentication parameters from OAuth callback
@@ -123,8 +123,13 @@ export default function ContributionPage() {
 
   // Set up demo repository if in demo mode and no repository is set
   useEffect(() => {
-    console.log('🔍 Demo repo setup check:', { isAuthenticated, token, hasRepository: !!repository, repoProcessed: repoProcessedRef.current });
-    if (isAuthenticated && token === 'demo-token' && !repository && !repoProcessedRef.current) {
+    console.log('🔍 Demo repo setup check:', { isAuthenticated, token, hasRepository: !!repository, repoProcessed: repoProcessedRef.current, isRepositoryLoaded });
+    // Only set demo repository if:
+    // 1. User is authenticated with demo token
+    // 2. No repository is currently set
+    // 3. Repository hasn't been processed from URL params
+    // 4. Repository context has finished loading (to avoid overriding restored repository)
+    if (isAuthenticated && token === 'demo-token' && !repository && !repoProcessedRef.current && isRepositoryLoaded) {
       console.log('Setting up demo repository for demo mode');
       const demoRepository = {
         name: 'beetle-app',
@@ -150,7 +155,7 @@ export default function ContributionPage() {
       repoProcessedRef.current = true;
       console.log('Demo repository set up:', demoRepository.name);
     }
-  }, [isAuthenticated, token, setRepository]);
+  }, [isAuthenticated, token, repository, isRepositoryLoaded, setRepository]);
 
   // Redirect to landing page if not authenticated and no auth params
   useEffect(() => {
