@@ -69,6 +69,9 @@ router.post('/import', authMiddleware, upload.array('files'), async (req, res) =
     const { repository_id, branch, source_type } = req.body;
     const files = req.files || [];
     
+    if (!Array.isArray(files)) {
+      return res.status(400).json({ error: 'Invalid files parameter: must be an array' });
+    }
     if (files.length === 0) {
       return res.status(400).json({ error: 'No files provided' });
     }
