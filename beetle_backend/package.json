@@ -4,9 +4,9 @@
   "description": "Backend for Beetle - Git-based collaboration with Branch-Level Intelligence",
   "main": "src/index.cjs",
   "scripts": {
-    "start": "node src/index.cjs",
-    "dev": "nodemon src/index.cjs",
-    "dev:stable": "node src/index.cjs",
+    "start": "node setup.js",
+    "dev": "nodemon setup.js",
+    "dev:stable": "node setup.js",
     "setup": "node setup-env.js",
     "setup:quick": "./create-env.sh",
     "test": "jest",
