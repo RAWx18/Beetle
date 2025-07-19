@@ -1095,7 +1095,7 @@ router.get('/repositories/:owner/:repo/branches/:branch', asyncHandler(async (re
     const branchPullRequests = pullRequests;
 
     // Debug logging
-    console.log(`[Branch Data] ${owner}/${repo}/${branch}:`, {
+    console.log('[Branch Data] %s/%s/%s:', owner, repo, branch, {
       commitsCount: commits.length,
       issuesCount: branchIssues.length,
       pullRequestsCount: branchPullRequests.length,
