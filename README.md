@@ -12,6 +12,11 @@
 [![Join Discord](https://img.shields.io/badge/Join%20us%20on-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/FkrWfGtZn3)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10871/badge)](https://www.bestpractices.dev/projects/10871)
 
+<a href="https://www.bestpractices.dev/projects/10871">
+  <img src="https://openssf.org/wp-content/uploads/2024/03/bestpracticesbadge.svg" width="120" alt="OpenSSF Best Practices"/>
+</a>
+
+
 [🚀 **Try Demo**](https://beetle-demo.vercel.app/) • [📖 **Documentation**](https://github.com/RAWx18/Beetle/README.md) • [💬 **Join Community**](https://discord.gg/FkrWfGtZn3)
 
 </div>
