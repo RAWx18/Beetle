@@ -11,15 +11,28 @@
 [![Under Development](https://img.shields.io/badge/Status-Under%20Development-yellow.svg?style=for-the-badge)](#)
 [![Join Discord](https://img.shields.io/badge/Join%20us%20on-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/FkrWfGtZn3)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10871/badge)](https://www.bestpractices.dev/projects/10871)
-
-<a href="https://www.bestpractices.dev/projects/10871">
-  <img src="https://openssf.org/wp-content/uploads/2024/03/bestpracticesbadge.svg" width="120" alt="OpenSSF Best Practices"/>
-</a>
-
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/RAWx18/Beetle/badge)](https://scorecard.dev/viewer/?uri=github.com/RAWx18/Beetle)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Ffossas%2Ffossa-cli.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Ffossas%2Ffossa-cli?ref=badge_shield)
 
 [🚀 **Try Demo**](https://beetle-demo.vercel.app/) • [📖 **Documentation**](https://github.com/RAWx18/Beetle/README.md) • [💬 **Join Community**](https://discord.gg/FkrWfGtZn3)
 
 </div>
+
+---
+
+<div align="center">
+  <h3>Security & Open Source Badge</h3>
+
+  <a href="https://www.bestpractices.dev/projects/10871" style="margin-right: 30px;">
+    <img src="https://openssf.org/wp-content/uploads/2024/03/bestpracticesbadge.svg" width="120" alt="OpenSSF Best Practices"/>
+  </a>
+
+  <a href="https://github.com/marketplace/actions/ossf-scorecard-action" style="margin-left: 30px;">
+    <img src="https://openssf.org/wp-content/uploads/2024/03/openssf_security_scorecards.png" width="60" alt="OSSF Scorecard Action"/>
+  </a>
+</div>
+
+
 
 ---
 
