@@ -1,0 +1,8 @@
+- name: OSSF Scorecard action
+  uses: ossf/scorecard-action@v2.4.2
+  with:
+    results_file: results.json
+    results_format: json
+    repo_token: ${{ secrets.GITHUB_TOKEN }}
+    publish_results: true
+    file_mode: archive
