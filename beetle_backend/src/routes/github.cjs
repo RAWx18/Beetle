@@ -291,6 +291,7 @@ router.get('/repositories', [
   }
 
   const { page = 1, per_page = 100 } = req.query;
+  console.log( "access token from protected endpoints: ", req.user.accessToken)
   const repositories = await getUserRepositories(req.user.accessToken, page, per_page);
 
   res.json({

@@ -9,10 +9,10 @@ from .base_agent import BaseAgent, AgentConfig, AgentResult
 
 
 class RetrievalAgentConfig(AgentConfig):
-    """Configuration for retrieval agent"""
+    """Configuration for retrieval agent with Qdrant Cloud support"""
     model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
-    qdrant_url: str = "localhost"
-    qdrant_port: int = 6333
+    qdrant_url: str = None  # Full Qdrant Cloud URL or localhost:port
+    qdrant_api_key: str = None  # Required for Qdrant Cloud
     collection_name: str = "documents"
     default_limit: int = 10
     max_limit: int = 50
@@ -39,13 +39,40 @@ class RetrievalAgent(BaseAgent):
             self.log_info("Embedding model loaded successfully")
     
     def connect_qdrant(self):
-        """Connect to Qdrant vector database"""
+        """Connect to Qdrant vector database (supports both local and Qdrant Cloud)"""
         if not self.qdrant_client:
-            self.log_info("Connecting to Qdrant for retrieval", url=self.config.qdrant_url, port=self.config.qdrant_port)
-            self.qdrant_client = QdrantClient(
-                host=self.config.qdrant_url,
-                port=self.config.qdrant_port
-            )
+            if not self.config.qdrant_url:
+                raise ValueError("QDRANT_URL environment variable is required")
+                
+            if 'cloud.qdrant.io' in self.config.qdrant_url:
+                # Qdrant Cloud connection
+                if not self.config.qdrant_api_key:
+                    raise ValueError("QDRANT_API_KEY is required for Qdrant Cloud")
+                    
+                self.log_info("Connecting to Qdrant Cloud", url=self.config.qdrant_url)
+                self.qdrant_client = QdrantClient(
+                    url=self.config.qdrant_url,
+                    api_key=self.config.qdrant_api_key
+                )
+            else:
+                # Local Qdrant connection (for backward compatibility)
+                port = 6333  # Default Qdrant port
+                host = self.config.qdrant_url
+                
+                # Handle URL format like 'localhost:6333'
+                if ':' in host:
+                    host, port_str = host.split(':', 1)
+                    try:
+                        port = int(port_str)
+                    except ValueError:
+                        self.log_warning(f"Invalid port in QDRANT_URL, using default port 6333")
+                
+                self.log_info("Connecting to local Qdrant", host=host, port=port)
+                self.qdrant_client = QdrantClient(
+                    host=host,
+                    port=port
+                )
+                
             self.log_info("Connected to Qdrant successfully")
     
     def compute_query_embedding(self, query: str) -> List[float]:

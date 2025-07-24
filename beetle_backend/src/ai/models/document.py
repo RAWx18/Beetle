@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 
@@ -23,6 +23,7 @@ class DocumentStatus(str, Enum):
 
 class RawDocument(BaseModel):
     """Raw document from ingestion agents"""
+    model_config = ConfigDict(protected_namespaces=())
     id: str = Field(..., description="Unique document ID")
     source_type: SourceType = Field(..., description="Type of source")
     source_url: Optional[str] = Field(None, description="Source URL or identifier")

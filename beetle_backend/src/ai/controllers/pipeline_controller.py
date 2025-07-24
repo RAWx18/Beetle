@@ -78,13 +78,14 @@ class PipelineController:
     
     def initialize_agents(self):
         """Initialize all agents"""
-        # GitHub fetcher
-        github_config = GitHubFetcherConfig(
-            name="github_fetcher",
-            github_token=self.config.github_token
-        )
-        self.agents['github_fetcher'] = GitHubFetcher(github_config)
-        
+        # GitHub fetcher (only initialize if token is provided)
+        if self.config.github_token:
+            github_config = GitHubFetcherConfig(
+                name="github_fetcher",
+                github_token=self.config.github_token
+            )
+            self.agents['github_fetcher'] = GitHubFetcher(github_config)
+            
         # Web scraper
         self.agents['web_scraper'] = WebScraper(self.config.web_scraper_config)
         
@@ -112,21 +113,27 @@ class PipelineController:
             
             # GitHub ingestion
             if 'github' in ingestion_data:
-                # Create a new GitHub fetcher with the provided token if available
-                if github_token:
-                    github_config = GitHubFetcherConfig(
-                        name="github_fetcher",
-                        github_token=github_token
-                    )
-                    github_fetcher = GitHubFetcher(github_config)
-                    github_result = github_fetcher.run(ingestion_data['github'])
+                if not self.config.github_token and not github_token:
+                    print("Warning: GitHub token not provided. Skipping GitHub ingestion.")
                 else:
-                    github_result = self.agents['github_fetcher'].run(ingestion_data['github'])
-                
-                if github_result.success:
-                    raw_documents.extend(github_result.data)
-                else:
-                    print(f"GitHub ingestion failed: {github_result.error_message}")
+                    # Create a new GitHub fetcher with the provided token if available
+                    if github_token:
+                        github_config = GitHubFetcherConfig(
+                            name="github_fetcher",
+                            github_token=github_token
+                        )
+                        github_fetcher = GitHubFetcher(github_config)
+                        github_result = github_fetcher.run(ingestion_data['github'])
+                    elif 'github_fetcher' in self.agents:
+                        github_result = self.agents['github_fetcher'].run(ingestion_data['github'])
+                    else:
+                        print("Error: GitHub fetcher not available")
+                        github_result = None
+                    
+                    if github_result and github_result.success:
+                        raw_documents.extend(github_result.data)
+                    elif github_result:
+                        print(f"GitHub ingestion failed: {github_result.error_message}")
             
             # Web scraping
             if 'web' in ingestion_data:

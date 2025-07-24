@@ -8,4 +8,5 @@ PyGithub
 playwright
 trafilatura
 google-generativeai
-dotenv
+python-dotenv
+tf-keras

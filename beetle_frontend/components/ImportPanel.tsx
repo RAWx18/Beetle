@@ -1510,7 +1510,7 @@ export const ImportPanel: React.FC = () => {
           github_token: token
         };
         
-        console.log('Sending import request for files:', filesToImport);
+        console.log('Sending import request for files:', JSON.stringify(importData));
         
         console.log(process.env.NEXT_PUBLIC_BACKEND_URL);
         const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai/import-github`, {

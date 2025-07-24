@@ -3,7 +3,7 @@ import uuid
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import base64
-from PyGithub import Github, GithubException
+from github import Github, GithubException
 from models.document import RawDocument, SourceType, DocumentStatus
 from .base_agent import BaseAgent, AgentConfig, AgentResult
 
@@ -32,11 +32,14 @@ class GitHubFetcher(BaseAgent):
     
     def __init__(self, config: GitHubFetcherConfig):
         super().__init__(config)
-        self.github = Github(config.github_token)
+        self.github = Github(config.github_token) if config.github_token else None
         self.config = config
     
     def validate_input(self, input_data: Dict[str, Any]) -> bool:
         """Validate GitHub input data"""
+        if not self.github:
+            return False
+            
         required_fields = ['repository', 'branch', 'paths']
         return all(field in input_data for field in required_fields)
     
