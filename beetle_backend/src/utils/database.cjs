@@ -308,6 +308,12 @@ setInterval(cleanupExpiredSessions, 60 * 60 * 1000);
 // OAuth State Management
 const storeOAuthState = async (state, data) => {
   const database = getDatabase();
+  
+  // Ensure oauthStates exists
+  if (!database.data.oauthStates) {
+    database.data.oauthStates = {};
+  }
+  
   database.data.oauthStates[state] = {
     ...data,
     timestamp: Date.now(),

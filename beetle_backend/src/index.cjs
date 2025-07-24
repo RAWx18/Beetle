@@ -71,7 +71,8 @@ app.use(morgan('combined'));
 // Rate limiting
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
+  max: process.env.NODE_ENV === 'development' ? 100000 : (parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100), // much higher limit for dev
+  skip: (req) => req.ip === '127.0.0.1' || req.ip === '::1', // skip for localhost
   message: {
     error: 'Too many requests from this IP, please try again later.'
   },

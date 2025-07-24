@@ -153,6 +153,12 @@ package-lock.json
 # npm cache
 .npm/
 
+venv
+.venv
+
+**/__pycache__
+
+
 #######################################
 # 🧪 TESTING / COVERAGE
 #######################################

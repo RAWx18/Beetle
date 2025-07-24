@@ -32,6 +32,7 @@
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
     "node-cache": "^5.1.2",
+    "octokit": "^5.0.3",
     "playwright": "^1.40.0",
     "uuid": "^9.0.1"
   },
