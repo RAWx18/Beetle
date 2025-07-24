@@ -215,7 +215,7 @@ router.post('/import-github', authMiddleware, async (req, res) => {
     if (!Array.isArray(files) || files.length === 0) {
       return res.status(400).json({ 
         success: false,
-        error: 'No files specified for import' 
+        error: 'No files specified  import' 
       });
     }
 
