@@ -117,33 +117,48 @@ router.post('/import', authMiddleware, upload.array('files'), async (req, res) =
 // Import GitHub data (PRs, issues, files, etc.)
 router.post('/import-github', authMiddleware, async (req, res) => {
   try {
-    const { repository_id, branch, data_types, github_token, files, source_type = 'github' } = req.body;
+    const { repository, branch, data_types, github_token, files, source_type = 'github', repository_id } = req.body;
     
     if (!github_token) {
       return res.status(400).json({ error: 'GitHub token is required' });
     }
+
+    if (!repository) {
+      return res.status(400).json({ error: 'GitHub repository is required (format: owner/repo)' });
+    }
     
     // Prepare data for Python pipeline
     const importData = {
-      repository_id: repository_id || 'default',
+      repository: repository,
+      repository_id: repository_id || repository.replace(/[^a-zA-Z0-9_-]/g, '_'),
       branch: branch || 'main',
       source_type: source_type,
-      github_token: github_token
+      github_token: github_token,
+      files: [],
+      data_types: []
     };
 
     // Handle file imports if files are provided
     if (Array.isArray(files) && files.length > 0) {
-      importData.files = files;
+      importData.files = files.map(file => ({
+        path: file.path || file,
+        branch: file.branch || branch || 'main'
+      }));
+      importData.data_types.push('files');
+    } 
+    
+    // Add other data types if specified
+    if (Array.isArray(data_types) && data_types.length > 0) {
+      importData.data_types = [...new Set([...importData.data_types, ...data_types])];
+    }
+    
+    // Default to files only if no data types specified
+    if (importData.data_types.length === 0) {
       importData.data_types = ['files'];
-    } else if (Array.isArray(data_types) && data_types.length > 0) {
-      // Handle other data types (PRs, issues, etc.)
-      importData.data_types = data_types;
-    } else {
-      // Default to all data types if none specified
-      importData.data_types = ['pull_requests', 'issues', 'activities', 'files'];
     }
     
     console.log('Importing GitHub data with config:', {
+      repository: importData.repository,
       repository_id: importData.repository_id,
       branch: importData.branch,
       source_type: importData.source_type,
@@ -157,13 +172,14 @@ router.post('/import-github', authMiddleware, async (req, res) => {
     if (result.success) {
       res.json({
         success: true,
-        message: 'Successfully imported GitHub data',
+        message: `Successfully imported ${result.data.files_imported || 0} files from GitHub`,
         data: result.data
       });
     } else {
       res.status(500).json({
         success: false,
-        error: result.error || 'Failed to import GitHub data'
+        error: result.error || 'Failed to import GitHub data',
+        details: result.details
       });
     }
     
@@ -176,10 +192,10 @@ router.post('/import-github', authMiddleware, async (req, res) => {
   }
 });
 
-// Chat endpoint using multi-agent system
+// Chat endpoint using multi-agent system with RAG integration
 router.post('/chat', authMiddleware, async (req, res) => {
   try {
-    const { message, repository_id, branch, context_results } = req.body;
+    const { message, repository_id, branch, context_results, chat_history } = req.body;
     
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
@@ -190,31 +206,57 @@ router.post('/chat', authMiddleware, async (req, res) => {
       message: message,
       repository_id: repository_id || 'default',
       branch: branch || 'main',
-      context_results: context_results || []
+      context_results: context_results || [],
+      chat_history: chat_history || [],
+      max_tokens: 500,
+      temperature: 0.7
     };
+    
+    console.log('Processing chat request with data:', {
+      repository_id: chatData.repository_id,
+      branch: chatData.branch,
+      message_length: message.length,
+      context_results_count: chatData.context_results?.length || 0,
+      chat_history_length: chatData.chat_history?.length || 0
+    });
     
     // Call Python chat pipeline
     const result = await callPythonPipeline('chat', chatData);
     
     if (result.success) {
-      res.json({
+      // Add metadata to the response
+      const response = {
         success: true,
-        answer: result.data.answer,
-        sources: result.data.sources,
-        confidence: result.data.confidence
+        message: result.data.answer,
+        sources: result.data.sources || [],
+        context: result.data.context || [],
+        metadata: {
+          model: result.data.metadata?.model || 'gemini-2.0-flash',
+          tokens_used: result.data.metadata?.tokens_used || 0,
+          processing_time: result.data.metadata?.processing_time || 0
+        }
+      };
+      
+      console.log('Chat response prepared:', {
+        response_length: response.message?.length || 0,
+        sources_count: response.sources?.length || 0,
+        context_count: response.context?.length || 0
       });
+      
+      res.json(response);
     } else {
       res.status(500).json({
         success: false,
-        error: result.error || 'Failed to generate response'
+        error: result.error || 'Failed to process chat message',
+        details: result.details
       });
     }
-    
   } catch (error) {
     console.error('Chat error:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
+      details: error.details
     });
   }
 });

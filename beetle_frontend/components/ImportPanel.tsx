@@ -1512,8 +1512,8 @@ export const ImportPanel: React.FC = () => {
         
         console.log('Sending import request for files:', filesToImport);
         
-        console.log(process.env.BACKEND_URL);
-        const response = await fetch(`${process.env.BACKEND_URL}/api/ai/import-github`, {
+        console.log(process.env.NEXT_PUBLIC_BACKEND_URL);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai/import-github`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

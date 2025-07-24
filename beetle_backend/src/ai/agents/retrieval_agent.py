@@ -4,7 +4,7 @@ from datetime import datetime
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue, Range
-from ..models.document import SearchQuery, SearchResult, SourceType
+from models.document import SearchQuery, SearchResult, SourceType
 from .base_agent import BaseAgent, AgentConfig, AgentResult
 
 

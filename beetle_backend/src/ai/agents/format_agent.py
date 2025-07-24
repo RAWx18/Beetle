@@ -5,7 +5,7 @@ from datetime import datetime
 import html
 from bs4 import BeautifulSoup
 import langdetect
-from ..models.document import RawDocument, NormalizedDocument, SourceType, DocumentStatus
+from models.document import RawDocument, NormalizedDocument, SourceType, DocumentStatus
 from .base_agent import BaseAgent, AgentConfig, AgentResult
 
 

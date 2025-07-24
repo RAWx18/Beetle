@@ -4,7 +4,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import base64
 from PyGithub import Github, GithubException
-from ..models.document import RawDocument, SourceType, DocumentStatus
+from models.document import RawDocument, SourceType, DocumentStatus
 from .base_agent import BaseAgent, AgentConfig, AgentResult
 
 

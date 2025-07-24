@@ -8,3 +8,4 @@ PyGithub
 playwright
 trafilatura
 google-generativeai
+dotenv

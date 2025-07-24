@@ -156,11 +156,12 @@ class PipelineBridge:
             }
     
     async def handle_import_github(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle GitHub data import including file imports"""
+        """Handle GitHub data import including file imports with RAG integration"""
         try:
-            repository_id = data.get('repository_id', 'default')
+            repository = data.get('repository', '')
+            repository_id = data.get('repository_id', '')
             branch = data.get('branch', 'main')
-            data_types = data.get('data_types', [])
+            data_types = data.get('data_types', ['files'])
             github_token = data.get('github_token')
             files_to_import = data.get('files', [])
             source_type = data.get('source_type', 'github')
@@ -168,36 +169,76 @@ class PipelineBridge:
             if not github_token:
                 return {
                     'success': False,
-                    'error': 'GitHub token is required'
+                    'error': 'GitHub token is required',
+                    'details': 'No GitHub token provided in the request'
                 }
+                
+            if not repository and not repository_id:
+                return {
+                    'success': False,
+                    'error': 'Repository name or ID is required',
+                    'details': 'Either repository or repository_id must be provided'
+                }
+                
+            # Generate repository ID if not provided
+            if not repository_id:
+                repository_id = repository.replace('/', '_').lower()
             
-            # Handle file imports if files are specified
-            if files_to_import and 'files' not in data_types:
-                data_types.append('files')
+            # Prepare GitHub fetcher configuration
+            github_config = GitHubFetcherConfig(
+                name="github_fetcher",
+                repository=repository,
+                branch=branch,
+                data_types=data_types,
+                max_items=100,
+                file_extensions=['.py', '.js', '.ts', '.jsx', '.tsx', '.md', '.txt'],
+                exclude_dirs=['node_modules', '__pycache__', '.git', 'venv', '.github'],
+                max_file_size=1024 * 1024,  # 1MB
+                include_files=[f['path'] for f in files_to_import] if files_to_import else None
+            )
             
-            # Prepare GitHub ingestion data
+            # Prepare ingestion data
             ingestion_data = {
                 'github': {
+                    'repository': repository,
                     'repository_id': repository_id,
                     'branch': branch,
                     'data_types': data_types,
                     'max_items': 100,
-                    'files': files_to_import if files_to_import else None
+                    'files': files_to_import,
+                    'config': github_config.dict()
                 }
             }
+            
+            print(f"Starting GitHub import for {repository} (ID: {repository_id}) on branch {branch}")
+            print(f"Data types: {data_types}")
+            if files_to_import:
+                print(f"Files to import: {[f.get('path', '') for f in files_to_import]}")
             
             # Run the full pipeline with the token
             results = await self.pipeline.run_full_pipeline(ingestion_data, github_token)
             
-            # Check if all stages succeeded
-            success = all(result.success for result in results)
+            # Process results
+            success = all(result.success for result in results) if results else False
+            files_imported = 0
+            errors = []
+            
+            if results:
+                for result in results:
+                    if not result.success:
+                        errors.append(result.error_message or 'Unknown error')
+                    if hasattr(result, 'data') and 'documents_processed' in result.data:
+                        files_imported += result.data.get('documents_processed', 0)
             
             if success:
                 # Collect statistics about the import
                 stats = {
+                    'repository': repository,
                     'repository_id': repository_id,
                     'branch': branch,
                     'data_types': data_types,
+                    'files_imported': files_imported,
+                    'success': True,
                     'stages_completed': len(results),
                     'source_type': source_type
                 }

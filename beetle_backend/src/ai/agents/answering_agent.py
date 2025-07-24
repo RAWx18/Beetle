@@ -3,7 +3,7 @@ import re
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import google.generativeai as genai
-from ..models.document import ChatResponse, SearchResult
+from models.document import ChatResponse, SearchResult
 from .base_agent import BaseAgent, AgentConfig, AgentResult
 
 

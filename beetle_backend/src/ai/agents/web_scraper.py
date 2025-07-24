@@ -5,7 +5,7 @@ import asyncio
 from playwright.async_api import async_playwright, Browser, Page
 import trafilatura
 from urllib.parse import urljoin, urlparse
-from ..models.document import RawDocument, SourceType, DocumentStatus
+from models.document import RawDocument, SourceType, DocumentStatus
 from .base_agent import BaseAgent, AgentConfig, AgentResult
 
 

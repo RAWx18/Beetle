@@ -5,17 +5,17 @@ from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
 
-from ..models.document import (
+from models.document import (
     RawDocument, NormalizedDocument, EmbeddedDocument,
     SearchQuery, SearchResult, ChatRequest, ChatResponse
 )
-from ..agents.github_fetcher import GitHubFetcher, GitHubFetcherConfig
-from ..agents.web_scraper import WebScraper, WebScraperConfig
-from ..agents.format_agent import FormatAgent, FormatAgentConfig
-from ..agents.embedding_agent import EmbeddingAgent, EmbeddingAgentConfig
-from ..agents.retrieval_agent import RetrievalAgent, RetrievalAgentConfig
-from ..agents.prompt_rewriter import PromptRewriter, PromptRewriterConfig
-from ..agents.answering_agent import AnsweringAgent, AnsweringAgentConfig
+from agents.github_fetcher import GitHubFetcher, GitHubFetcherConfig
+from agents.web_scraper import WebScraper, WebScraperConfig
+from agents.format_agent import FormatAgent, FormatAgentConfig
+from agents.embedding_agent import EmbeddingAgent, EmbeddingAgentConfig
+from agents.retrieval_agent import RetrievalAgent, RetrievalAgentConfig
+from agents.prompt_rewriter import PromptRewriter, PromptRewriterConfig
+from agents.answering_agent import AnsweringAgent, AnsweringAgentConfig
 
 
 class PipelineStage(str, Enum):

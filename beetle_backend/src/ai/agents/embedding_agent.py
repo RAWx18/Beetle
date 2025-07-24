@@ -4,7 +4,7 @@ from datetime import datetime
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
-from ..models.document import NormalizedDocument, EmbeddedDocument, SourceType, DocumentStatus
+from models.document import NormalizedDocument, EmbeddedDocument, SourceType, DocumentStatus
 from .base_agent import BaseAgent, AgentConfig, AgentResult
 
 
