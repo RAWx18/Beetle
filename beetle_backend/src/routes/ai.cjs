@@ -297,7 +297,7 @@ router.post('/import-github', authMiddleware, async (req, res) => {
       console.log("payload: ", payload);
       // Send to Python backend for RAG processing
       const result = await callPythonBackend('process-repo', payload);
-      
+      console.log("result: ", result);
       return res.json({
         success: true,
         message: `Successfully processed ${processedFiles.length} files from GitHub`,
