@@ -729,6 +729,7 @@ router.get('/notes', asyncHandler(async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 }));
+
 router.post('/notes', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -746,6 +747,7 @@ router.post('/notes', asyncHandler(async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 }));
+
 router.put('/notes/:id', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -763,6 +765,7 @@ router.put('/notes/:id', asyncHandler(async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 }));
+
 router.delete('/notes/:id', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -779,6 +782,7 @@ router.delete('/notes/:id', asyncHandler(async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 }));
+
 // Saved Filters CRUD
 router.get('/filters', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -794,6 +798,7 @@ router.get('/filters', asyncHandler(async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 }));
+
 router.post('/filters', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -811,6 +816,7 @@ router.post('/filters', asyncHandler(async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 }));
+
 router.put('/filters/:id', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -828,6 +834,7 @@ router.put('/filters/:id', asyncHandler(async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 }));
+
 router.delete('/filters/:id', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -844,6 +851,7 @@ router.delete('/filters/:id', asyncHandler(async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 }));
+
 // Pinned Items CRUD
 router.get('/pins', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -859,6 +867,7 @@ router.get('/pins', asyncHandler(async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 }));
+
 router.post('/pins', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -876,6 +885,7 @@ router.post('/pins', asyncHandler(async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 }));
+
 router.delete('/pins/:id', asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

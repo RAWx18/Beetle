@@ -156,12 +156,14 @@ class PipelineBridge:
             }
     
     async def handle_import_github(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle GitHub data import"""
+        """Handle GitHub data import including file imports"""
         try:
             repository_id = data.get('repository_id', 'default')
             branch = data.get('branch', 'main')
-            data_types = data.get('data_types', ['pull_requests', 'issues', 'activities'])
+            data_types = data.get('data_types', [])
             github_token = data.get('github_token')
+            files_to_import = data.get('files', [])
+            source_type = data.get('source_type', 'github')
             
             if not github_token:
                 return {
@@ -169,31 +171,44 @@ class PipelineBridge:
                     'error': 'GitHub token is required'
                 }
             
+            # Handle file imports if files are specified
+            if files_to_import and 'files' not in data_types:
+                data_types.append('files')
+            
             # Prepare GitHub ingestion data
             ingestion_data = {
                 'github': {
                     'repository_id': repository_id,
                     'branch': branch,
                     'data_types': data_types,
-                    'max_items': 100
+                    'max_items': 100,
+                    'files': files_to_import if files_to_import else None
                 }
             }
             
-            # Run the full pipeline
+            # Run the full pipeline with the token
             results = await self.pipeline.run_full_pipeline(ingestion_data, github_token)
             
             # Check if all stages succeeded
             success = all(result.success for result in results)
             
             if success:
+                # Collect statistics about the import
+                stats = {
+                    'repository_id': repository_id,
+                    'branch': branch,
+                    'data_types': data_types,
+                    'stages_completed': len(results),
+                    'source_type': source_type
+                }
+                
+                # Add file import stats if applicable
+                if files_to_import:
+                    stats['files_imported'] = len(files_to_import)
+                
                 return {
                     'success': True,
-                    'data': {
-                        'repository_id': repository_id,
-                        'branch': branch,
-                        'data_types': data_types,
-                        'stages_completed': len(results)
-                    }
+                    'data': stats
                 }
             else:
                 failed_stages = [result.stage for result in results if not result.success]

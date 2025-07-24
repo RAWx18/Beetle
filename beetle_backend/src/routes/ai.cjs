@@ -114,10 +114,10 @@ router.post('/import', authMiddleware, upload.array('files'), async (req, res) =
   }
 });
 
-// Import GitHub data (PRs, issues, etc.)
+// Import GitHub data (PRs, issues, files, etc.)
 router.post('/import-github', authMiddleware, async (req, res) => {
   try {
-    const { repository_id, branch, data_types, github_token } = req.body;
+    const { repository_id, branch, data_types, github_token, files, source_type = 'github' } = req.body;
     
     if (!github_token) {
       return res.status(400).json({ error: 'GitHub token is required' });
@@ -127,9 +127,29 @@ router.post('/import-github', authMiddleware, async (req, res) => {
     const importData = {
       repository_id: repository_id || 'default',
       branch: branch || 'main',
-      data_types: data_types || ['pull_requests', 'issues', 'activities'],
+      source_type: source_type,
       github_token: github_token
     };
+
+    // Handle file imports if files are provided
+    if (Array.isArray(files) && files.length > 0) {
+      importData.files = files;
+      importData.data_types = ['files'];
+    } else if (Array.isArray(data_types) && data_types.length > 0) {
+      // Handle other data types (PRs, issues, etc.)
+      importData.data_types = data_types;
+    } else {
+      // Default to all data types if none specified
+      importData.data_types = ['pull_requests', 'issues', 'activities', 'files'];
+    }
+    
+    console.log('Importing GitHub data with config:', {
+      repository_id: importData.repository_id,
+      branch: importData.branch,
+      source_type: importData.source_type,
+      data_types: importData.data_types,
+      file_count: importData.files ? importData.files.length : 0
+    });
     
     // Call Python GitHub ingestion pipeline
     const result = await callPythonPipeline('import-github', importData);

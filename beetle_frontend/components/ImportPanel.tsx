@@ -1396,13 +1396,27 @@ export const ImportPanel: React.FC = () => {
   };
 
   // Import selected items from all branches
+  // Interface for files to be imported
+  interface FileToImport {
+    path: string;
+    branch: string;
+  }
+
+  // Interface for file system item
+  interface FileSystemItem {
+    name: string;
+    type: 'file' | 'folder';
+    selected?: boolean;
+    children?: FileSystemItem[];
+  }
+
   const handleImport = async () => {
     setImportLoading(true);
     setImportError(null);
     
     try {
       let importResult;
-      
+      console.log('Selected source:', selectedSource);
       if (selectedSource === 'control-panel') {
         // Import GitHub data using multi-agent system
         const importData = {
@@ -1411,8 +1425,10 @@ export const ImportPanel: React.FC = () => {
           data_types: Object.keys(selectedDataTypes).filter(key => selectedDataTypes[key as keyof typeof selectedDataTypes]),
           github_token: token
         };
+
+        console.log('Importing data:', importData);
         
-        const response = await fetch('/api/ai/import-github', {
+        const response = await fetch(`${process.env.BACKEND_URL}/api/ai/import-github`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1437,12 +1453,73 @@ export const ImportPanel: React.FC = () => {
           formData.append('files', blob, file.path.split('/').pop() || 'file.txt');
         });
         
-        const response = await fetch('/api/ai/import', {
+        const response = await fetch(`${process.env.BACKEND_URL}/api/ai/import`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`
           },
           body: formData
+        });
+        
+        importResult = await response.json();
+        
+      } else if (selectedSource === 'branch') {
+        // Import branch files using multi-agent system
+        console.log('Importing branch files:', selectedBranches);
+        
+        // Get all selected file paths with their branches
+        const filesToImport: FileToImport[] = [];
+        
+        // Collect all selected files
+        const collectSelectedFiles = (items: FileSystemItem[], currentPath: string[] = [], currentBranch: string) => {
+          if (!items) return;
+          
+          items.forEach(item => {
+            const itemPath = [...currentPath, item.name].join('/');
+            
+            if (item.selected && item.type === 'file') {
+              filesToImport.push({
+                path: itemPath,
+                branch: currentBranch
+              });
+            }
+            
+            if (item.children) {
+              collectSelectedFiles(item.children, [...currentPath, item.name], currentBranch);
+            }
+          });
+        };
+        
+        // Collect files from each selected branch
+        selectedBranches.forEach(branch => {
+          const structure = branchFileStructures[branch];
+          if (structure) {
+            collectSelectedFiles(structure, [], branch);
+          }
+        });
+        
+        if (filesToImport.length === 0) {
+          throw new Error('No files selected for import');
+        }
+        
+        // Send import request to backend
+        const importData = {
+          repository_id: repository?.full_name || 'default',
+          source_type: 'github',
+          files: filesToImport,
+          github_token: token
+        };
+        
+        console.log('Sending import request for files:', filesToImport);
+        
+        console.log(process.env.BACKEND_URL);
+        const response = await fetch(`${process.env.BACKEND_URL}/api/ai/import-github`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(importData)
         });
         
         importResult = await response.json();
@@ -1458,7 +1535,7 @@ export const ImportPanel: React.FC = () => {
         const blob = new Blob([textContent], { type: 'text/plain' });
         formData.append('files', blob, `${textTitle}.txt`);
         
-        const response = await fetch('/api/ai/import', {
+        const response = await fetch(`${process.env.BACKEND_URL}}/api/ai/import`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`

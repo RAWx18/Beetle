@@ -116,16 +116,57 @@ class GitHubFetcher(BaseAgent):
         branch = input_data['branch']
         paths = input_data.get('paths', [''])
         repository_id = input_data.get('repository_id')
+        specific_files = input_data.get('files', [])
         
         self.log_info("Starting GitHub content fetch", 
-                     repository=repository, branch=branch, paths=paths)
+                     repository=repository, 
+                     branch=branch, 
+                     paths=paths,
+                     specific_files_count=len(specific_files) if specific_files else 0)
         
         try:
             # Get repository
             repo = self.github.get_repo(repository)
-            
             documents = []
             
+            # Handle specific files if provided
+            if specific_files:
+                self.log_info("Processing specific files", count=len(specific_files))
+                for file_path in specific_files:
+                    if not isinstance(file_path, str):
+                        file_path = file_path.get('path', '') if hasattr(file_path, 'get') else str(file_path)
+                    
+                    if not file_path:
+                        continue
+                        
+                    try:
+                        file_data = self.fetch_file_content(repo, file_path, branch)
+                        if file_data and file_data['content']:
+                            document = RawDocument(
+                                id=f"{repository_id}:{branch}:{file_path}",
+                                source_type=SourceType.GITHUB,
+                                source_url=file_data['url'],
+                                content=file_data['content'],
+                                metadata={
+                                    'path': file_data['path'],
+                                    'size': file_data['size'],
+                                    'sha': file_data['sha'],
+                                    'download_url': file_data['download_url'],
+                                    'repository': repository,
+                                    'branch': branch,
+                                    'imported_at': datetime.utcnow().isoformat()
+                                },
+                                repository_id=repository_id,
+                                branch=branch,
+                                status=DocumentStatus.RAW
+                            )
+                            documents.append(document)
+                    except Exception as e:
+                        self.log_error(f"Error processing file", path=file_path, error=str(e))
+                
+                return documents
+            
+            # Handle directory/path based imports
             for path in paths:
                 self.log_info("Fetching content from path", path=path)
                 
@@ -151,7 +192,7 @@ class GitHubFetcher(BaseAgent):
                 for file_data in files:
                     if file_data and file_data['content']:
                         document = RawDocument(
-                            id=str(uuid.uuid4()),
+                            id=f"{repository_id}:{branch}:{file_data['path']}",
                             source_type=SourceType.GITHUB,
                             source_url=file_data['url'],
                             content=file_data['content'],
@@ -161,7 +202,8 @@ class GitHubFetcher(BaseAgent):
                                 'sha': file_data['sha'],
                                 'download_url': file_data['download_url'],
                                 'repository': repository,
-                                'branch': branch
+                                'branch': branch,
+                                'imported_at': datetime.utcnow().isoformat()
                             },
                             repository_id=repository_id,
                             branch=branch,
