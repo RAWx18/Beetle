@@ -34,204 +34,6 @@
 
 ---
 
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js v16+ and npm/yarn
-- Python 3.9+
-- Qdrant database (cloud or local)
-- Git
-
-### Environment Variables
-
-### Backend Configuration
-
-#### Required Environment Variables
-
-Create a `.env` file in the `beetle_backend` directory with the following variables:
-
-```env
-# ========================
-# Server Configuration
-# ========================
-PORT=3001
-NODE_ENV=development
-
-# ========================
-# Database Configuration
-# ========================
-# Local JSON storage path
-DB_PATH=./data/beetle_db.json
-
-# ========================
-# Qdrant Vector Database
-# ========================
-QDRANT_URL=https://your-qdrant-instance:6333
-QDRANT_API_KEY=your_qdrant_api_key
-QDRANT_PORT=6333
-
-# ========================
-# Authentication
-# ========================
-# JWT Settings
-JWT_SECRET=generate_a_secure_random_string
-JWT_EXPIRES_IN=7d
-
-# GitHub OAuth
-GITHUB_CLIENT_ID=your_github_client_id
-GITHUB_CLIENT_SECRET=your_github_client_secret
-GITHUB_CALLBACK_URL=http://localhost:3001/api/auth/github/callback
-
-# ========================
-# Security
-# ========================
-# Comma-separated list of allowed origins
-ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001
-
-# ========================
-# Rate Limiting
-# ========================
-RATE_LIMIT_WINDOW_MS=900000  # 15 minutes
-RATE_LIMIT_MAX_REQUESTS=100   # Max requests per window
-
-# ========================
-# AI Configuration
-# ========================
-# Gemini API Key
-GEMINI_API_KEY=your_gemini_api_key
-
-# Cache Settings
-CACHE_TTL=3600  # 1 hour
-
-# ========================
-# AI Pipeline Settings
-# ========================
-# Document Processing
-AI_MAX_DOCUMENTS=1000
-AI_BATCH_SIZE=32
-AI_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-AI_CHAT_MODEL=gemini-2.0-flash
-
-# Web Scraping
-AI_MAX_PAGES=10
-AI_MAX_DEPTH=2
-AI_SCRAPER_TIMEOUT=30000  # 30 seconds
-
-# Content Formatting
-AI_MIN_CONTENT_LENGTH=50
-AI_MAX_CONTENT_LENGTH=100000
-AI_REMOVE_HTML=true
-AI_DETECT_LANGUAGE=true
-AI_GENERATE_SUMMARY=true
-
-# Vector Database
-AI_COLLECTION_NAME=documents
-
-# Search Configuration
-AI_USE_HYBRID_SEARCH=true
-AI_KEYWORD_WEIGHT=0.3
-AI_VECTOR_WEIGHT=0.7
-
-# Context Management
-AI_MAX_CONTEXT_LENGTH=4000
-AI_MAX_SOURCES=5
-AI_INCLUDE_CITATIONS=true
-AI_INCLUDE_CONFIDENCE=true
-
-# Response Generation
-AI_MAX_TOKENS=1000
-AI_TEMPERATURE=0.7
-AI_TOP_P=0.9
-AI_TOP_K=40
-
-# ========================
-# Service Integration
-# ========================
-# Python Backend URL
-PYTHON_SERVER=http://localhost:8000
-```
-
-> **Note**: Replace all placeholder values (starting with `your_`) with your actual configuration values.
-
-#### Frontend - `.env.local` in `beetle_frontend/`
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:3001
-NEXT_PUBLIC_APP_ENV=development
-```
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/Beetle.git
-   cd Beetle
-   ```
-
-2. **Setup Python Backend**
-   ```bash
-   # Navigate to backend directory
-   cd beetle_backend
-   
-   # Create and activate virtual environment
-   python -m venv venv
-   source venv/bin/activate  # On Windows: .\venv\Scripts\activate
-   
-   # Install dependencies
-   pip install -r requirements.txt
-   ```
-
-3. **Setup JavaScript Backend**
-   ```bash
-   # Navigate to backend directory
-   cd beetle_backend
-   
-   # Install dependencies
-   npm install
-   
-   # Copy .env.example to .env and update values
-   cp .env.example .env
-   ```
-
-4. **Setup Frontend**
-   ```bash
-   # Navigate to frontend directory
-   cd ../beetle_frontend
-   
-   # Install dependencies
-   npm install
-   
-   # Copy .env.local.example to .env.local and update values
-   cp .env.local.example .env.local
-   ```
-
-### Running the Application
-
-1. **Start Python Backend** (in a new terminal)
-   ```bash
-   cd beetle_backend
-   source venv/bin/activate  # On Windows: .\venv\Scripts\activate
-   uvicorn fastapi_server:app --host 0.0.0.0 --port 8000 --reload
-   ```
-
-2. **Start JavaScript Backend** (in a new terminal)
-   ```bash
-   cd beetle_backend
-   ./setup.bat # On windows
-   ./setup.sh # On linux
-   ```
-
-3. **Start Frontend** (in a new terminal)
-   ```bash
-   cd beetle_frontend
-   npm run dev
-   ```
-
-4. **Access the Application**
-   - Frontend: http://localhost:3000
-   - API Documentation: http://localhost:3001/api-docs
-
 ## 🌟 What is Beetle?
 
 <img src="beetle_frontend/public/mascott/mascott_4.png" width="200" height="200" align="right" alt="Beetle Mascot">
@@ -316,8 +118,8 @@ Cursor wrapped VS Code. Hugging Face wrapped Git. Now, GitHub Wrapper is here �
 
 ### Prerequisites
 
-- Node.js v16+ and npm/yarn
-- Python 3.9+
+- Node.js v18+ and npm/yarn
+- Python 3.11+
 - Qdrant database (cloud or local)
 - Git
 
@@ -325,180 +127,67 @@ Cursor wrapped VS Code. Hugging Face wrapped Git. Now, GitHub Wrapper is here �
 
 > Backend Configuration
 
-Create a `.env` file in the `beetle_backend` directory with the following variables:
+```bash
+cp beetle_backend/env.example beetle_backend/.env
+```
 
-```env
-# ========================
-# Server Configuration
-# ========================
-PORT=3001
-NODE_ENV=development
+> Frontend Configuration
 
-# ========================
-# Database Configuration
-# ========================
-# Local JSON storage path
-DB_PATH=./data/beetle_db.json
-
-# ========================
-# Qdrant Vector Database
-# ========================
-QDRANT_URL=https://your-qdrant-instance:6333
-QDRANT_API_KEY=your_qdrant_api_key
-QDRANT_PORT=6333
-
-# ========================
-# Authentication
-# ========================
-# JWT Settings
-JWT_SECRET=generate_a_secure_random_string
-JWT_EXPIRES_IN=7d
-
-# GitHub OAuth
-GITHUB_CLIENT_ID=your_github_client_id
-GITHUB_CLIENT_SECRET=your_github_client_secret
-GITHUB_CALLBACK_URL=http://localhost:3001/api/auth/github/callback
-
-# ========================
-# Security
-# ========================
-# Comma-separated list of allowed origins
-ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001
-
-# ========================
-# Rate Limiting
-# ========================
-RATE_LIMIT_WINDOW_MS=900000  # 15 minutes
-RATE_LIMIT_MAX_REQUESTS=100   # Max requests per window
-
-# ========================
-# AI Configuration
-# ========================
-# Gemini API Key
-GEMINI_API_KEY=your_gemini_api_key
-
-# Cache Settings
-CACHE_TTL=3600  # 1 hour
-
-# ========================
-# AI Pipeline Settings
-# ========================
-# Document Processing
-AI_MAX_DOCUMENTS=1000
-AI_BATCH_SIZE=32
-AI_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-AI_CHAT_MODEL=gemini-2.0-flash
-
-# Web Scraping
-AI_MAX_PAGES=10
-AI_MAX_DEPTH=2
-AI_SCRAPER_TIMEOUT=30000  # 30 seconds
-
-# Content Formatting
-AI_MIN_CONTENT_LENGTH=50
-AI_MAX_CONTENT_LENGTH=100000
-AI_REMOVE_HTML=true
-AI_DETECT_LANGUAGE=true
-AI_GENERATE_SUMMARY=true
-
-# Vector Database
-AI_COLLECTION_NAME=documents
-
-# Search Configuration
-AI_USE_HYBRID_SEARCH=true
-AI_KEYWORD_WEIGHT=0.3
-AI_VECTOR_WEIGHT=0.7
-
-# Context Management
-AI_MAX_CONTEXT_LENGTH=4000
-AI_MAX_SOURCES=5
-AI_INCLUDE_CITATIONS=true
-AI_INCLUDE_CONFIDENCE=true
-
-# Response Generation
-AI_MAX_TOKENS=1000
-AI_TEMPERATURE=0.7
-AI_TOP_P=0.9
-AI_TOP_K=40
-
-# ========================
-# Service Integration
-# ========================
-# Python Backend URL
-PYTHON_SERVER=http://localhost:8000
+```bash
+cp beetle_frontend/env.example beetle_frontend/.env
 ```
 
 > **Note**: Replace all placeholder values (starting with `your_`) with your actual configuration values.
-
-> Frontend - `.env.local` in `beetle_frontend/`
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:3001
-NEXT_PUBLIC_APP_ENV=development
-```
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/Beetle.git
+   git clone https://github.com/RAWx18/Beetle.git
    cd Beetle
    ```
 
 2. **Setup Python Backend**
    ```bash
-   # Navigate to backend directory
    cd beetle_backend
-   
-   # Create and activate virtual environment
    python -m venv venv
-   source venv/bin/activate  # On Windows: .\venv\Scripts\activate
-   
-   # Install dependencies
+   source venv/bin/activate  # On Linux/Mac
+   .\venv\Scripts\activate # On Windows
    pip install -r requirements.txt
    ```
 
 3. **Setup JavaScript Backend**
    ```bash
-   # Navigate to backend directory
    cd beetle_backend
-   
-   # Install dependencies
    npm install
-   
-   # Copy .env.example to .env and update values
-   cp .env.example .env
    ```
 
 4. **Setup Frontend**
    ```bash
-   # Navigate to frontend directory
-   cd ../beetle_frontend
-   
-   # Install dependencies
+   cd beetle_frontend
    npm install
-   
-   # Copy .env.local.example to .env.local and update values
-   cp .env.local.example .env.local
    ```
 
 ### Running the Application
 
-1. **Start Python Backend** (in a new terminal)
+1. **Start Python Backend** (in first terminal)
    ```bash
    cd beetle_backend
-   source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+   source venv/bin/activate  # On Linux/Mac
+   .\venv\Scripts\activate # On Windows
+   cd src/ai
    uvicorn fastapi_server:app --host 0.0.0.0 --port 8000 --reload
    ```
 
-2. **Start JavaScript Backend** (in a new terminal)
+2. **Start JavaScript Backend** (in second terminal)
    ```bash
    cd beetle_backend
    ./setup.bat # On windows
    ./setup.sh # On linux
+   ./setup.js # On Mac
    ```
 
-3. **Start Frontend** (in a new terminal)
+3. **Start Frontend** (in third terminal)
    ```bash
    cd beetle_frontend
    npm run dev
@@ -506,73 +195,10 @@ NEXT_PUBLIC_APP_ENV=development
 
 4. **Access the Application**
    - Frontend: http://localhost:3000
-   - API: http://localhost:3001
   
 ### Static Demo
 
 [Deployed on Vercel](https://beetle-demo.vercel.app/)
-
-<!-- ---
-
-## 📚 Documentation
-
-<table>
-<tr>
-<td align="center" width="20%">
-
-### 🏁 **Getting Started**
-[Quick Start Guide](https://docs.beetle.dev/quick-start)<br>
-[Installation Guide](https://docs.beetle.dev/installation)<br>
-[Configuration](https://docs.beetle.dev/configuration)
-
-</td>
-<td align="center" width="20%">
-<img src="path/to/mascot6.png" width="80" height="80" alt="Docs Beetle">
-</td>
-<td align="center" width="20%">
-
-### 🔧 **API Reference**
-[REST API](https://docs.beetle.dev/api/rest)<br>
-[GraphQL API](https://docs.beetle.dev/api/graphql)<br>
-[Webhooks](https://docs.beetle.dev/api/webhooks)
-
-</td>
-<td align="center" width="20%">
-
-### 🧩 **Integrations**
-[GitHub Integration](https://docs.beetle.dev/integrations/github)<br>
-[Slack Integration](https://docs.beetle.dev/integrations/slack)<br>
-[Custom Plugins](https://docs.beetle.dev/integrations/plugins)
-
-</td>
-<td align="center" width="20%">
-
-### 🎓 **Tutorials**
-[Team Setup](https://docs.beetle.dev/tutorials/team-setup)<br>
-[Workflow Design](https://docs.beetle.dev/tutorials/workflows)<br>
-[Best Practices](https://docs.beetle.dev/tutorials/best-practices)
-
-</td>
-</tr>
-</table> -->
-
-<!-- ---
-
-## 🎬 Demo
-
-<div align="center">
-
-<img src="path/to/mascot7.png" width="150" height="150" alt="Demo Beetle">
-
-### 📱 **Interactive Demo**
-[🚀 **Launch Interactive Demo**](https://demo.beetle.dev)
-
-### 🎥 **Video Walkthrough**
-[![Beetle Demo Video](https://img.youtube.com/vi/your-video-id/maxresdefault.jpg)](https://www.youtube.com/watch?v=your-video-id)
-
-</div>
-
---- -->
 
 ## 🛣️ Roadmap
 
@@ -582,10 +208,11 @@ NEXT_PUBLIC_APP_ENV=development
 - ✅ ~~Structure Idea~~
 - ✅ ~~UI Designed~~
 - ✅ ~~Static Demo Implemented~~
-- 🔄 Backend with Github Integrated
-- ⏳ AI integration
+- ✅ ~~Backend with Github Integrated~~
+- ⏳ AI RAG integration
+- ⏳ Security Enhancement & Rate Limit Optimization
 
-[📋 **View Full Roadmap**](https://github.com/RAWx18/Beetle/wiki)
+[📋 **View Full Roadmap**](https://beetle-github.vercel.app/)
 
 ---
 
@@ -604,7 +231,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 Our mascot is excited to see what amazing contributions you'll bring to the Beetle community!
 
 <p align="center">
-<img src="https://readme-contribs.as93.net/contributors/RAWx18/beetle?avatarSize=100&perRow=5&shape=circle&title=Our+Awesome+Contributors&fontSize=14&textColor=ffffff&backgroundColor=000000&outerBorderWidth=2&outerBorderColor=ffcc00&outerBorderRadius=8&hideLabel=true" alt="Contributors"/>
+<img src="https://readme-contribs.as93.net/contributors/RAWx18/beetle?avatarSize=50&perRow=5&shape=circle&title=Our+Awesome+Contributors&fontSize=14&textColor=ffffff&backgroundColor=000000&outerBorderWidth=2&outerBorderRadius=8&hideLabel=true" alt="Contributors"/>
 </p>
 
 ---
