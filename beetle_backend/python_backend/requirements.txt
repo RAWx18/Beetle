@@ -103,5 +103,11 @@ tokenizers>=0.20.0
 # Optional: Local LLM Support
 llama-cpp-python>=0.3.0
 ctransformers>=0.2.27
+# Template Engine
+jinja2==3.1.2
 
+# YAML for feature flags
+pyyaml==6.0.1
+
+structlog=25.4.0
 unstructured[pdf]
