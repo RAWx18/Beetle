@@ -39,21 +39,29 @@ if missing:
     logger.error(f"Missing required environment variables: {', '.join(missing)}")
     sys.exit(1)
 
-# Initialize pipeline bridge
+# Initialize global variables
 bridge = None
+embedding_model = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    global bridge
+    global bridge, embedding_model
     logger.info("Initializing application...")
     try:
+        # Initialize embedding model
+        logger.info("Loading embedding model...")
+        embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        logger.info("Embedding model loaded successfully")
+        
+        # Initialize pipeline bridge
         from pipeline_bridge import PipelineBridge
         bridge = PipelineBridge()
         logger.info("Pipeline bridge initialized successfully")
         yield
     except Exception as e:
-        logger.error(f"Failed to initialize pipeline bridge: {str(e)}")
+        logger.error(f"Failed to initialize application: {str(e)}")
+        logger.error("Please check if all required models and services are available")
         sys.exit(1)
     finally:
         # Shutdown

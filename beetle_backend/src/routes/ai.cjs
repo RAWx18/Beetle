@@ -215,7 +215,7 @@ router.post('/import-github', authMiddleware, async (req, res) => {
     if (!Array.isArray(files) || files.length === 0) {
       return res.status(400).json({ 
         success: false,
-        error: 'No files specified for import' 
+        error: 'No files specified  import' 
       });
     }
 
@@ -297,7 +297,7 @@ router.post('/import-github', authMiddleware, async (req, res) => {
       console.log("payload: ", payload);
       // Send to Python backend for RAG processing
       const result = await callPythonBackend('process-repo', payload);
-      
+      console.log("result: ", result);
       return res.json({
         success: true,
         message: `Successfully processed ${processedFiles.length} files from GitHub`,

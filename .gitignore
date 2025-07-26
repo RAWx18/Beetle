@@ -216,6 +216,12 @@ instance/
 # Sphinx documentation
 docs/_build/
 
+
+complete_rag_phasewise_plan.md
+complete_rag_plan.md
+rag_mvp_plan.md
+
+
 # PyBuilder
 .pybuilder/
 target/
