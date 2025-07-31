@@ -1,0 +1,27 @@
+{"ts": 1753515019.5074868, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753516713.6726625, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753516820.001659, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753516918.59897, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753517853.4277997, "event": "app_shutdown", "status": "success"}
+{"ts": 1753518208.9330673, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753518431.589577, "event": "app_shutdown", "status": "success"}
+{"ts": 1753518494.698557, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753519078.7262063, "event": "app_shutdown", "status": "success"}
+{"ts": 1753519143.4054403, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753519211.8797057, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753519995.2329237, "event": "app_shutdown", "status": "success"}
+{"ts": 1753522523.172113, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753522723.196148, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753522860.2146776, "event": "app_shutdown", "status": "success"}
+{"ts": 1753523195.286975, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753523852.2836194, "event": "app_shutdown", "status": "success"}
+{"ts": 1753523942.1437573, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753524173.4568927, "event": "app_shutdown", "status": "success"}
+{"ts": 1753524278.8183572, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753524375.4238393, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753524519.4722748, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753524794.7920265, "event": "app_shutdown", "status": "success"}
+{"ts": 1753524876.7462769, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753697902.4764183, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753905388.8363998, "event": "app_started", "status": "success", "agents_loaded": 4}
+{"ts": 1753905977.070453, "event": "app_shutdown", "status": "success"}

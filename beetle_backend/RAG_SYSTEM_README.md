@@ -167,7 +167,7 @@ python -m src.ai.setup
 ```env
 # Database Configuration
 DATABASE_URL=postgresql://user:password@localhost:5432/beetle_rag_db
-QDRANT_URL=http://localhost:6333
+QDRANT_URL_ONLINE=http://localhost:6333
 
 # LLM Configuration
 OPENAI_API_KEY=your_openai_key

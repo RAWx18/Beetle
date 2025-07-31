@@ -1,0 +1,144 @@
+# ========================
+# APPLICATION SETTINGS
+# ========================
+app:
+  name: "Beetle RAG System"
+  debug: true
+  environment: "development"
+  api_prefix: "/api/v1"
+  cors_origins: ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"]
+
+# ========================
+# AGENT CONFIGURATION
+# ========================
+agents:
+  code_chat: true
+  documentation: true
+  code_review: false
+  registry_enabled: true
+  context_manager_enabled: true
+
+# ========================
+# PROVIDER CONFIGURATION
+# ========================
+providers:
+  litellm: true
+  anthropic: false
+  ollama: true
+  gemini: true
+  sentence_transformers: true
+  jina: false
+
+# ========================
+# LLM CONFIGURATION
+# ========================
+llm:
+  default_provider: "ollama"  # Changed from "gemini" to "ollama"
+  default_model: "ollama/llama3.2:3b"  # Changed to Ollama model
+  ollama:
+    base_url: "http://localhost:11434"  # Ollama default URL
+  gemini:
+    model: "gemini/gemini-1.5-flash"
+    temperature: 0.7
+    max_tokens: 1000
+
+# ========================
+# EMBEDDING CONFIGURATION
+# ========================
+embeddings:
+  default_provider: "sentence_transformers"
+  default_model: "all-MiniLM-L6-v2"
+  sentence_transformers:
+    device: "cpu"
+    batch_size: 32
+  jina:
+    base_url: "https://api.jina.ai/v1"
+
+# ========================
+# VECTOR DATABASE CONFIGURATION
+# ========================
+vectorstore:
+  qdrant:
+    collection_name: "beetle_documents"
+    max_retrieval_results: 5
+
+# ========================
+# RAG SETTINGS
+# ========================
+rag:
+  max_chunk_size: 1000
+  chunk_overlap: 200
+  max_retrieval_results: 5
+  max_context_length: 4000
+  max_sources: 5
+  include_citations: true
+  include_confidence: true
+
+# ========================
+# AI PIPELINE SETTINGS
+# ========================
+ai_pipeline:
+  max_documents: 1000
+  batch_size: 32
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  chat_model: "gemini/gemini-1.5-flash"
+  
+  # Web Scraping
+  max_pages: 10
+  max_depth: 2
+  scraper_timeout: 30000
+  
+  # Content Formatting
+  min_content_length: 50
+  max_content_length: 100000
+  remove_html: true
+  detect_language: true
+  generate_summary: true
+  
+  # Search Configuration
+  use_hybrid_search: true
+  keyword_weight: 0.3
+  vector_weight: 0.7
+  
+  # Response Generation
+  max_tokens: 1000
+  temperature: 0.7
+  top_p: 0.9
+  top_k: 40
+
+# ========================
+# CACHE CONFIGURATION
+# ========================
+cache:
+  redis_db: 0
+
+# ========================
+# RATE LIMITING
+# ========================
+rate_limiting:
+  requests: 100
+  window: 3600
+
+# ========================
+# LOGGING
+# ========================
+logging:
+  level: "INFO"
+  format: "json"
+
+# ========================
+# SECURITY
+# ========================
+security:
+  algorithm: "HS256"
+  access_token_expire_minutes: 30
+
+# ========================
+# FEATURE FLAGS
+# ========================
+features:
+  agent_registry: true
+  context_manager: true
+  tracing: true
+  feature_flags: true
+  test_harness: true 
