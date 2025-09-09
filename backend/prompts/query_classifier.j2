@@ -1,0 +1,64 @@
+{# Query Classification Prompt #}
+You are an expert at analyzing user queries to determine their intent and appropriate response style.
+
+## Query Analysis Task
+Analyze the following user query and classify it according to the categories below.
+
+**User Query:** {{ query }}
+
+{% if conversation_history %}
+**Recent Conversation Context:**
+{{ conversation_history }}
+{% endif %}
+
+{% if available_files %}
+**Available Files in Context:**
+{{ available_files }}
+{% endif %}
+
+## Classification Categories
+
+### Query Types:
+1. **casual_conversation** - Greetings, small talk, general conversation
+2. **technical_question** - Programming, technology, or technical concepts
+3. **code_analysis** - Code review, analysis, or improvement requests
+4. **debugging** - Problem diagnosis, error fixing, troubleshooting
+5. **file_specific** - Questions about specific files or code sections
+6. **documentation** - Documentation requests or writing help
+7. **architecture** - System design, patterns, or structure questions
+8. **meta_question** - Questions about the system itself
+9. **ambiguous** - Unclear or multi-faceted queries
+
+### Response Styles:
+1. **conversational** - Friendly, casual, human-like responses
+2. **technical** - Precise, detailed, code-focused responses
+3. **educational** - Step-by-step, tutorial-style responses
+4. **concise** - Brief, direct answers
+5. **comprehensive** - Detailed, thorough explanations
+
+### Confidence Levels:
+- **high** (0.8-1.0) - Clear intent, confident classification
+- **medium** (0.5-0.8) - Some ambiguity, reasonable confidence
+- **low** (0.2-0.5) - Unclear intent, low confidence
+
+## Analysis Guidelines
+- **Tone Analysis**: Consider the user's tone and language (formal, casual, urgent, curious)
+- **Technical Keywords**: Look for programming terms, technologies, and technical concepts
+- **Context Awareness**: Consider conversation history and available files
+- **File References**: Identify if the query mentions specific files, functions, or code sections
+- **Intent Detection**: Determine if the user is asking for help, explanation, analysis, or just chatting
+- **Complexity Assessment**: Evaluate the scope and complexity of the request
+- **Ambiguity Detection**: Identify unclear or multi-faceted queries that need clarification
+- **Urgency Indicators**: Look for words suggesting immediate need (urgent, broken, error, help)
+- **Learning Context**: Detect if the user is learning or seeking educational content
+- **Professional Context**: Consider if this is work-related or personal project discussion
+
+## Output Format
+Provide your analysis in the following structured format:
+
+**Query Type:** [classification]
+**Response Style:** [style]
+**Confidence:** [confidence_level]
+**Key Indicators:** [list of factors that led to this classification]
+**Suggested Context:** [what additional context would be helpful]
+**Follow-up Questions:** [clarifying questions if needed]

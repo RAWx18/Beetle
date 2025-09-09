@@ -1,0 +1,134 @@
+# Core Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0,<3.0.0
+pydantic-settings>=2.6.0
+
+# Database
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.35
+alembic>=1.13.3
+asyncpg>=0.29.0
+
+# Vector Database
+qdrant-client[fastembed]>=1.11.0,<1.12.0
+
+# AI/ML Libraries
+openai>=1.54.0
+anthropic>=0.40.0
+sentence-transformers>=3.2.0
+transformers>=4.46.0
+torch>=2.4.0
+numpy>=1.26,<2.0
+scikit-learn>=1.5.0
+
+# Modern AI Tools
+litellm>=1.52.0
+chonkie>=0.1.3
+instructor>=1.6.0
+unstructured[all-docs]>=0.15.0,<0.16.0
+
+# Text Processing (Minimal LangChain)
+langchain-core>=0.3.17,<0.4.0
+langchain-openai>=0.2.8
+langchain-anthropic>=0.2.4
+nltk>=3.9.0
+spacy>=3.8.0
+python-docx>=1.1.0
+pypdf>=5.1.0
+beautifulsoup4>=4.12.0
+requests>=2.32.0
+aiohttp>=3.10.0
+
+# Code Processing
+tree-sitter>=0.23.0
+tree-sitter-languages>=1.10.0
+pygments>=2.18.0
+
+# Caching & Performance
+redis>=5.1.0
+aioredis>=2.0.1
+cachetools>=5.5.0
+
+# Monitoring & Logging
+prometheus-client>=0.21.0
+structlog>=24.4.0
+python-json-logger>=2.0.7
+
+# Authentication & Security
+python-multipart>=0.0.12
+python-jose[cryptography]>=3.3.0
+pyjwt>=2.8.0
+passlib[bcrypt]>=1.7.4
+cryptography>=43.0.0
+bcrypt>=4.2.0
+
+# WebSocket Support
+websockets>=12.0
+python-multipart>=0.0.12
+
+# File Upload Support
+aiofiles>=23.2.0
+
+# Utilities
+python-dotenv>=1.0.0
+click>=8.1.7
+rich>=13.9.0
+tqdm>=4.67.0
+
+# Testing
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+pytest-cov>=6.0.0
+httpx>=0.27.0
+
+# Development Tools
+black>=24.10.0
+isort>=5.13.0
+ruff>=0.7.0
+mypy>=1.13.0
+
+# GitHub Integration
+PyGithub>=2.5.0
+gitpython>=3.1.40
+
+# Web Scraping
+selenium>=4.26.0
+playwright>=1.48.0
+
+# File Processing
+python-magic>=0.4.27
+chardet>=5.2.0
+
+# Background Tasks
+celery>=5.4.0
+
+# Additional Modern Tools (Optional - remove if conflicts persist)
+# pydantic-ai>=0.0.14
+tiktoken>=0.8.0
+tokenizers>=0.20.0
+
+# Optional: Local LLM Support
+llama-cpp-python>=0.3.0
+ctransformers>=0.2.27
+
+unstructured[pdf]
+
+# ========================
+# DATABASE DEPENDENCIES
+# ========================
+
+# SQLAlchemy ORM
+sqlalchemy>=2.0.0
+sqlalchemy[asyncio]>=2.0.0
+
+# Database drivers
+asyncpg>=0.29.0  # PostgreSQL async driver
+psycopg2-binary>=2.9.7  # PostgreSQL sync driver
+aiosqlite>=0.19.0  # SQLite async driver
+
+# Supabase (optional)
+supabase>=2.0.0
+
+# Database utilities
+alembic>=1.12.0  # Database migrations

@@ -1,0 +1,191 @@
+#######################################
+# 📦 DEPENDENCIES
+#######################################
+
+# Node.js dependencies
+/node_modules/
+
+# Optional: prevent accidental commits of nested node_modules (in monorepos)
+/**/node_modules/
+
+#######################################
+# 🚀 NEXT.JS BUILD OUTPUT
+#######################################
+
+# Next.js build directory (required)
+.next/
+
+# Output folder from `next export` (static export)
+/out/
+
+#######################################
+# 🏭 PRODUCTION BUILD OUTPUT
+#######################################
+
+# Common build output directory (if used)
+/build/
+
+# Optional dist folder for compiled files (often used with TypeScript or bundlers)
+/dist/
+
+#######################################
+# 🔧 CONFIG & ENVIRONMENT FILES
+#######################################
+
+# All .env environment variable files
+.env
+.env.*
+
+# Keep .env.example files for documentation
+!.env.example
+
+# dotenv-debug log (from dotenv-debug)
+/.env.debug
+
+#######################################
+# 🐞 DEBUG LOGS & TEMP FILES
+#######################################
+
+# npm debug logs
+npm-debug.log*
+# yarn debug/error logs
+yarn-debug.log*
+yarn-error.log*
+# pnpm debug logs
+.pnpm-debug.log*
+
+# Mac system file
+.DS_Store
+
+# Windows system file
+Thumbs.db
+
+# Linux directory file
+.directory
+
+# Logs and temporary system files
+*.log
+*.tmp
+*.swp
+
+#######################################
+# ⚙️ TYPESCRIPT SPECIFIC FILES
+#######################################
+
+# TypeScript build info cache
+*.tsbuildinfo
+
+# Next.js automatically generated TypeScript file
+next-env.d.ts
+
+# TypeScript cache (if using tsc --incremental)
+.cache/
+.tscache/
+
+#######################################
+# 📄 IDE/EDITOR FILES
+#######################################
+
+# VSCode settings
+.vscode/
+
+# JetBrains IDEs (WebStorm, IntelliJ)
+.idea/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Mac Finder attributes
+.AppleDouble
+.LSOverride
+
+# Vim backup/swap files
+*~
+*.sw?
+.session
+
+# VS Code backup files
+*.code-workspace
+
+#######################################
+# 🚀 DEPLOYMENT / HOSTING
+#######################################
+
+# Vercel CLI & deployment metadata
+.vercel/
+
+# Netlify metadata
+.netlify/
+
+# Firebase
+.firebase/
+
+# AWS CDK
+cdk.out/
+
+# Serverless Framework
+.serverless/
+
+#######################################
+# 📦 PACKAGE MANAGER FILES
+#######################################
+
+# Ignore package lock files
+package-lock.json
+
+# Yarn Plug'n'Play
+.pnp/
+.pnp.js
+
+# Yarn offline cache
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.yarn/patches/
+.yarn/plugins/
+.yarn/releases/
+.yarn/sdks/
+.yarn/versions/
+
+# pnpm store
+.pnpm-store/
+
+# npm cache
+.npm/
+
+#######################################
+# 🧪 TESTING / COVERAGE
+#######################################
+
+# Coverage directory used by tools like Jest, Istanbul
+/coverage/
+
+# Test results (e.g., from Cypress, Playwright, etc.)
+/test-results/
+.cypress/
+
+#######################################
+# 💅 LINT/STYLING TOOLING
+#######################################
+
+# Stylelint cache
+.stylelintcache
+
+# ESLint cache
+.eslintcache
+
+# Prettier cache (if used)
+/.prettier-cache/
+
+#######################################
+# 🧪 OPTIONAL CUSTOM FOLDERS
+#######################################
+
+# Local dev data or temporary assets (custom)
+/tmp/
+/local/
+/data/
+
+.vercel

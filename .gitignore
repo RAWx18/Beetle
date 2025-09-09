@@ -1,5 +1,8 @@
-# windsurf rules
+# ide rules
 .windsurfrules
+.cursorrules
+.kiro
+GEMINI.md
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,node
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,node
@@ -80,15 +83,18 @@ web_modules/
 .yarn-integrity
 
 # dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+# .env
+# .env.development.local
+# .env.test.local
+# .env.production.local
+# .env.local
+
+# Keep .env.example files for documentation
+!.env.example
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
-.parcel-cache
+.parcel-cache 
 
 # Next.js build output
 .next
@@ -128,6 +134,8 @@ dist
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
+qdrant_storage/
+
 # yarn v2
 .yarn/cache
 .yarn/unplugged
@@ -161,7 +169,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -178,6 +185,8 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+
+hey.ipynb
 
 # Installer logs
 pip-log.txt
@@ -215,12 +224,6 @@ instance/
 
 # Sphinx documentation
 docs/_build/
-
-
-complete_rag_phasewise_plan.md
-complete_rag_plan.md
-rag_mvp_plan.md
-
 
 # PyBuilder
 .pybuilder/
@@ -318,5 +321,7 @@ poetry.toml
 
 # LSP config files
 pyrightconfig.json
+
+
 
 # End of https://www.toptal.com/developers/gitignore/api/python,node
